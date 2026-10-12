@@ -187,9 +187,22 @@ Histórico de colaboração não substitui Auditoria: alteração estrutural ger
 
 Auditoria é global e somente leitura.
 
-Apenas Administrador acessa a visão global.
+Apenas Administrador acessa a visão global (`audit_logs.view`). Gestor, Editor, Consultor, Jurado e Votante não acessam o módulo (não há escopo setorial: o módulo simplesmente não existe para eles).
 
 Registrar ações relevantes, não cliques de interface.
+
+### 9.1 O que a auditoria responde (Fase 8)
+
+Quem fez, o quê, quando, em qual módulo, sobre qual registro, em qual evento, qual era o perfil/setor do ator naquele momento, o que havia antes, o que ficou depois, de qual IP/User-Agent.
+
+- **Somente inserção.** Nenhum log é editado ou apagado (model + trigger). Não há POST/PATCH/DELETE de auditoria: logs nascem só do `AuditLogger`, dentro das operações de negócio.
+- **Fotografia histórica.** Nome, e-mail, perfil e setor do ator e o rótulo da entidade são gravados no momento da ação. Se Lucas era Editor/Produção às 10:00 e virou Gestor/Infraestrutura às 12:00, o log das 10:00 continua mostrando Editor/Produção. Equipe renomeada de "Alpha" para "Beta": logs antigos continuam "Alpha".
+- **Evento** é o do objeto auditado. Ações globais (login, usuário, pessoa) ficam sem evento.
+- **Um log semântico por operação** (mover participante = `PARTICIPANT_TEAM_CHANGED`; encaminhar = `TASK_FORWARDED`; lista de equipes do jurado = `JUROR_ASSIGNMENTS_CHANGED`; publicar = `RESULTS_PUBLISHED`).
+- **Não vira auditoria:** consultas (inclusive consultar a própria auditoria), cliques, filtros, comentários de pendência/ocorrência (só interação), rascunho de avaliação, voto individual e retry do voto, visualização de resultado. Não existe `PUBLIC_VOTE_CAST`.
+- **Nunca no log:** segredos (senha, tokens, cookies, CSRF, chaves), notas e comentários de jurado, vínculo eleitor → equipe.
+- `changes` (diferença antes/depois) é calculado na consulta, nunca gravado.
+- Sem purge, retenção automática ou exportação nesta versão.
 
 ## 10. Jurados
 

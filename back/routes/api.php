@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BallotController;
 use App\Http\Controllers\Api\V1\ChallengeController;
@@ -178,5 +179,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/events/{event}/results/publish', [ResultController::class, 'publish'])->name('events.results.publish');
         Route::post('/events/{event}/results/revoke', [ResultController::class, 'revoke'])->name('events.results.revoke');
         Route::get('/events/{event}/results/published', [ResultController::class, 'published'])->name('events.results.published');
+
+        // Auditoria global (Administrador), somente leitura: não há POST/PATCH/DELETE.
+        Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
+        Route::get('/audit-logs/meta', [AuditLogController::class, 'meta'])->name('audit-logs.meta');
+        Route::get('/audit-logs/{auditLog}', [AuditLogController::class, 'show'])->whereNumber('auditLog')->name('audit-logs.show');
     });
 });

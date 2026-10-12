@@ -56,4 +56,12 @@ class ResultPublication extends Model
     {
         return self::query()->where('event_id', $eventId)->where('status', PublicationStatus::Published->value)->exists();
     }
+
+    /**
+     * Rótulo histórico na auditoria (snapshot).
+     */
+    public function auditLabel(): ?string
+    {
+        return "Publicação de resultados v{$this->version}";
+    }
 }

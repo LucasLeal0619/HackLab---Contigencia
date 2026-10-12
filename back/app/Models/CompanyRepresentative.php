@@ -41,4 +41,20 @@ class CompanyRepresentative extends Model
     {
         return $this->belongsTo(Person::class);
     }
+
+    /**
+     * Auditoria: o representante não tem event_id próprio; o evento é o da empresa.
+     */
+    public function auditEventId(): ?int
+    {
+        return $this->company?->event_id;
+    }
+
+    /**
+     * Rótulo histórico na auditoria (snapshot): "Pessoa · Empresa".
+     */
+    public function auditLabel(): ?string
+    {
+        return collect([$this->person?->full_name, $this->company?->name])->filter()->implode(' · ') ?: null;
+    }
 }

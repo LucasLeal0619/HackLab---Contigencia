@@ -33,4 +33,12 @@ class EventDay extends Model
     {
         return $this->belongsTo(Event::class);
     }
+
+    /**
+     * Rótulo histórico na auditoria (snapshot).
+     */
+    public function auditLabel(): ?string
+    {
+        return trim(($this->label ?? "Dia {$this->day_number}").' · '.$this->date?->toDateString(), ' ·');
+    }
 }

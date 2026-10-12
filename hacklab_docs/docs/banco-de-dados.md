@@ -214,7 +214,7 @@ Permissões iniciais (Fase 1), definidas em `App\Domain\Users\Enums\PermissionCo
 | `users.view` | ✓ | | | | | |
 | `users.manage` | ✓ | | | | | |
 | `roles.view` | ✓ | | | | | |
-| `audit.view` | ✓ | | | | | |
+| `audit_logs.view` (era `audit.view` até a Fase 7) | ✓ | | | | | |
 | `events.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `events.manage` | ✓ | | | | | |
 | `sectors.view` | ✓ | ✓ | ✓ | ✓ | | |
@@ -1091,6 +1091,34 @@ Implementado na Fase 1:
 - `actor_user_id`/`actor_person_id` com `restrict`: usuários e pessoas são inativados, não apagados;
 - `App\Domain\Audit\AuditLogger` remove de `before_data`/`after_data`, em qualquer nível, chaves com `password`, `token`, `secret`, `cookie`, `authorization`, `api_key` ou `remember`;
 - ações auditadas na Fase 1: `LOGIN`, `LOGIN_FAILED`, `LOGIN_BLOCKED_INACTIVE`, `LOGOUT`, `USER_CREATED`, `USER_UPDATED`, `USER_ROLE_CHANGED`, `USER_ACTIVATED`, `USER_INACTIVATED`, `PERSON_CREATED`, `PERSON_UPDATED`.
+
+### Enriquecimento (Fase 8)
+
+Migration incremental (a da Fase 1 não muda; nenhuma segunda tabela de auditoria):
+
+```text
+event_id FK nullable            evento do objeto auditado (contexto inequívoco), nunca do ator
+actor_name nullable             ┐
+actor_email nullable            │
+actor_role_code nullable        │ fotografia do ator NO MOMENTO da ação
+actor_role_name nullable        │ (não muda se a pessoa trocar de perfil/setor/nome depois)
+actor_sector_id FK nullable     │
+actor_sector_name nullable      ┘
+entity_label nullable           rótulo legível da entidade NO MOMENTO da ação ("Equipe Atlas")
+```
+
+- IDs (`actor_user_id`, `actor_person_id`, `actor_sector_id`, `event_id`) = identidade relacional; textos = snapshot histórico. Os dois convivem; nenhum substitui o outro.
+- Administrador, Consultor, Jurado e Votante não têm setor: `actor_sector_*` nulos (nada é inventado).
+- `actor_role_code` (ex.: `EDITOR`) acompanha `actor_role_name` (ex.: `Editor`) para filtrar por código estável.
+- `event_id`: `Event` → o próprio id; entidade com coluna `event_id` → ela; `CompanyRepresentative` → evento da empresa. `User`, `Person` e login ficam globais (`null`). Nunca inferido pelo setor do ator.
+- `entity_label`: inferido de `reference · title`, `name`, `title`, `full_name`, `email` ou `code` (ou de `auditLabel()` no model, ex.: participante → nome da pessoa), com fallback `Tipo #id`. Snapshot: renomear a entidade não muda logs antigos. Só apresentação, nunca regra de negócio.
+- Logs anteriores à migration ficam com essas colunas nulas: a tabela é somente inserção e não há backfill (seria `UPDATE`).
+- Índices novos: `(event_id, created_at)`, `(module, created_at)`, `(actor_user_id, created_at)`, `(actor_sector_id, created_at)`. Sem GIN em `before_data`/`after_data` (não há busca livre no JSON).
+- Sem purge, retenção ou exportação nesta versão.
+
+### Sanitização
+
+`App\Domain\Audit\AuditSanitizer` (única implementação, usada pelo `AuditLogger` na gravação e, defensivamente, pelo detalhe da API) remove recursivamente chaves que contenham, ignorando caixa, `_` e `-`: `password`, `token`, `secret`, `cookie`, `authorization`, `apikey`/`api_key`, `remember`, `csrf`, `privatekey`/`private_key`, `accesskey`/`access_key`. `session` sozinho **não** é sensível (`voting_session_id` é legítimo).
 
 ## 12. Índices importantes
 

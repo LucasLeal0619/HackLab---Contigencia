@@ -280,12 +280,29 @@ Fora desta fase: Even3, EventRegistration, Attendance, QR/check-in, frontend, PD
 
 ## Fase 8 — Auditoria completa
 
-- [ ] audit_logs;
-- [ ] filtros;
-- [ ] paginação;
-- [ ] detalhes before/after;
-- [ ] endpoint somente leitura;
-- [ ] Policies apenas Administrador.
+- [x] audit_logs enriquecido (migration incremental: evento, snapshot do ator, rótulo da entidade, índices);
+- [x] AuditLogger compatível (inferência de ator/evento/rótulo) + AuditSanitizer reforçado;
+- [x] AuditActionCatalog (módulo + rótulo de cada ação, rótulo de cada módulo);
+- [x] filtros;
+- [x] paginação;
+- [x] detalhes before/after + changes derivado;
+- [x] endpoint somente leitura;
+- [x] Policies apenas Administrador (`audit_logs.view`);
+- [x] inventário das ações das Fases 1–7 (78 ações, todas catalogadas e gravadas por alguma operação; verificado por teste).
+
+Concluída em 12/10/2026 (aguardando aprovação para commit): 427 testes passando em `hacklab_test` dentro do Docker (385 anteriores + 42 novos), 29 migrations do zero, seed idempotente (sem logs artificiais na segunda execução), `db-check`, Pint, fluxo admin altera equipe → filtra auditoria → detalhe com ator/evento/entidade/before/after/changes → Gestor 403 validado via HTTP com cookies reais, leitura sem auditoria, nenhuma tabela em `public`, `hacklab_dev` intacto após os testes.
+
+Especificação fechada em 12/10/2026: ver `banco-de-dados.md` §11 e `regras-de-negocio.md` §9.
+
+Endpoints (`/api/v1`), todos `audit_logs.view`:
+
+| Método | Rota | Observação |
+|---|---|---|
+| GET | `/audit-logs` | Filtros: `search`, `event_id`, `has_event`, `module`, `action`, `actor_user_id`, `actor_role`, `actor_sector_id`, `entity_type`, `entity_id`, `ip_address`, `date_from`, `date_to`. `per_page` 1–100 (padrão 50). Ordem `created_at desc, id desc` |
+| GET | `/audit-logs/meta` | Catálogo de ações e módulos (para filtros) |
+| GET | `/audit-logs/{auditLog}` | Detalhe com `before_data`, `after_data`, `changes`, IP e User-Agent |
+
+Sem POST/PATCH/DELETE, purge, retenção ou exportação.
 
 ## Fase 9 — Integração Even3
 

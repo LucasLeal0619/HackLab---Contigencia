@@ -475,6 +475,29 @@ Campos mínimos:
 
 Evitar registrar segredos, senha ou tokens.
 
+### 11.1 Fluxo (Fase 8)
+
+```text
+ação de negócio (Service, dentro da transação)
+  ↓
+AuditLogger::record(action, module, description, entity?, before?, after?, actor?, event?, entityLabel?)
+  ├── ator: snapshot de nome/e-mail/perfil/setor (Auth ou ator explícito)
+  ├── evento: inferido da entidade (ou explícito)
+  ├── entity_label: inferido da entidade (ou explícito)
+  └── AuditSanitizer: remove segredos de before/after
+  ↓
+audit_logs (PostgreSQL, append-only)
+  ↓
+GET /api/v1/audit-logs              filtros + paginação, sem before/after/IP/User-Agent
+GET /api/v1/audit-logs/{id}         before/after + changes (AuditDiff, derivado) + IP + User-Agent
+GET /api/v1/audit-logs/meta         catálogo de ações e módulos
+```
+
+- `AuditAction`: códigos de domínio (constantes). `AuditActionCatalog`: módulo + rótulo em português de cada código e rótulo de cada módulo (metadado de apresentação). Um teste garante que toda constante tem entrada no catálogo e que cada chamada usa o módulo do catálogo.
+- Chamadas antigas do `AuditLogger` continuam válidas: os parâmetros novos são opcionais e inferidos.
+- A listagem lê o ator dos snapshots e o nome do evento por eager loading (sem N+1). Ler auditoria não gera auditoria.
+- AuditLog é trilha administrativa imutável, não event sourcing.
+
 ## 12. Segurança
 
 - HTTPS em produção.

@@ -89,4 +89,12 @@ class Juror extends Model
             && $account->status === UserStatus::Active
             && $account->hasPermission(PermissionCode::EvaluationsOwn);
     }
+
+    /**
+     * Rótulo histórico na auditoria (snapshot): o nome da pessoa.
+     */
+    public function auditLabel(): ?string
+    {
+        return $this->person?->full_name;
+    }
 }

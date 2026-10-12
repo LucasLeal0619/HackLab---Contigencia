@@ -105,4 +105,14 @@ class User extends Authenticatable
     {
         return Attribute::make(set: fn (string $value) => mb_strtolower(trim($value)));
     }
+
+    /**
+     * Rótulo histórico na auditoria (snapshot): nome da pessoa e e-mail da conta.
+     */
+    public function auditLabel(): ?string
+    {
+        $name = $this->person?->full_name;
+
+        return $name === null ? $this->email : "{$name} ({$this->email})";
+    }
 }

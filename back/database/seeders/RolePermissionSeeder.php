@@ -23,6 +23,9 @@ class RolePermissionSeeder extends Seeder
             );
         }
 
+        // Códigos que saíram do enum (ex.: audit.view → audit_logs.view na Fase 8). O pivot cai em cascata.
+        Permission::query()->whereNotIn('code', array_map(fn ($p) => $p->value, PermissionCode::cases()))->delete();
+
         foreach (PermissionCode::matrix() as $roleCode => $permissions) {
             $code = RoleCode::from($roleCode);
 

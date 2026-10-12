@@ -61,4 +61,12 @@ class Evaluation extends Model
     {
         return JurorTeamAssignment::query()->where('juror_id', $this->juror_id)->where('team_id', $this->team_id)->first();
     }
+
+    /**
+     * Rótulo histórico na auditoria (snapshot): só a equipe avaliada (nada de notas).
+     */
+    public function auditLabel(): ?string
+    {
+        return $this->team === null ? null : "Avaliação · {$this->team->name}";
+    }
 }

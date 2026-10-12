@@ -16,7 +16,7 @@ enum PermissionCode: string
     case UsersView = 'users.view';
     case UsersManage = 'users.manage';
     case RolesView = 'roles.view';
-    case AuditView = 'audit.view';
+    case AuditLogsView = 'audit_logs.view';
     case EventsView = 'events.view';
     case EventsManage = 'events.manage';
     case SectorsView = 'sectors.view';
@@ -68,7 +68,7 @@ enum PermissionCode: string
             self::UsersView => 'Consultar usuários',
             self::UsersManage => 'Cadastrar, editar, ativar/inativar usuários e alterar perfil',
             self::RolesView => 'Consultar perfis',
-            self::AuditView => 'Consultar auditoria',
+            self::AuditLogsView => 'Consultar a auditoria global (somente leitura)',
             self::EventsView => 'Consultar eventos e dias',
             self::EventsManage => 'Cadastrar e editar eventos e dias',
             self::SectorsView => 'Consultar setores (no escopo do usuário)',

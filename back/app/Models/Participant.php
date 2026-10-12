@@ -59,4 +59,12 @@ class Participant extends Model
     {
         return $this->hasOne(TeamMember::class)->where('active', true);
     }
+
+    /**
+     * Rótulo histórico na auditoria (snapshot): o nome da pessoa.
+     */
+    public function auditLabel(): ?string
+    {
+        return $this->person?->full_name;
+    }
 }
