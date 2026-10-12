@@ -4,12 +4,16 @@ namespace App\Domain\Audit;
 
 /**
  * Ações auditadas. Módulos: auth, users, people, events, sectors, meetings, classes, participants, teams,
- * companies, challenges, tasks, occurrences, jurors, evaluations.
+ * companies, challenges, tasks, occurrences, jurors, evaluations, voting, results.
  *
  * Avaliações: salvar rascunho não gera auditoria; o log registra transições (quem, qual avaliação,
  * jurado, equipe), não as notas e comentários.
  *
  * Pendências/ocorrências: comentário gera só interação (histórico), sem log de auditoria.
+ *
+ * Votação: só operações administrativas. O voto individual NUNCA gera log (não existe
+ * PUBLIC_VOTE_CAST): registrar "usuário X votou na equipe Y" criaria outra tabela cruzando
+ * identidade e escolha. public_votes já é a fonte de integridade.
  */
 final class AuditAction
 {
@@ -154,4 +158,24 @@ final class AuditAction
     public const EVALUATION_REVISION_REQUESTED = 'EVALUATION_REVISION_REQUESTED';
 
     public const EVALUATION_RESUBMITTED = 'EVALUATION_RESUBMITTED';
+
+    public const VOTING_SESSION_CREATED = 'VOTING_SESSION_CREATED';
+
+    public const VOTING_SESSION_UPDATED = 'VOTING_SESSION_UPDATED';
+
+    /** Lista final de candidatas definida numa operação: um único log com before/after. */
+    public const VOTING_CANDIDATES_CHANGED = 'VOTING_CANDIDATES_CHANGED';
+
+    /** Lista final de elegíveis definida numa operação: um único log com before/after. */
+    public const VOTING_ELIGIBILITY_CHANGED = 'VOTING_ELIGIBILITY_CHANGED';
+
+    public const VOTING_SESSION_OPENED = 'VOTING_SESSION_OPENED';
+
+    public const VOTING_SESSION_CLOSED = 'VOTING_SESSION_CLOSED';
+
+    public const VOTING_SESSION_CANCELLED = 'VOTING_SESSION_CANCELLED';
+
+    public const RESULTS_PUBLISHED = 'RESULTS_PUBLISHED';
+
+    public const RESULTS_PUBLICATION_REVOKED = 'RESULTS_PUBLICATION_REVOKED';
 }

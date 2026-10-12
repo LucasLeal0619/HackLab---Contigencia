@@ -7,6 +7,7 @@ use App\Domain\Audit\AuditLogger;
 use App\Domain\Jurors\Enums\AssignmentStatus;
 use App\Domain\Jurors\Enums\JurorStatus;
 use App\Domain\People\PersonService;
+use App\Domain\Results\ResultPublicationService;
 use App\Domain\Teams\Enums\TeamStatus;
 use App\Models\Event;
 use App\Models\Juror;
@@ -129,6 +130,10 @@ class JurorService
             if ($toActivate === [] && $toRevoke === []) {
                 return $this->assignmentsOf($juror);
             }
+
+            // Lock do evento depois das atribuições (mesma ordem da avaliação): serializa com a publicação.
+            DB::table('events')->where('id', $juror->event_id)->lockForUpdate()->first();
+            ResultPublicationService::ensureNotPublished($juror->event_id, 'team_ids', 'alterar atribuições jurado ↔ equipe');
 
             if ($toActivate !== []) {
                 $this->ensureCanReceive($juror, $toActivate);

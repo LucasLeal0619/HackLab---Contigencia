@@ -5,6 +5,7 @@ namespace App\Domain\Evaluations;
 use App\Domain\Audit\AuditAction;
 use App\Domain\Audit\AuditLogger;
 use App\Domain\Evaluations\Enums\EvaluationStatus;
+use App\Domain\Results\ResultPublicationService;
 use App\Models\Evaluation;
 use App\Models\EvaluationCriterion;
 use App\Models\EvaluationScore;
@@ -84,6 +85,10 @@ class EvaluationService
     public function requestRevision(Evaluation $evaluation, User $actor, string $reason): Evaluation
     {
         return DB::transaction(function () use ($evaluation, $actor, $reason) {
+            // Evento antes da avaliação (mesma ordem do jurado ao escrever): serializa com a publicação.
+            DB::table('events')->where('id', $evaluation->event_id)->lockForUpdate()->first();
+            ResultPublicationService::ensureNotPublished($evaluation->event_id, 'status', 'solicitar revisão de avaliação');
+
             $evaluation = Evaluation::query()->lockForUpdate()->findOrFail($evaluation->id);
 
             if (! $evaluation->isSubmitted()) {
@@ -133,6 +138,7 @@ class EvaluationService
 
         // Serializa com alterações de critérios (o primeiro rascunho trava a estrutura do evento).
         DB::table('events')->where('id', $assignment->event_id)->lockForUpdate()->first();
+        ResultPublicationService::ensureNotPublished($assignment->event_id, 'status', 'alterar avaliações');
 
         $evaluation = Evaluation::query()
             ->where('juror_id', $assignment->juror_id)

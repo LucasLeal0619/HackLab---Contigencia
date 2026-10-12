@@ -17,6 +17,8 @@ use App\Domain\Tasks\TaskService;
 use App\Domain\Teams\Enums\TeamStatus;
 use App\Domain\Users\Enums\RoleCode;
 use App\Domain\Users\Enums\UserStatus;
+use App\Domain\Voting\PublicVoteService;
+use App\Domain\Voting\VotingSessionService;
 use App\Models\Challenge;
 use App\Models\Company;
 use App\Models\CompanyRepresentative;
@@ -35,6 +37,7 @@ use App\Models\Task;
 use App\Models\Team;
 use App\Models\TeamMember;
 use App\Models\User;
+use App\Models\VotingSession;
 use Illuminate\Database\Seeder;
 
 /**
@@ -49,6 +52,9 @@ use Illuminate\Database\Seeder;
  *
  * Jurados: tudo explícito, sem automação de domínio. O seeder cria a conta jurado@hacklab.local
  * por conta própria (o JurorService nunca cria User).
+ *
+ * Votação: 5 contas VOTER criadas aqui (votante01..05@hacklab.local); elegibilidade nunca cria conta.
+ * Uma sessão CLOSED de teste (empate 2 x 2, participação 80%) e uma DRAFT configurada. Sem publicação.
  *
  * O código do sistema não depende desses dados (nomes, datas e número de dias vêm do banco).
  */
@@ -107,7 +113,69 @@ class DevelopmentDataSeeder extends Seeder
         if ($admin !== null) {
             $this->demands($event, $admin, $sectorA, $sectorB, $sectorC);
             $this->jurorsAndEvaluations($event, $admin);
+            $this->voting($event, $admin);
         }
+    }
+
+    /**
+     * Votação pública: 5 contas VOTER criadas explicitamente aqui (elegibilidade nunca cria conta),
+     * uma sessão CLOSED de teste com empate popular (2 x 2) e um elegível que não votou (participação 80%),
+     * e uma sessão DRAFT "oficial" já configurada. Tudo pelos Services (com auditoria administrativa).
+     */
+    private function voting(Event $event, User $admin): void
+    {
+        $voters = collect(range(1, 5))->map(fn (int $n) => $this->voterUser(sprintf('votante%02d@hacklab.local', $n), "Votante Exemplo {$n}"));
+        $teams = Team::query()->where('event_id', $event->id)->orderBy('name')->get()->keyBy('name');
+        $team1 = $teams->get('Equipe Exemplo 1');
+        $team2 = $teams->get('Equipe Exemplo 2');
+
+        if ($team1 === null || $team2 === null) {
+            return;
+        }
+
+        $sessions = app(VotingSessionService::class);
+        $votes = app(PublicVoteService::class);
+        $voterIds = $voters->pluck('id')->all();
+
+        if (! VotingSession::query()->where('event_id', $event->id)->where('name', 'Votação de teste (exemplo)')->exists()) {
+            $test = $sessions->create($event, 'Votação de teste (exemplo)', $admin);
+            $sessions->syncTeams($test, [$team1->id, $team2->id]);
+            $sessions->syncEligibilities($test, $voterIds, $admin);
+            $sessions->open($test);
+
+            // Empate popular: 2 votos para cada equipe; o 5º elegível não vota.
+            foreach ([$team1, $team1, $team2, $team2] as $i => $team) {
+                $votes->cast($test, $voters[$i], $team->id);
+            }
+
+            $sessions->close($test);
+        }
+
+        if (! VotingSession::query()->where('event_id', $event->id)->where('name', 'Escolha do Público (exemplo)')->exists()) {
+            $official = $sessions->create($event, 'Escolha do Público (exemplo)', $admin);
+            $sessions->syncTeams($official, [$team1->id, $team2->id]);
+            $sessions->syncEligibilities($official, $voterIds, $admin);
+        }
+    }
+
+    private function voterUser(string $email, string $name): User
+    {
+        $existing = User::query()->where('email', $email)->first();
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        $person = Person::query()->firstOrCreate(['email' => $email], ['full_name' => $name]);
+
+        return User::query()->create([
+            'person_id' => $person->id,
+            'role_id' => Role::forCode(RoleCode::Voter)->id,
+            'email' => $email,
+            'password' => self::DEMO_PASSWORD,
+            'status' => UserStatus::Active,
+            'email_verified_at' => now(),
+        ]);
     }
 
     /**

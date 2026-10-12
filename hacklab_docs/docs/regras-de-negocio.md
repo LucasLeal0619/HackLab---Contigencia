@@ -78,7 +78,7 @@ Acompanhamento/orientação transversal.
 Somente avaliações atribuídas e funcionalidades necessárias ao perfil.
 
 ### Votante
-Somente votação e experiência pública autorizada.
+Somente votação e experiência pública autorizada. Vota apenas nas sessões em que foi declarado elegível (§11.2).
 
 ## 5. Pendência
 
@@ -235,7 +235,8 @@ Revogar uma atribuição preserva a avaliação (histórico); ela só deixa de c
 - Envio (`SUBMITTED`) exige nota válida em todos os critérios ativos e trava a avaliação.
 - Correção: o Administrador **não altera nota**. Ele solicita revisão (`REVISION_REQUESTED`, motivo obrigatório); o próprio jurado corrige e reenvia.
 - Percentual da avaliação = média ponderada das notas normalizadas pela faixa de cada critério.
-- Resultado técnico da equipe = média dos percentuais das avaliações enviadas com atribuição ativa (consulta administrativa, não persistida).
+- Resultado técnico da equipe = média dos percentuais das avaliações enviadas com atribuição ativa (consulta administrativa, não persistida; congelado só no snapshot da publicação, §11.7).
+- Com resultado publicado, atribuições e solicitação de revisão ficam travadas até a publicação ser revogada (§11.7).
 
 ### 10.2 Quem vê o quê
 
@@ -244,11 +245,85 @@ Revogar uma atribuição preserva a avaliação (histórico); ela só deixa de c
 - Gestor e Consultor: só progresso agregado, sem notas nem comentários.
 - Editor e Votante: sem acesso.
 
-## 11. Avaliação técnica e voto público
+## 11. Avaliação técnica, voto público e publicação (Fase 7)
 
-São domínios separados.
+São três domínios independentes:
 
-Nunca misturar nota técnica de jurado com voto público antes da regra final de resultado (Fase 7).
+```text
+AVALIAÇÃO TÉCNICA   Jurados → Resultado Técnico
+VOTAÇÃO PÚBLICA     Votantes elegíveis → Escolha do Público
+PUBLICAÇÃO          snapshot imutável e versionado → resultado oficial
+```
+
+- **Resultado Técnico** = média das avaliações técnicas válidas (regra da Fase 6: percentuais das avaliações `SUBMITTED` com atribuição `ACTIVE`).
+- **Escolha do Público** = quantidade de votos válidos da sessão oficial selecionada.
+- **Não existe score combinado.** Sem 70/30, 60/40, bônus por voto, conversão de voto em nota ou outra fórmula híbrida, até existir regra oficial documentada.
+- O HackLab anuncia 1º/2º/3º lugar técnico **e** a Escolha do Público. Podem coincidir ou não.
+- Nenhum voto entra no cálculo técnico; nenhuma nota técnica entra no cálculo popular.
+
+### 11.1 Sessão de votação
+
+- Pertence a um evento. Nome único por evento sem diferença de caixa.
+- Status: `DRAFT → OPEN → CLOSED`; `DRAFT → CANCELLED`. Sem exclusão física.
+- O evento pode ter várias sessões (testes, históricas), mas **no máximo uma `OPEN`** (aplicação + índice único parcial).
+- Em `DRAFT` o Administrador altera nome, equipes candidatas e eleitores elegíveis. Depois de aberta, tudo isso trava: nada entra ou sai durante a votação.
+- Abrir exige: ao menos 1 candidata, ao menos 1 elegível, nenhuma outra sessão `OPEN` no evento, todas as candidatas ainda `ACTIVE`, todos os elegíveis ainda `ACTIVE` com perfil `VOTER`. Abertura é transacional (`status = OPEN`, `opened_at = now()`).
+- Fechar é operação própria (`OPEN → CLOSED`, `closed_at = now()`). **Sessão fechada nunca reabre.** Repetir votação por problema real = criar nova sessão; a anterior fica preservada e nunca entra no resultado oficial se não for selecionada.
+- Cancelar: livre em `DRAFT`. Em `OPEN`, só sem nenhum voto e com motivo obrigatório (auditado). Sessão com votos nunca é cancelada. Sessão `CANCELLED` nunca recebe votos nem entra em resultado.
+
+### 11.2 Candidatas e eleitores
+
+- Candidatas são explícitas por sessão: equipes `ACTIVE` do mesmo evento. Nunca inferidas por desafio, empresa, jurado ou posição técnica.
+- Eleitor válido = User `ACTIVE` + perfil `VOTER` + elegibilidade explícita na sessão. Ter perfil `VOTER` não basta.
+- Elegibilidade não cria conta nem transforma Person em User. "Quem fez check-in pode votar" **não** é regra automática (presença externa só chega na Fase 9).
+
+### 11.3 Voto
+
+- 1 usuário → 1 voto → por sessão, em exatamente uma equipe. Sem nota, ranking de várias equipes, múltiplos votos ou peso.
+- **Voto é definitivo**: não muda de equipe, não é apagado, não se vota de novo (sem PATCH/DELETE; banco recusa UPDATE/DELETE). A interface deve pedir confirmação antes do envio.
+- No momento do voto, revalidar: sessão `OPEN`, User `ACTIVE`, perfil `VOTER`, elegível na sessão, equipe candidata na sessão.
+- Retry idêntico (mesma sessão, usuário e equipe) é idempotente: devolve o voto existente. Tentar outra equipe → 422.
+- Requisições simultâneas do mesmo usuário: exatamente uma vence, exatamente um registro existe, a outra recebe erro previsível (ou o voto existente, se for a mesma equipe).
+- Inativar o usuário depois de votar não invalida o voto (histórico não muda retroativamente).
+
+### 11.4 Sigilo
+
+- O banco guarda `user_id` para garantir voto único: é **sigilo na aplicação**, não anonimato criptográfico.
+- Nenhuma API administrativa devolve eleitor → equipe, nem para o Administrador. APIs administrativas devolvem só: total de elegíveis, total de votos, participação e (depois de fechada) contagem agregada por equipe.
+- A listagem de elegíveis mostra só se a pessoa já votou, nunca em quem.
+- `audit_logs` não registra a escolha individual (nem `PUBLIC_VOTE_CAST`). Só operações administrativas são auditadas.
+
+### 11.5 Contagem e resultado popular
+
+- Com a sessão `OPEN`, **ninguém** recebe contagem por equipe, nem o Administrador. O Administrador vê só participação ("87 de 120 votos recebidos, 72,5%").
+- Contagem por equipe só depois de `CLOSED`: `vote_count`, `percentage` e `rank`.
+- `percentage = 100 * votos da equipe / total de votos válidos` (0 se não houver votos). Participação usa elegíveis; percentual de voto usa votos dados.
+
+### 11.6 Empates
+
+- Posição = 1 + quantidade de equipes com valor estritamente maior. Empate de primeiro lugar: `1, 1, 3`.
+- Popular: mesma quantidade de votos = empate. Técnico: mesmo resultado em precisão completa (aritmética decimal, não o valor arredondado exibido) = empate.
+- Sem desempate artificial: ID, ordem de cadastro, hora do voto, nome, nota técnica (para o popular) ou voto (para o técnico). Ordem alfabética só para apresentação.
+
+### 11.7 Publicação oficial
+
+- Prévia (só Administrador, depois que a sessão escolhida estiver `CLOSED`): ranking técnico, ranking popular, completude das avaliações, participação, empates e bloqueios.
+- Publicar exige: sessão do mesmo evento, `CLOSED`; **pelo menos 1 avaliação técnica válida** (`SUBMITTED` com atribuição `ACTIVE`) — sem isso a completude passaria por vacuidade e o snapshot sairia sem resultado técnico. Não há mínimo de jurados nem cobertura por equipe. Um evento "somente voto popular", se um dia existir, será modalidade explícita, nunca consequência de não haver avaliações; avaliações técnicas completas (nenhuma atribuição `ACTIVE` sem avaliação `SUBMITTED`, inclusive de jurado inativo — para não contar, o Administrador revoga a atribuição explicitamente); nenhuma publicação `PUBLISHED` no evento.
+- Publicar grava um **snapshot imutável e versionado** (só agregados: sem identidade de votantes, notas individuais ou comentários de jurados). O que foi anunciado não muda sozinho.
+- Enquanto houver publicação `PUBLISHED`, ficam bloqueadas as operações que mudariam o resultado técnico: alterar atribuições jurado ↔ equipe e solicitar revisão de avaliação.
+- Correção: revogar (motivo obrigatório; `PUBLISHED → REVOKED`), corrigir e publicar a versão seguinte. A versão anterior continua armazenada. Problema na votação pública: nova sessão, nunca editar ou apagar votos.
+
+### 11.8 Quem vê o quê
+
+| Perfil | Antes da publicação | Depois da publicação |
+|---|---|---|
+| Administrador | sessões, participação; contagem por equipe só com a sessão `CLOSED`; prévia | snapshot oficial + histórico de versões |
+| Gestor, Consultor | só o progresso agregado da Fase 6 | snapshot oficial |
+| Editor | nada de votação/resultado | snapshot oficial |
+| Jurado | só as próprias avaliações | snapshot oficial |
+| Votante | sessões em que é elegível, candidatas, se já votou, o próprio voto (sem contagem) | snapshot oficial |
+
+Publicação anônima (sem login) não existe nesta fase; pode ser habilitada conscientemente depois.
 
 ## 12. Empresas
 

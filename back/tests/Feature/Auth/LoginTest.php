@@ -24,7 +24,7 @@ class LoginTest extends DatabaseTestCase
             ->assertJsonPath('data.permissions', [
                 'challenges.view', 'classes.view', 'companies.view', 'evaluations.progress.view', 'events.view', 'meetings.manage',
                 'meetings.view', 'occurrences.comment', 'occurrences.create', 'occurrences.operate',
-                'occurrences.route', 'occurrences.view', 'participants.view', 'people.view', 'sectors.manage',
+                'occurrences.route', 'occurrences.view', 'participants.view', 'people.view', 'results.view_published', 'sectors.manage',
                 'sectors.view', 'tasks.comment', 'tasks.create', 'tasks.operate', 'tasks.route', 'tasks.view', 'teams.view',
             ])
             ->assertJsonMissingPath('data.password');

@@ -236,15 +236,47 @@ Especificação fechada em 09/10/2026: ver `banco-de-dados.md` §6 e `regras-de-
 Regra obrigatória:
 atribuição de equipes é explícita.
 
-## Fase 7 — Votação e resultados
+## Fase 7 — Votação pública e resultados
 
-- [ ] voting_sessions;
-- [ ] public_votes;
-- [ ] elegibilidade;
-- [ ] impedir voto duplicado;
-- [ ] cálculo/consulta de resultados.
+- [x] voting_sessions (DRAFT → OPEN → CLOSED; DRAFT/OPEN sem votos → CANCELLED; 1 OPEN por evento);
+- [x] voting_session_teams (candidatas explícitas);
+- [x] voting_eligibilities (User ACTIVE + VOTER, explícito por sessão);
+- [x] public_votes (append-only, 1 por usuário/sessão, retry idempotente, concorrência);
+- [x] participação durante OPEN e contagem por equipe só após CLOSED;
+- [x] result_publications (snapshot versionado, 1 PUBLISHED por evento, revogação com motivo);
+- [x] prévia, publicação, revogação e consulta do resultado oficial;
+- [x] trava técnica enquanto há publicação;
+- [x] permissões/policies, auditoria (sem a escolha do eleitor), seeds e testes.
 
-Manter nota técnica e voto público separados.
+Três domínios independentes: Resultado Técnico (jurados), Escolha do Público (votos) e Publicação (snapshot). Sem score combinado e sem desempate artificial.
+
+Concluída e aprovada em 12/10/2026: 385 testes passando em `hacklab_test` dentro do Docker (297 anteriores + 88 novos, incluindo 7 de concorrência real com processos paralelos e o bloqueio de publicação sem avaliação técnica válida), 28 migrations do zero, seed idempotente, `db-check`, Pint, fluxo admin → abertura → votos → troca recusada → participação → fechamento → resultado agregado → publicação → resultado oficial validado via HTTP com cookies reais, nenhuma tabela em `public`, `hacklab_dev` intacto após os testes.
+
+Especificação fechada em 12/10/2026: ver `banco-de-dados.md` §7 e `regras-de-negocio.md` §11.
+
+Endpoints (`/api/v1`):
+
+| Método | Rota | Acesso |
+|---|---|---|
+| GET/POST | `/events/{event}/voting-sessions` | `voting_sessions.view` / `voting_sessions.manage`. Filtros: `status`, `search` |
+| GET/PATCH | `/voting-sessions/{session}` | `voting_sessions.view` (candidatas + totais) / `voting_sessions.manage` (só nome, em DRAFT) |
+| PUT | `/voting-sessions/{session}/teams` | `voting_sessions.manage` (lista final; só DRAFT; um log) |
+| GET | `/voting-sessions/{session}/eligibilities` | `voting_sessions.view`. Filtros: `search` (pessoa/e-mail), `has_voted`. Nunca traz a escolha |
+| PUT | `/voting-sessions/{session}/eligibilities` | `voting_eligibility.manage` (lista final; só DRAFT; um log) |
+| POST | `/voting-sessions/{session}/open` · `/close` · `/cancel` | `voting_sessions.manage` |
+| GET | `/voting-sessions/{session}/turnout` | `voting_aggregates.view` (só totais) |
+| GET | `/voting-sessions/{session}/results` | `voting_aggregates.view` (só CLOSED) |
+| GET | `/events/{event}/my-voting-sessions` | `votes.cast` (sessões em que o usuário é elegível) |
+| GET | `/voting-sessions/{session}/ballot` | `votes.cast` + VOTER + elegível |
+| POST | `/voting-sessions/{session}/vote` | `votes.cast` + VOTER + elegível (201 novo / 200 retry idêntico) |
+| GET | `/voting-sessions/{session}/my-vote` | `votes.cast` + VOTER + elegível |
+| GET | `/events/{event}/results/preview` | `results.preview` (`?voting_session_id=`) |
+| GET | `/events/{event}/results/publications` | `results.preview` (histórico de versões) |
+| POST | `/events/{event}/results/publish` | `results.publish` |
+| POST | `/events/{event}/results/revoke` | `results.publish` (motivo obrigatório) |
+| GET | `/events/{event}/results/published` | `results.view_published` (todos os perfis) |
+
+Fora desta fase: Even3, EventRegistration, Attendance, QR/check-in, frontend, PDF, notificações, voto anônimo por token, login sem conta, ranking combinado, desempate artificial, "quem fez check-in pode votar".
 
 ## Fase 8 — Auditoria completa
 

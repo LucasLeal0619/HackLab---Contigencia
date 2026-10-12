@@ -108,6 +108,14 @@ Sector
 Juror
 └── JurorTeamAssignment*
 
+VotingSession
+├── VotingSessionTeam*     (candidatas)
+├── VotingEligibility*     (User VOTER elegível)
+└── PublicVote*            (append-only)
+
+Event
+└── ResultPublication*     (versões; no máximo 1 PUBLISHED)
+
 Task
 └── TaskSector*
 
@@ -235,6 +243,14 @@ Permissões iniciais (Fase 1), definidas em `App\Domain\Users\Enums\PermissionCo
 | `evaluations.all.view` | ✓ | | | | | |
 | `evaluations.own` | ✓ | | | | ✓ | |
 | `evaluations.request_revision` | ✓ | | | | | |
+| `voting_sessions.view` / `voting_sessions.manage` | ✓ | | | | | |
+| `voting_eligibility.manage` | ✓ | | | | | |
+| `voting_aggregates.view` | ✓ | | | | | |
+| `votes.cast` | | | | | | ✓ |
+| `results.preview` / `results.publish` | ✓ | | | | | |
+| `results.view_published` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+O Administrador recebe todas as permissões **exceto `votes.cast`**. `votes.cast` ainda exige, na Policy, conta `ACTIVE`, perfil `VOTER` e elegibilidade na sessão; o status `OPEN` é verificado sob lock no momento do voto.
 
 Qualquer usuário vê a própria conta e o próprio cadastro de pessoa. Novas permissões entram junto com os módulos que as usam.
 
@@ -727,34 +743,156 @@ resultado técnico(equipe) = média dos percentuais das avaliações SUBMITTED c
 
 Sem arredondar intermediários (a API apresenta com duas casas). Não é o resultado final do Hackathon e não usa voto público.
 
-## 7. Votação pública
+## 7. Votação pública e publicação de resultados (Fase 7)
+
+Três domínios independentes, sem score combinado:
+
+```text
+AVALIAÇÃO TÉCNICA   jurados → resultado técnico (Fase 6, derivado, não persistido)
+VOTAÇÃO PÚBLICA     votantes elegíveis → Escolha do Público (contagem da sessão selecionada)
+PUBLICAÇÃO          snapshot imutável e versionado → resultado oficial
+```
 
 ### voting_sessions
 
 ```text
 id
 event_id FK
-name
-status
-starts_at nullable
-ends_at nullable
+name                       único por evento sem diferença de caixa
+status                     DRAFT | OPEN | CLOSED | CANCELLED
+opened_at nullable
+closed_at nullable
+cancelled_at nullable
+cancel_reason nullable
+created_by_user_id FK
 created_at
 updated_at
 ```
+
+- `unique(id, event_id)` como alvo das FKs compostas; `unique(event_id, lower(name))`.
+- **No máximo uma sessão `OPEN` por evento**: índice único parcial `(event_id) where status = 'OPEN'`.
+- Checks de coerência: `DRAFT` sem `opened_at`/`closed_at`; `OPEN` com `opened_at` e sem `closed_at`; `CLOSED` com `opened_at <= closed_at`; `CANCELLED` com `cancelled_at`.
+- Trigger: transições só `DRAFT → OPEN`, `DRAFT → CANCELLED`, `OPEN → CLOSED`, `OPEN → CANCELLED` (só sem votos). `CLOSED` e `CANCELLED` são terminais (nada muda). Nome só muda em `DRAFT`. `event_id`, `created_by_user_id` e `opened_at` não mudam. Abrir exige ao menos 1 candidata e 1 elegível. Sem DELETE (trigger).
+- Sessão fechada nunca reabre: repetir votação = nova sessão.
+
+### voting_session_teams (candidatas)
+
+```text
+id
+event_id
+voting_session_id
+team_id
+created_at
+
+unique(voting_session_id, team_id)   também alvo da FK de public_votes
+```
+
+- FKs compostas `(voting_session_id, event_id) → voting_sessions` e `(team_id, event_id) → teams`: candidata é do mesmo evento da sessão.
+- Trigger: só entra/sai com a sessão em `DRAFT`; equipe precisa estar `ACTIVE`; sem UPDATE.
+- Nunca inferida por desafio, empresa, jurado ou posição técnica.
+
+### voting_eligibilities
+
+```text
+id
+event_id
+voting_session_id
+user_id FK
+created_by_user_id FK
+created_at
+
+unique(voting_session_id, user_id)   também alvo da FK de public_votes
+```
+
+- FK composta `(voting_session_id, event_id) → voting_sessions`.
+- Trigger: só entra/sai com a sessão em `DRAFT`; o usuário precisa estar `ACTIVE` com perfil `VOTER`; sem UPDATE.
+- Não cria conta nem transforma Person em User. Ter perfil `VOTER` não basta: a elegibilidade é explícita por sessão (o HackLab suporta vários eventos e ainda não há `event_registrations`; na Fase 9 as inscrições poderão alimentar esta tabela).
 
 ### public_votes
 
 ```text
 id
-voting_session_id FK
+event_id
+voting_session_id
 user_id FK
-team_id FK
+team_id
+cast_at
 created_at
 
-unique(voting_session_id, user_id)
+unique(voting_session_id, user_id)   1 usuário → 1 voto → por sessão
 ```
 
-A regra de voto pode mudar; manter schema preparado para evolução.
+- FKs compostas: `(voting_session_id, event_id) → voting_sessions`; `(voting_session_id, team_id) → voting_session_teams` (a equipe é candidata da sessão); `(voting_session_id, user_id) → voting_eligibilities` (o usuário é elegível); `(team_id, event_id) → teams`.
+- **Append-only**: trigger recusa `UPDATE` e `DELETE` (o model também). Voto é definitivo.
+- Trigger de inserção: sessão `OPEN` (lida com `FOR SHARE`) e usuário `ACTIVE` com perfil `VOTER` no instante do voto.
+- Um voto = exatamente uma equipe. Sem nota, sem ranking de várias equipes, sem peso.
+- **Sigilo na aplicação, não anonimato criptográfico**: `user_id` é necessário para garantir voto único. Nenhuma API devolve a relação eleitor → equipe (só o próprio eleitor vê o próprio voto), e `audit_logs` nunca registra a escolha. Quem tem acesso direto ao PostgreSQL consegue consultar a tabela.
+
+### result_publications
+
+```text
+id
+event_id FK
+voting_session_id          sessão pública selecionada (CLOSED)
+version                    1, 2, 3... por evento
+status                     PUBLISHED | REVOKED
+snapshot jsonb             resultado calculado e congelado no momento da publicação
+published_by_user_id FK
+published_at
+revoked_by_user_id FK nullable
+revoked_at nullable
+revoke_reason nullable
+created_at
+updated_at
+
+unique(event_id, version)
+```
+
+- **No máximo uma publicação `PUBLISHED` por evento**: índice único parcial `(event_id) where status = 'PUBLISHED'`.
+- FK composta `(voting_session_id, event_id) → voting_sessions`.
+- Checks: `version >= 1`; `REVOKED` ⇔ `revoked_at`, `revoked_by_user_id` e `revoke_reason` preenchidos.
+- Trigger: a sessão selecionada precisa estar `CLOSED` na inserção; `snapshot`, `version`, evento, sessão e dados de publicação nunca mudam; a única transição é `PUBLISHED → REVOKED`; `REVOKED` é terminal; sem DELETE.
+- Corrigir = revogar (motivo obrigatório) e publicar a versão seguinte. A versão anterior continua armazenada.
+- Pré-condições verificadas pelo `ResultPublicationService` (sob lock do evento): sessão `CLOSED` do evento, nenhuma `PUBLISHED`, nenhuma atribuição `ACTIVE` sem avaliação `SUBMITTED` e **ao menos 1 avaliação técnica válida** (`SUBMITTED` + atribuição `ACTIVE`).
+
+Snapshot (somente agregados):
+
+```text
+event { id, name }
+version, published_at
+voting_session { id, name, opened_at, closed_at }
+technical { teams[ { team, technical_score, technical_score_exact, valid_evaluations, rank, tied } ], has_ties }
+popular   { teams[ { team, vote_count, percentage, rank, tied } ], total_votes, has_ties }
+turnout   { eligible_voters, votes_cast, turnout_percent }
+rules     { technical: "juror_evaluations", popular: "one_person_one_vote", combined: false }
+```
+
+Nunca entram no snapshot: identidade dos votantes, notas individuais dos jurados, comentários dos jurados.
+
+### Trava técnica enquanto há publicação
+
+Com uma publicação `PUBLISHED` no evento, triggers recusam:
+- inserir ou alterar `juror_team_assignments` (atribuir, revogar, reativar);
+- mudar o `status` de `evaluations` (ex.: solicitar revisão).
+
+A aplicação aplica a mesma regra (422 com mensagem) antes de chegar ao banco. Revogar a publicação libera as operações.
+
+### Auditoria da votação e da publicação
+
+Só operações administrativas: `VOTING_SESSION_CREATED`, `VOTING_SESSION_UPDATED`, `VOTING_CANDIDATES_CHANGED`, `VOTING_ELIGIBILITY_CHANGED`, `VOTING_SESSION_OPENED`, `VOTING_SESSION_CLOSED`, `VOTING_SESSION_CANCELLED`, `RESULTS_PUBLISHED`, `RESULTS_PUBLICATION_REVOKED`. Não existe `PUBLIC_VOTE_CAST`: registrar "usuário X votou na equipe Y" criaria outra tabela cruzando identidade e escolha.
+
+### Cálculos (não persistidos fora do snapshot)
+
+```text
+técnico(equipe)   = média dos percentuais das avaliações SUBMITTED com atribuição ACTIVE (regra da Fase 6)
+                    comparado em aritmética decimal (bcmath, 30 casas), nunca pelo valor arredondado exibido
+votos(equipe)     = contagem de public_votes da sessão selecionada
+percentual voto   = 100 * votos da equipe / total de votos válidos (0 se não houver votos)
+participação      = 100 * votos / eleitores elegíveis da sessão
+posição           = 1 + quantidade de equipes com valor estritamente maior (empates: 1, 1, 3)
+```
+
+Sem desempate artificial (ID, cadastro, hora do voto, nome, nota técnica). Ordem alfabética só para apresentação, mantendo a mesma posição.
 
 ## 8. Integração externa
 

@@ -62,7 +62,11 @@ E dados fictícios para desenvolver (`DevelopmentDataSeeder`): um evento de exem
 - `editor@hacklab.local` (Editor do "Setor Exemplo B")
 - `jurado@hacklab.local` (Jurado com duas equipes atribuídas: uma avaliação enviada e um rascunho)
 
+- `votante01@hacklab.local` … `votante05@hacklab.local` (Votantes elegíveis nas duas sessões de exemplo)
+
 Também há 3 critérios de avaliação e 3 jurados de exemplo: um que é representante de empresa, um com conta e um sem conta (Juror não implica User).
+
+Votação: uma sessão encerrada de teste (empate 2 x 2, participação 80%) e uma sessão em rascunho já configurada. Nenhum resultado publicado.
 
 Dá para trocar com `DEV_ADMIN_EMAIL` e `DEV_ADMIN_PASSWORD` no `.env`. Em qualquer outro ambiente o seeder não cria essa conta. Em produção, o primeiro Administrador é criado com:
 

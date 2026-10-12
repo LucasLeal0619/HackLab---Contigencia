@@ -51,6 +51,14 @@ enum PermissionCode: string
     case EvaluationsAllView = 'evaluations.all.view';
     case EvaluationsOwn = 'evaluations.own';
     case EvaluationsRequestRevision = 'evaluations.request_revision';
+    case VotingSessionsView = 'voting_sessions.view';
+    case VotingSessionsManage = 'voting_sessions.manage';
+    case VotingEligibilityManage = 'voting_eligibility.manage';
+    case VotesCast = 'votes.cast';
+    case VotingAggregatesView = 'voting_aggregates.view';
+    case ResultsPreview = 'results.preview';
+    case ResultsPublish = 'results.publish';
+    case ResultsViewPublished = 'results.view_published';
 
     public function label(): string
     {
@@ -95,6 +103,14 @@ enum PermissionCode: string
             self::EvaluationsAllView => 'Consultar todas as avaliações e notas',
             self::EvaluationsOwn => 'Avaliar as equipes atribuídas (como jurado da própria Person)',
             self::EvaluationsRequestRevision => 'Solicitar revisão de avaliação enviada',
+            self::VotingSessionsView => 'Consultar sessões de votação, candidatas e elegíveis (sem a escolha de ninguém)',
+            self::VotingSessionsManage => 'Criar, configurar, abrir, fechar e cancelar sessões de votação',
+            self::VotingEligibilityManage => 'Definir os eleitores elegíveis de uma sessão',
+            self::VotesCast => 'Votar nas sessões em que é elegível',
+            self::VotingAggregatesView => 'Consultar participação e, com a sessão fechada, a contagem por equipe',
+            self::ResultsPreview => 'Consultar a prévia e o histórico das publicações de resultado',
+            self::ResultsPublish => 'Publicar e revogar o resultado oficial',
+            self::ResultsViewPublished => 'Consultar o resultado oficial publicado',
         };
     }
 
@@ -106,7 +122,8 @@ enum PermissionCode: string
     public static function matrix(): array
     {
         return [
-            RoleCode::Administrator->value => self::cases(),
+            // Administrador não vota por padrão: votes.cast é só do Votante elegível.
+            RoleCode::Administrator->value => array_values(array_filter(self::cases(), fn (self $p) => $p !== self::VotesCast)),
             RoleCode::Manager->value => [
                 self::PeopleView, self::EventsView,
                 self::SectorsView, self::SectorsManage,
@@ -116,6 +133,7 @@ enum PermissionCode: string
                 self::TasksView, self::TasksComment, self::TasksCreate, self::TasksOperate, self::TasksRoute,
                 self::OccurrencesView, self::OccurrencesComment, self::OccurrencesCreate, self::OccurrencesOperate, self::OccurrencesRoute,
                 self::EvaluationsProgressView,
+                self::ResultsViewPublished,
             ],
             RoleCode::Editor->value => [
                 self::PeopleView, self::EventsView, self::SectorsView, self::MeetingsView,
@@ -123,6 +141,7 @@ enum PermissionCode: string
                 self::CompaniesView, self::ChallengesView,
                 self::TasksView, self::TasksComment, self::TasksCreate, self::TasksOperate,
                 self::OccurrencesView, self::OccurrencesComment, self::OccurrencesCreate, self::OccurrencesOperate,
+                self::ResultsViewPublished,
             ],
             RoleCode::Consultant->value => [
                 self::PeopleView, self::EventsView, self::SectorsView, self::MeetingsView,
@@ -131,9 +150,10 @@ enum PermissionCode: string
                 self::TasksView, self::TasksComment,
                 self::OccurrencesView, self::OccurrencesComment,
                 self::EvaluationsProgressView,
+                self::ResultsViewPublished,
             ],
-            RoleCode::Juror->value => [self::EventsView, self::EvaluationCriteriaView, self::EvaluationsOwn],
-            RoleCode::Voter->value => [self::EventsView],
+            RoleCode::Juror->value => [self::EventsView, self::EvaluationCriteriaView, self::EvaluationsOwn, self::ResultsViewPublished],
+            RoleCode::Voter->value => [self::EventsView, self::VotesCast, self::ResultsViewPublished],
         ];
     }
 }

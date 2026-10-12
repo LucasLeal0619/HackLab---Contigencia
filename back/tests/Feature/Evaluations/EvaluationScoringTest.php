@@ -6,8 +6,8 @@ use App\Domain\Evaluations\EvaluationScoring;
 use App\Domain\Jurors\Enums\JurorStatus;
 use App\Domain\Users\Enums\RoleCode;
 use App\Models\Evaluation;
-use Illuminate\Support\Facades\Schema;
 use Tests\Concerns\JuryScenario;
+use Tests\Concerns\VotingScenario;
 use Tests\DatabaseTestCase;
 
 /**
@@ -17,6 +17,7 @@ use Tests\DatabaseTestCase;
 class EvaluationScoringTest extends DatabaseTestCase
 {
     use JuryScenario;
+    use VotingScenario;
 
     protected function setUp(): void
     {
@@ -121,13 +122,21 @@ class EvaluationScoringTest extends DatabaseTestCase
         $this->actingAs($this->userA)->getJson("/api/v1/events/{$this->event->id}/technical-results")->assertForbidden();
     }
 
-    public function test_public_voting_does_not_exist_in_this_phase_and_is_not_part_of_the_calculation(): void
+    /**
+     * Fase 6 afirmava que a votação ainda não existia; na Fase 7 ela existe, e a regra preservada é que
+     * voto público nunca entra no cálculo técnico.
+     */
+    public function test_public_votes_are_not_part_of_the_technical_calculation(): void
     {
-        $this->assertFalse(Schema::hasTable('public_votes'));
-        $this->assertFalse(Schema::hasTable('voting_sessions'));
-
         $this->submit($this->userA, $this->jurorA, $this->team1, 8, 4);
-        $this->actingAs($this->adminUser)->getJson("/api/v1/events/{$this->event->id}/technical-results")
+        $url = "/api/v1/events/{$this->event->id}/technical-results";
+        $before = $this->actingAs($this->adminUser)->getJson($url)->json('data');
+
+        $voters = $this->voters(3);
+        $this->closedSession($this->event, [$this->team1, $this->team2], $voters, [[$voters[0], $this->team2], [$voters[1], $this->team2], [$voters[2], $this->team2]]);
+
+        $this->actingAs($this->adminUser)->getJson($url)
+            ->assertJsonPath('data', $before)
             ->assertJsonPath('meta.note', 'Resultado técnico parcial (somente jurados). Não inclui voto público nem é o resultado final.');
     }
 }

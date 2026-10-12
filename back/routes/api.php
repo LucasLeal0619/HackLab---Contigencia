@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BallotController;
 use App\Http\Controllers\Api\V1\ChallengeController;
 use App\Http\Controllers\Api\V1\ClassController;
 use App\Http\Controllers\Api\V1\CompanyController;
@@ -16,11 +17,13 @@ use App\Http\Controllers\Api\V1\MyEvaluationController;
 use App\Http\Controllers\Api\V1\OccurrenceController;
 use App\Http\Controllers\Api\V1\ParticipantController;
 use App\Http\Controllers\Api\V1\PersonController;
+use App\Http\Controllers\Api\V1\ResultController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SectorController;
 use App\Http\Controllers\Api\V1\TaskController;
 use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\VotingSessionController;
 use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Support\Facades\Route;
 
@@ -148,5 +151,32 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/evaluations/{evaluation}/request-revision', [EvaluationController::class, 'requestRevision'])->name('evaluations.request-revision');
         Route::get('/events/{event}/evaluation-progress', [EvaluationController::class, 'progress'])->name('events.evaluation-progress');
         Route::get('/events/{event}/technical-results', [EvaluationController::class, 'technicalResults'])->name('events.technical-results');
+
+        // Votação pública (administração). Nenhuma rota devolve eleitor → equipe.
+        Route::get('/events/{event}/voting-sessions', [VotingSessionController::class, 'index'])->name('events.voting-sessions.index');
+        Route::post('/events/{event}/voting-sessions', [VotingSessionController::class, 'store'])->name('events.voting-sessions.store');
+        Route::get('/voting-sessions/{session}', [VotingSessionController::class, 'show'])->name('voting-sessions.show');
+        Route::patch('/voting-sessions/{session}', [VotingSessionController::class, 'update'])->name('voting-sessions.update');
+        Route::put('/voting-sessions/{session}/teams', [VotingSessionController::class, 'syncTeams'])->name('voting-sessions.teams.sync');
+        Route::get('/voting-sessions/{session}/eligibilities', [VotingSessionController::class, 'eligibilities'])->name('voting-sessions.eligibilities.index');
+        Route::put('/voting-sessions/{session}/eligibilities', [VotingSessionController::class, 'syncEligibilities'])->name('voting-sessions.eligibilities.sync');
+        Route::post('/voting-sessions/{session}/open', [VotingSessionController::class, 'open'])->name('voting-sessions.open');
+        Route::post('/voting-sessions/{session}/close', [VotingSessionController::class, 'close'])->name('voting-sessions.close');
+        Route::post('/voting-sessions/{session}/cancel', [VotingSessionController::class, 'cancel'])->name('voting-sessions.cancel');
+        Route::get('/voting-sessions/{session}/turnout', [VotingSessionController::class, 'turnout'])->name('voting-sessions.turnout');
+        Route::get('/voting-sessions/{session}/results', [VotingSessionController::class, 'results'])->name('voting-sessions.results');
+
+        // Área do eleitor (User VOTER elegível). Voto definitivo: sem PATCH/DELETE.
+        Route::get('/events/{event}/my-voting-sessions', [BallotController::class, 'mySessions'])->name('events.my-voting-sessions');
+        Route::get('/voting-sessions/{session}/ballot', [BallotController::class, 'ballot'])->name('voting-sessions.ballot');
+        Route::post('/voting-sessions/{session}/vote', [BallotController::class, 'vote'])->name('voting-sessions.vote');
+        Route::get('/voting-sessions/{session}/my-vote', [BallotController::class, 'myVote'])->name('voting-sessions.my-vote');
+
+        // Resultados: prévia/publicação/revogação (Administrador) e resultado oficial (todos os perfis).
+        Route::get('/events/{event}/results/preview', [ResultController::class, 'preview'])->name('events.results.preview');
+        Route::get('/events/{event}/results/publications', [ResultController::class, 'publications'])->name('events.results.publications');
+        Route::post('/events/{event}/results/publish', [ResultController::class, 'publish'])->name('events.results.publish');
+        Route::post('/events/{event}/results/revoke', [ResultController::class, 'revoke'])->name('events.results.revoke');
+        Route::get('/events/{event}/results/published', [ResultController::class, 'published'])->name('events.results.published');
     });
 });

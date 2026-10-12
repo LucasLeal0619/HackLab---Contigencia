@@ -9,6 +9,7 @@ use App\Models\EvaluationCriterion;
 use App\Models\Event;
 use App\Models\JurorTeamAssignment;
 use App\Models\Team;
+use App\Support\Math\Decimal;
 use Illuminate\Support\Collection;
 
 /**
@@ -89,6 +90,95 @@ class EvaluationScoring
                 'technical_score' => $average === null ? null : round($average, 2),
             ];
         })->values()->all();
+    }
+
+    /**
+     * Mesmo cálculo de percent(), em aritmética decimal (bcmath): resultados iguais comparam como iguais,
+     * independentemente da ordem das avaliações. Usado para ranquear e detectar empate técnico.
+     *
+     * @param  Collection<int, EvaluationCriterion>  $criteria
+     */
+    public function exactPercent(Evaluation $evaluation, Collection $criteria): ?string
+    {
+        $scores = $evaluation->scores->keyBy('criterion_id');
+
+        if ($criteria->isEmpty()) {
+            return null;
+        }
+
+        $weighted = '0';
+        $weights = '0';
+
+        foreach ($criteria as $criterion) {
+            $score = $scores->get($criterion->id);
+
+            if ($score === null) {
+                return null;
+            }
+
+            $range = bcsub((string) $criterion->max_score, (string) $criterion->min_score, Decimal::SCALE);
+            $normalized = bcdiv(bcsub((string) $score->score, (string) $criterion->min_score, Decimal::SCALE), $range, Decimal::SCALE);
+
+            $weighted = bcadd($weighted, bcmul($normalized, (string) $criterion->weight, Decimal::SCALE), Decimal::SCALE);
+            $weights = bcadd($weights, (string) $criterion->weight, Decimal::SCALE);
+        }
+
+        return bcdiv(bcmul('100', $weighted, Decimal::SCALE), $weights, Decimal::SCALE);
+    }
+
+    /**
+     * Resultado técnico exato por equipe (mesma regra de technicalResults: SUBMITTED + atribuição ACTIVE).
+     *
+     * @return array<int, array{score: ?string, valid_evaluations: int}> indexado por team_id
+     */
+    public function exactTechnicalScores(Event $event): array
+    {
+        $criteria = $this->activeCriteria($event->id);
+        $evaluations = $this->currentEvaluations($event)
+            ->filter(fn (Evaluation $e) => $e->status === EvaluationStatus::Submitted)
+            ->groupBy('team_id');
+
+        $result = [];
+
+        foreach ($evaluations as $teamId => $teamEvaluations) {
+            $percents = $teamEvaluations->map(fn (Evaluation $e) => $this->exactPercent($e, $criteria))->filter(fn ($p) => $p !== null)->values();
+
+            $sum = $percents->reduce(fn (string $carry, string $p) => bcadd($carry, $p, Decimal::SCALE), '0');
+
+            $result[(int) $teamId] = [
+                'score' => $percents->isEmpty() ? null : bcdiv($sum, (string) $percents->count(), Decimal::SCALE),
+                'valid_evaluations' => $percents->count(),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Atribuições ACTIVE ainda sem avaliação SUBMITTED (inclusive de jurado inativo): bloqueiam a publicação.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function pendingAssignments(Event $event): array
+    {
+        $evaluations = Evaluation::query()->where('event_id', $event->id)->get()->keyBy(fn (Evaluation $e) => $e->juror_id.':'.$e->team_id);
+
+        return JurorTeamAssignment::query()
+            ->where('event_id', $event->id)
+            ->where('status', AssignmentStatus::Active->value)
+            ->with('juror.person', 'team')
+            ->orderBy('team_id')
+            ->orderBy('juror_id')
+            ->get()
+            ->reject(fn (JurorTeamAssignment $a) => $evaluations->get($a->juror_id.':'.$a->team_id)?->status === EvaluationStatus::Submitted)
+            ->map(fn (JurorTeamAssignment $a) => [
+                'assignment_id' => $a->id,
+                'juror' => ['id' => $a->juror_id, 'name' => $a->juror->person->full_name, 'status' => $a->juror->status->value],
+                'team' => ['id' => $a->team_id, 'name' => $a->team->name],
+                'evaluation_status' => $evaluations->get($a->juror_id.':'.$a->team_id)?->status?->value ?? 'NOT_STARTED',
+            ])
+            ->values()
+            ->all();
     }
 
     /**

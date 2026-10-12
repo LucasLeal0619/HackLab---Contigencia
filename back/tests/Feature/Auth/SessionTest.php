@@ -26,7 +26,9 @@ class SessionTest extends DatabaseTestCase
             ->assertJsonPath('data.role.code', 'ADMINISTRATOR')
             ->assertJsonPath('data.role.name', 'Administrador')
             ->assertJsonPath('data.sector', null)
-            ->assertJsonCount(count(PermissionCode::cases()), 'data.permissions')
+            // Todas, exceto votes.cast (Administrador não vota por padrão).
+            ->assertJsonCount(count(PermissionCode::cases()) - 1, 'data.permissions')
+            ->assertJsonMissing(['votes.cast'])
             ->assertJsonMissingPath('data.password')
             ->assertJsonMissingPath('data.remember_token');
     }

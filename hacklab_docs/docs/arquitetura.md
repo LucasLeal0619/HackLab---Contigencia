@@ -81,6 +81,7 @@ backend/
 │   │   ├── Jurors/
 │   │   ├── Evaluations/
 │   │   ├── Voting/
+│   │   ├── Results/
 │   │   ├── Attendance/
 │   │   └── Audit/
 │   ├── Http/
@@ -217,7 +218,47 @@ Rascunho → envio → (revisão solicitada pelo Administrador → reenvio pelo 
 
 ### Voting
 
-Votação pública possui regras próprias.
+Votação pública possui regras próprias e não conhece notas técnicas.
+
+```text
+VotingSession (DRAFT → OPEN → CLOSED | CANCELLED)
+├── candidatas explícitas (voting_session_teams)
+├── elegíveis explícitos (voting_eligibilities: User ACTIVE + VOTER)
+└── public_votes (append-only, 1 por usuário/sessão)
+```
+
+- `VotingSessionService`: configuração em `DRAFT`, abertura, fechamento e cancelamento (transações, locks e auditoria).
+- `PublicVoteService`: grava o voto. Não audita a escolha.
+- `VotingAggregates`: participação (sempre) e contagem por equipe (só `CLOSED`).
+
+Concorrência (pico do dia 3):
+
+```text
+voto     : sessão FOR SHARE → elegibilidade FOR UPDATE → (voto existente?) → insert
+fechar   : sessão FOR UPDATE  (espera os votos em andamento; votos seguintes veem CLOSED)
+abrir    : evento FOR UPDATE → sessão FOR UPDATE → candidatas/elegíveis FOR SHARE
+config   : sessão FOR UPDATE
+```
+
+Votos de usuários diferentes não se bloqueiam entre si (todos pegam a sessão em modo compartilhado). Dois votos do mesmo usuário serializam na linha de elegibilidade; o `unique(voting_session_id, user_id)` é a última barreira (violação vira o voto existente ou 422). Triggers repetem as garantias essenciais no banco.
+
+Sigilo na aplicação: nenhuma API devolve eleitor → equipe (só o próprio voto ao próprio eleitor) e a auditoria não registra a escolha.
+
+### Results
+
+Publicação oficial, separada dos dois cálculos que consome:
+
+```text
+EvaluationScoring (técnico, Fase 6)  ─┐
+                                       ├─ ResultsCalculator → prévia (Administrador)
+VotingAggregates (popular, CLOSED)   ─┘                   → ResultPublicationService → snapshot jsonb versionado
+```
+
+- Sem score combinado. Ranking por competição (`1, 1, 3`), sem desempate artificial; técnico comparado em aritmética decimal (bcmath).
+- Publicar: evento `FOR UPDATE` → verificações → snapshot → `RESULTS_PUBLISHED`. No máximo uma publicação `PUBLISHED` por evento (índice parcial).
+- Revogar: motivo obrigatório; versão antiga preservada; nova publicação = próxima versão.
+- Enquanto `PUBLISHED`: `JurorService::syncAssignments` e `EvaluationService::requestRevision` são recusados (também por trigger). Essas operações pegam o lock do evento, então não há corrida com a publicação.
+- Qualquer usuário autenticado lê o snapshot `PUBLISHED`; nada além dele.
 
 ### Attendance
 
@@ -258,7 +299,7 @@ Visão transversal/orientação, sem administração de usuários.
 Acessa apenas avaliações atribuídas.
 
 ### Votante
-Acessa votação pública quando elegível.
+Acessa votação pública quando elegível na sessão (perfil `VOTER` sozinho não basta).
 
 ## 6. Autorização
 
@@ -382,7 +423,8 @@ Principais grupos:
 /documents
 /jurors
 /evaluations
-/voting
+/voting-sessions
+/events/{event}/results
 /attendance
 /audit
 /integrations/even3

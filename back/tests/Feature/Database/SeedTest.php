@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Database;
 
+use App\Domain\Voting\VotingAggregates;
 use App\Models\Challenge;
 use App\Models\Company;
 use App\Models\CompanyRepresentative;
@@ -14,6 +15,8 @@ use App\Models\JurorTeamAssignment;
 use App\Models\Meeting;
 use App\Models\Occurrence;
 use App\Models\Participant;
+use App\Models\PublicVote;
+use App\Models\ResultPublication;
 use App\Models\Role;
 use App\Models\SchoolClass;
 use App\Models\Sector;
@@ -21,10 +24,13 @@ use App\Models\Task;
 use App\Models\Team;
 use App\Models\TeamMember;
 use App\Models\User;
+use App\Models\VotingEligibility;
+use App\Models\VotingSession;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\DevelopmentAdminSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -50,7 +56,7 @@ class SeedTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $this->assertSame(6, Role::query()->count());
-        $this->assertSame(4, User::query()->count()); // admin + gestor + editor + jurado de exemplo
+        $this->assertSame(9, User::query()->count()); // admin + gestor + editor + jurado + 5 votantes de exemplo
         $this->assertSame(1, Event::query()->count());
         $this->assertSame(3, EventDay::query()->count());
         $this->assertSame(3, Sector::query()->count()); // setores de exemplo A, B e C
@@ -70,6 +76,28 @@ class SeedTest extends TestCase
         $this->assertSame(4, JurorTeamAssignment::query()->count());
         $this->assertSame(3, EvaluationCriterion::query()->count());
         $this->assertSame(2, Evaluation::query()->count());
+        $this->assertSame(2, VotingSession::query()->count());
+        $this->assertSame(['CLOSED', 'DRAFT'], VotingSession::query()->orderBy('status')->pluck('status')->map->value->all());
+        $this->assertSame(4, DB::table('voting_session_teams')->count());
+        $this->assertSame(10, VotingEligibility::query()->count());
+        $this->assertSame(4, PublicVote::query()->count());
+        $this->assertSame(0, ResultPublication::query()->count());
+    }
+
+    public function test_seed_voting_demonstrates_a_popular_tie_without_creating_accounts_from_eligibility(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $closed = VotingSession::query()->where('status', 'CLOSED')->sole();
+        $results = app(VotingAggregates::class)->results($closed);
+
+        $this->assertSame([2, 2], array_column($results['teams'], 'vote_count'));
+        $this->assertSame([1, 1], array_column($results['teams'], 'rank'));
+        $this->assertTrue($results['has_ties']);
+        $this->assertSame(80.0, app(VotingAggregates::class)->turnout($closed)['turnout_percent']);
+
+        // Toda elegibilidade aponta para um User VOTER existente criado pelo seeder (nenhum outro perfil).
+        $this->assertSame(0, VotingEligibility::query()->whereHas('user.role', fn ($q) => $q->where('code', '<>', 'VOTER'))->count());
     }
 
     public function test_development_admin_exists_in_testing_linked_to_a_person(): void
