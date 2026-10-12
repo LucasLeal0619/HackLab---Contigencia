@@ -1,13 +1,18 @@
 // Lógica do componente Shell.vue (o template fica no .vue).
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { navFor, navState } from '@/js/config/access'
-import { go, useHack } from '@/js/stores/hack'
+import { go } from '@/js/router'
+import { auth, hasPermission } from '@/js/stores/auth'
+import { activeEvent, eventContext, selectEvent } from '@/js/stores/event-context'
+import { resetA11y, setA11y, ui } from '@/js/stores/ui'
+import { listOccurrences } from '@/js/services/occurrences'
+import { listTasks } from '@/js/services/tasks'
 
 export function useShell(props) {
-  const hack = useHack()
   const open = ref(false)
   const panel = ref('')
   const expanded = ref([])
+  const alerts = ref({ loading: false, error: null, urgent: [], overdue: [], urgentTotal: 0, overdueTotal: 0 })
 
   function isOpen(id) {
     return expanded.value.includes(id)
@@ -17,22 +22,39 @@ export function useShell(props) {
     expanded.value = isOpen(id) ? expanded.value.filter((item) => item !== id) : [...expanded.value, id]
   }
 
-  const current = computed(() => navState(props.path, hack.state.session?.profile))
-  const session = computed(() => hack.state.session)
-  const alertCount = computed(() => (
-    hack.state.tasks.filter((item) => item.status !== 'Concluído').length
-    + hack.state.occurrences.filter((item) => item.status !== 'Resolvida').length
-  ))
+  const nav = computed(() => navFor(auth.user))
+  const current = computed(() => navState(props.path, auth.user))
+  const user = computed(() => auth.user)
+  const alertCount = computed(() => alerts.value.urgentTotal + alerts.value.overdueTotal)
+  const canAlerts = computed(() => hasPermission('occurrences.view') || hasPermission('tasks.view'))
 
-  const alertItems = computed(() => [
-    ...hack.state.equipment.filter((item) => item.status === 'Com problema').map((item) => `Equipamento com problema · ${item.name} · ${item.place}`),
-    ...hack.state.occurrences.filter((item) => item.priority === 'Urgente' && item.status !== 'Resolvida').map((item) => `Ocorrência urgente · ${item.title} · ${item.place}`),
-    ...hack.state.occurrences.filter((item) => item.status !== 'Resolvida' && /sala|estrutura|material/i.test(`${item.category} ${item.place}`) && item.priority !== 'Urgente').map((item) => `Sala com problema · ${item.title} · ${item.place || '—'}`),
-    ...(hack.state.students.length && hack.state.students.some((student) => !hack.state.checkins.some((item) => item.personId === student.id && item.status === 'Presente'))
-      ? [`Presença pendente · ${hack.state.students.filter((student) => !hack.state.checkins.some((item) => item.personId === student.id && item.status === 'Presente')).length} participante(s) sem registro`]
-      : []),
-    ...hack.state.tasks.filter((item) => item.status !== 'Concluído').map((item) => `Pendência · ${item.title}`),
-  ])
+  // Alertas reais: ocorrências urgentes em aberto e pendências atrasadas do evento ativo (no escopo do usuário).
+  async function loadAlerts() {
+    const eventId = eventContext.activeEventId
+    if (!eventId || !canAlerts.value) return
+    alerts.value = { ...alerts.value, loading: true, error: null }
+    try {
+      const [occurrences, tasks] = await Promise.all([
+        hasPermission('occurrences.view') ? listOccurrences(eventId, { status: 'OPEN', priority: 'URGENT', per_page: 5 }) : null,
+        hasPermission('tasks.view') ? listTasks(eventId, { overdue: 1, per_page: 5 }) : null,
+      ])
+      alerts.value = {
+        loading: false,
+        error: null,
+        urgent: occurrences?.data || [],
+        urgentTotal: occurrences?.meta?.total || 0,
+        overdue: tasks?.data || [],
+        overdueTotal: tasks?.meta?.total || 0,
+      }
+    } catch (error) {
+      alerts.value = { ...alerts.value, loading: false, error }
+    }
+  }
+
+  function togglePanel(name) {
+    panel.value = panel.value === name ? '' : name
+    if (panel.value === 'alerts') loadAlerts()
+  }
 
   const spacingOptions = [['padrao', 'Padrão'], ['confortavel', 'Confortável'], ['amplo', 'Amplo']]
 
@@ -42,6 +64,8 @@ export function useShell(props) {
     const parent = current.value.group
     if (parent && !expanded.value.includes(parent)) expanded.value = [...expanded.value, parent]
   }, { immediate: true })
+
+  watch(() => eventContext.activeEventId, () => loadAlerts())
 
   function onPointer(event) {
     if (!panel.value) return
@@ -58,6 +82,7 @@ export function useShell(props) {
   onMounted(() => {
     document.addEventListener('mousedown', onPointer)
     document.addEventListener('keydown', onKey)
+    loadAlerts()
   })
   onUnmounted(() => {
     document.removeEventListener('mousedown', onPointer)
@@ -65,17 +90,24 @@ export function useShell(props) {
   })
 
   return {
-    hack,
+    ui,
     open,
     panel,
+    nav,
     isOpen,
     toggleGroup,
+    togglePanel,
     current,
-    session,
+    user,
+    alerts,
     alertCount,
-    alertItems,
+    canAlerts,
     spacingOptions,
-    navFor,
+    setA11y,
+    resetA11y,
+    eventContext,
+    activeEvent,
+    selectEvent,
     go,
   }
 }

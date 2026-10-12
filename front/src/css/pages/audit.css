@@ -1,7 +1,18 @@
-/* Auditoria (somente leitura) */
-.audit-note { margin-bottom: 12px; }
+/* Auditoria (somente leitura, gravada pelo backend) */
 .audit-changes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .audit-changes li { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
-.audit-changes li > span { font-size: 13px; color: var(--muted); }
+.audit-changes li > span { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .audit-changes p { margin: 4px 0 0; overflow-wrap: anywhere; }
 .audit-changes s { color: var(--muted); }
+.audit-table .audit-when, .audit-table td:nth-child(5), .audit-table td:last-child .btn { white-space: nowrap; }
+.audit-date { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+.audit-date .input { width: auto; }
+.audit-agent { font-weight: 400; font-size: 13px; overflow-wrap: anywhere; }
+.audit-raw { margin-top: 12px; }
+.audit-raw summary { cursor: pointer; font-weight: 600; }
+.audit-raw pre { margin: 8px 0 0; padding: 10px 12px; max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.audit-readonly { margin-top: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 767px) {
+  .audit-date { width: 100%; }
+  .audit-date .input { flex: 1; min-height: 48px; }
+}

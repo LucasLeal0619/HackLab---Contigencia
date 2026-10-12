@@ -1,3 +1,6 @@
 .occ-filters .input, .occ-filters select.input { flex: 1 1 120px; max-width: none; }
 /* Primeiro filtro avançado (Categoria) ocupa mais espaço na linha. */
 .occ-filters .filter-more > .input:first-child { flex: 2 1 200px; }
+.occ-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+.occ-summary b { color: var(--text); margin-left: 4px; }
+.occ-detail dd { overflow-wrap: anywhere; white-space: pre-line; }

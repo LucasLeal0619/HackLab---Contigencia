@@ -14,3 +14,10 @@
 .focus-title { margin-right: auto; font-size: 16px; }
 .focus-tools { margin-left: 0; }
 .focus-shell main { width: min(1180px, calc(100% - 32px)); padding: 20px 0 48px; }
+/* Atalhos da experiência focada (Votação / Resultado oficial). */
+.focus-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.focus-tabs .btn.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+@media (max-width: 560px) {
+  .focus-shell .focus-bar:has(.focus-tabs) { height: auto; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
+  .focus-shell .focus-tabs { order: 3; width: 100%; }
+}

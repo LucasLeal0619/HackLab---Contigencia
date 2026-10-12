@@ -343,37 +343,80 @@ Endpoints (`/api/v1`):
 
 Fora desta fase: frontend, relatórios, escrita na Even3 (participante/check-in), pagamentos, certificados, submissões, criação automática de User/Juror/Company/Voter, elegibilidade de voto por check-in.
 
-## Fase 10 — Integração progressiva do frontend
+## Fase 10 — Migração completa do frontend para o backend real
 
-Migrar uma tela por vez.
+O Vue deixa de ser protótipo: todos os dados vêm da API (`/api/v1`), login é Sanctum SPA real e o que não tem endpoint sai da interface. Desenho em `arquitetura.md` §13.
 
-Ordem sugerida:
+### Classificação das rotas
 
-1. login;
-2. usuários;
-3. evento;
-4. participantes;
-5. equipes;
-6. empresas;
-7. desafios;
-8. setores;
-9. pendências;
-10. ocorrências;
-11. jurados;
-12. avaliações;
-13. votação;
-14. presença;
-15. auditoria.
+- **REAL_API** — tela lê e grava só pela API.
+- **UI_HELPER_WITH_REAL_API** — tela auxiliar (montagem, distribuição, painel) cujas ações chamam endpoints reais.
+- **DEFERRED** — sem backend ainda; fica fora da navegação e da rota (não há operação local).
+- **REMOVE_PROTOTYPE** — existia só para simular; removida.
 
-Para cada tela:
+| Rota (`#/…`) | Tela | Classe | Endpoints / observação |
+|---|---|---|---|
+| `login` | Login | REAL_API | `/sanctum/csrf-cookie`, `/auth/login`, `/auth/me` |
+| `cadastro` | Register | REMOVE_PROTOTYPE | cadastro público fake (Votante/Jurado com convite) |
+| `dashboard` | Dashboard | UI_HELPER_WITH_REAL_API | painel mínimo com contagens reais das listas permitidas |
+| `config` | Config (evento) | REAL_API | `/events`, `/events/{e}/days` |
+| `usuarios` | Usuários | REAL_API | `/users`, `/people`, `/roles`, `/users/{u}/role|status|sector`, setores do evento |
+| `participantes` | Participantes e turmas | REAL_API | `/events/{e}/participants`, `/participants/{p}(/team)`, `/events/{e}/classes`, `/classes/{c}(/status)` |
+| `equipes` | Equipes | REAL_API | `/events/{e}/teams`, `/teams/{t}`, `/teams/{t}/members` |
+| `montar` | Montar equipe | UI_HELPER_WITH_REAL_API | adicionar/remover membro pelos endpoints de membros |
+| `roletas` | Roleta | REMOVE_PROTOTYPE | sorteio local sem persistência |
+| `empresas`, `empresa` | Empresas | REAL_API | `/events/{e}/companies`, `/companies/{c}(/status)`, representantes |
+| `desafios`, `desafio` | Desafios | REAL_API | `/events/{e}/challenges`, `/challenges/{c}(/status)` |
+| `distribuicao` | Distribuição | UI_HELPER_WITH_REAL_API | `PATCH /challenges/{c}/team` |
+| `setores` | Setores | REAL_API | `/events/{e}/sectors`, `/sectors/{s}(/status)` + resumo de pendências/ocorrências/reuniões do setor. Registros operacionais do protótipo (equipamentos, finanças, campanhas, espaços, materiais) → REMOVE_PROTOTYPE |
+| `reunioes`, `reuniao` | Reuniões | REAL_API | `/events/{e}/meetings`, `/meetings/{m}` |
+| `manifestacao` | Manifestação em ata | DEFERRED | não há atas/decisões/manifestações no backend |
+| `pendencias` | Pendências | REAL_API | `/events/{e}/tasks`, `/tasks/{t}` (+ comments/forward/complete/reopen), `meta.abilities` |
+| `documentos` | Documentos | DEFERRED | sem backend; fora da navegação |
+| `ocorrencias` | Ocorrências | REAL_API | `/events/{e}/occurrences`, `/occurrences/{o}` (+ comments/forward/resolve/reopen/tasks) |
+| `presenca` | Inscrições e Presença | REAL_API | integração Even3 (status, entradas, mapeamento, sync, histórico), inscrições, materialização, presença (somente leitura). Scanner/QR/credenciais locais → REMOVE_PROTOTYPE |
+| `jurados` | Jurados e critérios | REAL_API | `/events/{e}/jurors`, `/jurors/{j}(/status|/assignments)`, `/events/{e}/evaluation-criteria` |
+| `avaliacoes` | Avaliações | REAL_API | `/evaluation-progress`, `/technical-results`, `/evaluations`, `/request-revision` |
+| `area-jurado`, `avaliar` | Área do Jurado | REAL_API | `/events/{e}/my-evaluations`, `PUT /juror-assignments/{a}/evaluation`, `/submit` |
+| `votacao-gestao` | Gestão da votação | REAL_API | `/voting-sessions` (candidatas, elegíveis, abrir/fechar/cancelar, participação, resultado) |
+| `votacao` | Votação do público | REAL_API | `/my-voting-sessions`, `/ballot`, `/vote`, `/my-vote` |
+| `resultados` | Resultados | REAL_API | `/results/preview`, `/publications`, `/publish`, `/revoke`, `/published` |
+| `painel` | Painel de resultado | UI_HELPER_WITH_REAL_API | só `/results/published` |
+| `apresentacao` | Apresentação | UI_HELPER_WITH_REAL_API | só `/results/published` |
+| `premiacao` | Premiação | DEFERRED | sem backend de premiações |
+| `relatorios`, `relatorio` | Relatórios | DEFERRED | Fase 11 |
+| `auditoria` | Auditoria | REAL_API | `/audit-logs`, `/audit-logs/meta`, `/audit-logs/{id}` |
 
-- [ ] criar service JS;
-- [ ] ligar GET;
-- [ ] ligar POST/PATCH/DELETE;
-- [ ] tratar loading;
-- [ ] tratar erro;
-- [ ] preservar responsividade;
-- [ ] remover mock correspondente.
+Rotas antigas (`inicio`, `preparacao`, `gestao`, `encerramento`, `evento`, `ingresso`, `validar`, `sala`) continuam redirecionando para as rotas atuais.
+
+### Removido
+
+Modo demonstração (`buildDemo`, `loadDemo`, `resetAll`, contas `ACCOUNTS`, modal de boas-vindas, selo de demonstração), troca de perfil e setor demonstrativo, perfil Validador, cadastro público e convites de jurado, scanner/QR/credenciais locais, auditoria local (`appendAudit`, `audit-logger.js`, `state.audit`), voto local (`hacklab.vote.cast`, `voting.ballots`, `hasVoted`), exclusões sem endpoint (participante, equipe, empresa, pendência, ocorrência), dados operacionais sem backend (finanças, equipamentos, campanhas etc.).
+
+### Ajuste de backend feito na Fase 10
+
+- Gestor podia encaminhar/criar demanda para outro setor, mas não conseguia descobrir os destinos (`/sectors` é escopado). Criado o contrato explícito `GET /events/{e}/tasks/routing-sectors` e `/occurrences/routing-sectors` (só `*.route`; setores ativos do evento, `{id, name}`). Ver `arquitetura.md` §6.3.
+
+### Pendências do backend encontradas na migração (não corrigidas na Fase 10)
+
+Os pontos abaixo ficam para decisão:
+
+- `GET /events/{e}/jurors` não devolve `active_assignments_count`: o `select('jurors.*')` depois do `withCount` descarta a contagem. A tela mostra "Ver equipes" até a correção.
+- Datas com offset diferente de UTC (ex.: `occurred_at`/`due_at` com `-03:00`) são gravadas sem converter o offset. O front envia sempre UTC (`Z`) e não é afetado, mas o backend deveria normalizar.
+- Mensagens genéricas de validação do Laravel saem em inglês (`APP_LOCALE=en`, sem `lang/pt_BR`). Mensagens de regra de negócio já estão em português.
+- Sem filtros de status/busca/período em `GET /events/{e}/meetings` e sem endpoints de contagem agregada (Dashboard e resumo do setor contam pelas listagens).
+- `ParticipantResource.person` não traz `document`; a listagem de empresas não traz o representante principal.
+- Ambiente de desenvolvimento: `php -S` atende uma requisição por vez (~3 s cada no Docker do Windows). Telas evitam muitas requisições paralelas; o timeout do client é 30 s.
+
+### Checklist
+
+- [x] documentação antes do código;
+- [x] client HTTP central, store de autenticação, contexto de evento;
+- [x] login, shell e navegação por permissão;
+- [x] telas na ordem: usuários, evento, participantes, equipes, empresas, desafios, setores, reuniões, pendências, ocorrências, jurados, avaliações, votação/resultados, inscrições e presença, auditoria, dashboard;
+- [x] limpeza do `localStorage` legado;
+- [x] testes do front (Vitest) e build;
+- [x] smoke test no navegador real por perfil.
 
 ## Fase 11 — Relatórios
 

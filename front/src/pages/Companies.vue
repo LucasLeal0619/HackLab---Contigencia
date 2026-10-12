@@ -1,174 +1,139 @@
 <script setup>
 import Badge from '../components/Badge.vue'
-import Empty from '../components/Empty.vue'
-import Field from '../components/Field.vue'
-import Modal from '../components/Modal.vue'
+import ChallengeFormModal from '../components/ChallengeFormModal.vue'
+import CompanyFormModal from '../components/CompanyFormModal.vue'
+import FilterPanel from '../components/FilterPanel.vue'
+import LoadState from '../components/LoadState.vue'
 import Page from '../components/Page.vue'
+import Pager from '../components/Pager.vue'
+import Search from '../components/Search.vue'
 import { useCompanies } from '@/js/pages/companies'
 
 const props = defineProps({
   mode: { type: String, default: 'empresas' },
+  params: { type: Object, default: () => ({}) },
 })
-const { COMPANY_STATUSES, CHALLENGE_STATUSES, TIPOS, state, tab, query, status, modal, challenge, removing, form, openCompany, openChallenge, editChallenge, saveCompany, saveChallenge, askRemoveCompany, askRemoveChallenge, confirmRemove, companies, challenges, companyOf, teamName, go, toneFor } = useCompanies(props)
+const { tab, list, companyFilter, companyForm, challengeForm, canManageCompanies, canManageChallenges, go, label, tone, options } = useCompanies(props)
+const { filters, page, items, meta, loading, error, loaded } = list
 </script>
 
 <template>
   <Page
     :title="tab === 'empresas' ? 'Empresas' : 'Desafios'"
-    :subtitle="tab === 'empresas' ? 'Cadastre e acompanhe as empresas participantes.' : 'Cadastre os desafios e associe empresa e equipe.'"
+    :subtitle="tab === 'empresas' ? 'Cadastre e acompanhe as empresas participantes.' : 'Cadastre os desafios, associe a empresa e acompanhe a distribuição.'"
   >
     <template #actions>
-      <button v-if="tab === 'empresas'" class="btn" @click="openCompany()">+ Cadastrar empresa</button>
-      <button v-else class="btn" @click="openChallenge()">+ Cadastrar desafio</button>
+      <template v-if="tab === 'empresas'">
+        <button v-if="canManageCompanies" class="btn" type="button" @click="companyForm.start()">+ Cadastrar empresa</button>
+        <Badge v-else>Consulta</Badge>
+      </template>
+      <template v-else>
+        <button v-if="canManageChallenges" class="btn ghost" type="button" @click="go('distribuicao')">Distribuição</button>
+        <button v-if="canManageChallenges" class="btn" type="button" @click="challengeForm.start()">+ Cadastrar desafio</button>
+        <Badge v-else>Consulta</Badge>
+      </template>
     </template>
+
     <template v-if="tab === 'empresas'">
-      <div class="filters">
-        <input v-model="query" class="input" placeholder="Buscar empresa" />
-        <select v-model="status" class="input">
-          <option v-for="item in COMPANY_STATUSES" :key="item">{{ item }}</option>
+      <FilterPanel :active="list.activeFilters.value" @clear="list.reset()">
+        <template #search><Search v-model="filters.search" placeholder="Buscar por nome, razão social ou CNPJ" /></template>
+        <select v-model="filters.status" class="input" aria-label="Status">
+          <option value="">Todos os status</option>
+          <option v-for="[code, name] in options('companyStatus')" :key="code" :value="code">{{ name }}</option>
         </select>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Empresa</th><th>Representante</th><th>Desafios</th><th>Status</th><th>Ações</th></tr></thead>
-          <tbody>
-            <template v-if="state.companies.length === 0">
-              <tr>
-                <td colspan="5">
-                  <Empty title="Nenhuma empresa cadastrada" text="Cadastre uma empresa para registrar o representante e os desafios.">
-                    <template #action>
-                      <button class="btn" @click="openCompany()">+ Cadastrar empresa</button>
-                    </template>
-                  </Empty>
-                </td>
-              </tr>
-            </template>
-            <template v-else-if="companies.length === 0">
-              <tr><td colspan="5"><Empty title="Nenhuma empresa encontrada" text="Ajuste a busca ou o filtro de status." /></td></tr>
-            </template>
-            <template v-else>
-              <tr v-for="company in companies" :key="company.id">
-                <td>{{ company.name }}</td>
-                <td>{{ company.reps.find((rep) => rep.principal)?.name || company.reps[0]?.name || '—' }}</td>
-                <td>{{ state.challenges.filter((item) => item.companyId === company.id).length || '—' }}</td>
-                <td><Badge :tone="toneFor(company.status)">{{ company.status }}</Badge></td>
+        <select v-model="filters.type" class="input" aria-label="Tipo de participação">
+          <option value="">Todos os tipos</option>
+          <option v-for="[code, name] in options('companyType')" :key="code" :value="code">{{ name }}</option>
+        </select>
+      </FilterPanel>
+
+      <LoadState
+        :loading="loading" :loaded="loaded" :error="error" :empty="items.length === 0"
+        :empty-title="list.activeFilters.value ? 'Nenhuma empresa encontrada' : 'Nenhuma empresa cadastrada'"
+        :empty-text="list.activeFilters.value ? 'Ajuste a busca ou os filtros.' : 'Cadastre uma empresa para registrar os representantes e os desafios.'"
+        @retry="list.load()"
+      >
+        <template v-if="canManageCompanies && !list.activeFilters.value" #empty-action>
+          <button class="btn" type="button" @click="companyForm.start()">+ Cadastrar empresa</button>
+        </template>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Empresa</th><th>Participação</th><th>Representantes</th><th>Desafios</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody>
+              <tr v-for="company in items" :key="company.id">
+                <td>{{ company.name }}<br v-if="company.segment" /><small v-if="company.segment" class="stat-hint">{{ company.segment }}</small></td>
+                <td>{{ label('companyType', company.type) }}</td>
+                <td>{{ company.active_representatives_count || '—' }}</td>
+                <td>{{ company.challenges_count || '—' }}</td>
+                <td><Badge :tone="tone('companyStatus', company.status)">{{ label('companyStatus', company.status) }}</Badge></td>
                 <td>
                   <div class="row-actions">
-                    <button class="btn ghost small" @click="go(`empresa?id=${company.id}`)">Visualizar</button>
-                    <button class="btn ghost small" @click="openCompany(company)">Editar</button>
-                    <button class="btn ghost small" @click="askRemoveCompany(company)">Excluir</button>
+                    <button class="btn ghost small" type="button" @click="go(`empresa?id=${company.id}`)">Visualizar</button>
+                    <button v-if="canManageCompanies" class="btn ghost small" type="button" @click="companyForm.start(company)">Editar</button>
                   </div>
                 </td>
               </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
+        <Pager :meta="meta" :disabled="loading" @page="page = $event" />
+      </LoadState>
     </template>
+
     <template v-else>
-      <div class="filters">
-        <input v-model="query" class="input" placeholder="Buscar desafio" />
-        <select v-model="status" class="input">
-          <option v-for="item in CHALLENGE_STATUSES" :key="item">{{ item }}</option>
+      <FilterPanel :active="list.activeFilters.value" @clear="list.reset()">
+        <template #search><Search v-model="filters.search" placeholder="Buscar desafio pelo título" /></template>
+        <select v-model="filters.status" class="input" aria-label="Status">
+          <option value="">Todos os status</option>
+          <option v-for="[code, name] in options('challengeStatus')" :key="code" :value="code">{{ name }}</option>
         </select>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Desafio</th><th>Empresa</th><th>Equipe</th><th>Status</th><th>Ações</th></tr></thead>
-          <tbody>
-            <template v-if="state.challenges.length === 0">
-              <tr>
-                <td colspan="5">
-                  <Empty title="Nenhum desafio cadastrado" text="Cadastre um desafio proposto por uma empresa.">
-                    <template #action>
-                      <button class="btn" @click="openChallenge()">+ Cadastrar desafio</button>
-                    </template>
-                  </Empty>
-                </td>
-              </tr>
-            </template>
-            <template v-else-if="challenges.length === 0">
-              <tr><td colspan="5"><Empty title="Nenhum desafio encontrado" text="Ajuste a busca ou o filtro de status." /></td></tr>
-            </template>
-            <template v-else>
-              <tr v-for="item in challenges" :key="item.id">
+        <select v-model="filters.company_id" class="input" aria-label="Empresa">
+          <option value="">Todas as empresas</option>
+          <option v-for="item in companyFilter.data.value" :key="item.id" :value="item.id">{{ item.name }}</option>
+        </select>
+        <select v-model="filters.has_team" class="input" aria-label="Equipe">
+          <option value="">Com ou sem equipe</option>
+          <option value="1">Com equipe</option>
+          <option value="0">Sem equipe</option>
+        </select>
+      </FilterPanel>
+
+      <LoadState
+        :loading="loading" :loaded="loaded" :error="error" :empty="items.length === 0"
+        :empty-title="list.activeFilters.value ? 'Nenhum desafio encontrado' : 'Nenhum desafio cadastrado'"
+        :empty-text="list.activeFilters.value ? 'Ajuste a busca ou os filtros.' : 'Cadastre um desafio proposto por uma empresa.'"
+        @retry="list.load()"
+      >
+        <template v-if="canManageChallenges && !list.activeFilters.value" #empty-action>
+          <button class="btn" type="button" @click="challengeForm.start()">+ Cadastrar desafio</button>
+        </template>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Desafio</th><th>Empresa</th><th>Equipe</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody>
+              <tr v-for="item in items" :key="item.id">
                 <td>{{ item.title }}</td>
-                <td>{{ companyOf(state, item.companyId)?.name || '—' }}</td>
-                <td>{{ item.teamId ? teamName(item.teamId) : '—' }}</td>
-                <td><Badge :tone="toneFor(item.status)">{{ item.status }}</Badge></td>
+                <td>{{ item.company?.name || '—' }}</td>
+                <td>{{ item.team?.name || '—' }}</td>
+                <td><Badge :tone="tone('challengeStatus', item.status)">{{ label('challengeStatus', item.status) }}</Badge></td>
                 <td>
                   <div class="row-actions">
-                    <button class="btn ghost small" @click="go(`desafio?id=${item.id}`)">Visualizar</button>
-                    <button class="btn ghost small" @click="editChallenge(item)">Editar</button>
-                    <button class="btn ghost small" @click="askRemoveChallenge(item)">Excluir</button>
+                    <button class="btn ghost small" type="button" @click="go(`desafio?id=${item.id}`)">Visualizar</button>
+                    <button v-if="canManageChallenges" class="btn ghost small" type="button" @click="challengeForm.start(item)">Editar</button>
                   </div>
                 </td>
               </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
-      <p class="stat-hint">Recebido → Em análise → Aprovado → Distribuído → Em desenvolvimento → Finalizado. <button class="linkish" @click="go('distribuicao')">Ver distribuição</button></p>
+            </tbody>
+          </table>
+        </div>
+        <Pager :meta="meta" :disabled="loading" @page="page = $event" />
+      </LoadState>
+      <p class="stat-hint">Rascunho → Recebido → Em análise → Aprovado → Distribuído → Em desenvolvimento → Finalizado.
+        <button v-if="canManageChallenges" class="linkish" type="button" @click="go('distribuicao')">Ver distribuição</button>
+      </p>
     </template>
 
-    <Modal v-if="modal" wide :title="form.id ? 'Editar empresa' : 'Cadastrar empresa'" subtitle="Empresa, representante e participação." @close="modal = false">
-      <h3>Empresa</h3>
-      <div class="form-grid">
-        <Field label="Nome da empresa" required><input v-model="form.name" class="input" /></Field>
-        <Field label="Segmento"><input v-model="form.segmento" class="input" /></Field>
-        <Field label="Descrição" class-name="span-2"><textarea v-model="form.description" class="input" /></Field>
-      </div>
-      <h3>Representante</h3>
-      <div class="form-grid">
-        <Field label="Nome" required><input v-model="form.reps[0].name" class="input" /></Field>
-        <Field label="Cargo"><input v-model="form.reps[0].cargo" class="input" /></Field>
-        <Field label="E-mail" hint="Opcional"><input v-model="form.reps[0].email" class="input" /></Field>
-      </div>
-      <h3>Participação</h3>
-      <Field label="Tipo de participação">
-        <select v-model="form.tipo" class="input">
-          <option v-for="item in TIPOS" :key="item">{{ item }}</option>
-        </select>
-      </Field>
-      <template #footer>
-        <button class="btn ghost" @click="modal = false">Cancelar</button>
-        <button class="btn" @click="saveCompany">{{ form.id ? 'Salvar alterações' : 'Cadastrar empresa' }}</button>
-      </template>
-    </Modal>
-
-    <Modal v-if="challenge" wide :title="challenge.id ? 'Editar desafio' : 'Cadastrar desafio'" @close="challenge = null">
-      <h3>Informações principais</h3>
-      <Field label="Título" required><input v-model="challenge.title" class="input" /></Field>
-      <Field label="Empresa" required>
-        <select v-model="challenge.companyId" class="input">
-          <option value="">Selecione</option>
-          <option v-for="company in state.companies" :key="company.id" :value="company.id">{{ company.name }}</option>
-        </select>
-      </Field>
-      <Field label="Problema"><textarea v-model="challenge.problem" class="input" /></Field>
-      <Field label="Objetivo"><textarea v-model="challenge.objective" class="input" /></Field>
-      <h3>Detalhamento</h3>
-      <Field label="Requisitos"><textarea v-model="challenge.requirements" class="input" /></Field>
-      <Field label="Restrições"><textarea v-model="challenge.restrictions" class="input" /></Field>
-      <Field label="Resultado esperado"><textarea v-model="challenge.expected" class="input" /></Field>
-      <Field label="Observações"><textarea v-model="challenge.note" class="input" /></Field>
-      <template #footer>
-        <button class="btn ghost" @click="challenge = null">Cancelar</button>
-        <button class="btn" @click="saveChallenge">{{ challenge.id ? 'Salvar alterações' : 'Salvar desafio' }}</button>
-      </template>
-    </Modal>
-
-    <Modal
-      v-if="removing"
-      :title="removing.kind === 'empresa' ? 'Excluir empresa?' : 'Excluir desafio?'"
-      :subtitle="removing.kind === 'empresa' && removing.challenges ? 'Os desafios desta empresa também serão removidos deste navegador.' : 'O cadastro será removido deste navegador.'"
-      @close="removing = null"
-    >
-      <p>{{ removing.name }}</p>
-      <template #footer>
-        <button class="btn ghost" type="button" @click="removing = null">Cancelar</button>
-        <button class="btn danger" type="button" @click="confirmRemove">Excluir</button>
-      </template>
-    </Modal>
+    <CompanyFormModal v-if="companyForm.open.value" :ctrl="companyForm" />
+    <ChallengeFormModal v-if="challengeForm.open.value" :ctrl="challengeForm" />
   </Page>
 </template>

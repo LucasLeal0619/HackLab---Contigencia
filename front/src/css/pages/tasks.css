@@ -1,0 +1,9 @@
+/* Pendências */
+.task-filters .input, .task-filters select.input { flex: 1 1 120px; max-width: none; }
+.task-summary { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+.task-summary b { color: var(--text); margin-left: 4px; }
+.kv dd.task-text { overflow-wrap: anywhere; white-space: pre-line; }
+@media (max-width: 767px) {
+  .task-kv { grid-template-columns: 1fr; gap: 2px 0; }
+  .task-kv dd { margin-bottom: 8px; }
+}

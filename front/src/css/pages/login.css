@@ -43,30 +43,7 @@
   margin: 4px 0 20px;
 }
 .login-card .btn.full { margin-top: 4px; }
-.demo-accounts {
-  margin-top: 22px;
-  background: #f7f9fb;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 14px 16px;
-  font-size: 13px;
-  color: var(--muted);
-  display: grid;
-  gap: 10px;
-}
-.demo-accounts strong { color: var(--text); }
-.demo-list { display: grid; gap: 10px; }
-.demo-list div { display: flex; align-items: baseline; gap: 8px; min-height: 28px; }
-.demo-accounts button {
-  background: none;
-  border: 0;
-  color: var(--blue);
-  padding: 4px 0;
-  text-decoration: underline;
-}
-.login-public { display: grid; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); text-align: center; }
-.login-public span { font-weight: 600; }
-.login-public small { color: var(--muted); }
+.login-note { text-align: center; margin-top: 16px; }
 @media (max-width: 767px) {
   .login-copy h1 { font-size: 24px; }
   .login-copy p, .login-foot { display: none; }

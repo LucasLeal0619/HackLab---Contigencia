@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Domain\Demands\Contracts\Demand;
 use App\Domain\Users\Enums\PermissionCode;
+use App\Models\Event;
 use App\Models\User;
 
 /**
@@ -85,6 +86,19 @@ abstract class DemandPolicy
     public function forward(User $actor, Demand $demand): bool
     {
         return $this->allows($actor, 'route') && $this->controls($actor, $demand);
+    }
+
+    /**
+     * Setores de destino (encaminhar ou criar para outro setor): só quem tem "route" e, se tiver
+     * setor, só no evento do próprio setor. Não altera a visibilidade normal de setores.
+     */
+    public function routingSectors(User $actor, Event $event): bool
+    {
+        if (! $this->allows($actor, 'route')) {
+            return false;
+        }
+
+        return $actor->reachesAllSectors() || $actor->sector?->event_id === $event->id;
     }
 
     protected function participates(User $actor, Demand $demand): bool

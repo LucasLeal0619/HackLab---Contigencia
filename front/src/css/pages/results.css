@@ -22,8 +22,10 @@
 }
 .results-mark { font-size: 56px; line-height: 1; }
 .results-wait h2, .results-block h2 { margin: 8px 0; color: var(--blue); font-size: 22px; }
-.results-block th:nth-child(n + 2),
-.results-block td:nth-child(n + 2) { text-align: right; }
+.results-block th:nth-child(n + 3),
+.results-block td:nth-child(n + 3) { text-align: right; }
+.results-block td:first-child { font-weight: 700; color: var(--blue); width: 1%; white-space: nowrap; }
+.results-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .workspace:has(.results-stage) .content { width: min(1400px, calc(100% - 48px)); }
 .present {
   min-height: 100vh;
@@ -46,3 +48,5 @@
 .present-card h3 { font-size: 28px; margin: 0 0 8px; }
 .present-card p { font-size: 20px; margin: 0 0 6px; }
 .present-nav { display: flex; justify-content: center; align-items: center; gap: 16px; }
+.results-blockers { margin: 4px 0 0; padding-left: 18px; }
+.present-card .present-rank { font-size: 16px; text-transform: uppercase; letter-spacing: .06em; color: rgba(255,255,255,.7); margin: 0 0 4px; }

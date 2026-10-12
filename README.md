@@ -97,13 +97,13 @@ docker compose down -v                # para e APAGA o volume do PostgreSQL (rec
 
 ```bash
 cd front
-npm install
-npm run dev
+npm ci
+npm run dev     # http://localhost:5174/ (API em VITE_API_URL, ver front/.env.development)
+npm run test    # Vitest
+npm run build
 ```
 
-Abre em http://localhost:5174/
-
-Os dados da interface ainda ficam no navegador (`localStorage`). A ligação com a API será feita tela a tela.
+O front usa só a API (`/api/v1`) com login Sanctum por cookie; com a API fora do ar, mostra erro de conexão (não há modo demonstração). Entre com uma conta criada pelo seed do backend. No navegador fica só `hacklab.ui` (preferências de acessibilidade e evento ativo).
 
 ## Produção
 

@@ -1,96 +1,116 @@
-// Lógica do componente TeamBuild.vue (o template fica no .vue).
-import { computed, ref } from 'vue'
-import { useAudit } from '@/js/audit/audit-logger'
-import { activeMembers, AVAILABILITY, balanceLabel, isAvailable, memberCounts, pausedMembers, reservedIds, teamName, TURMAS } from '@/js/data/model'
-import { go, useHack } from '@/js/stores/hack'
+// Lógica da página TeamBuild.vue (#/montar?id=<teamId>): monta a composição de UMA equipe pelos endpoints reais.
+// Adicionar: POST /teams/{t}/members. Remover: DELETE /teams/{t}/members/{p}. Trazer de outra equipe: PATCH /participants/{p}/team.
+// Sem sorteio/sugestão automática: cada alteração é um participante, confirmada pelo backend.
+import { computed, ref, watch } from 'vue'
+import { fetchAll } from '@/js/api/pagination'
+import { useAction, usePaged, useRequest } from '@/js/composables/async'
+import { label, tone } from '@/js/labels'
+import { go } from '@/js/router'
+import { hasPermission } from '@/js/stores/auth'
+import { eventContext } from '@/js/stores/event-context'
+import * as participantsApi from '@/js/services/participants'
+import * as teamsApi from '@/js/services/teams'
+import { classMix, countText } from '@/js/pages/teams'
 
 export function useTeamBuild(props) {
-  function countText(value, singular, plural) {
-    return `${value} ${value === 1 ? singular : plural}`
-  }
+  const teamId = computed(() => Number(props.params?.id) || null)
+  const canClasses = computed(() => hasPermission('classes.view'))
+  const canParticipants = computed(() => hasPermission('participants.view'))
 
-  function availabilityOfSafe(student) {
-    return AVAILABILITY.includes(student.availability) ? student.availability : 'Disponível'
-  }
+  const team = useRequest(() => (teamId.value ? teamsApi.getTeam(teamId.value) : null), { watchSources: () => teamId.value, immediate: true })
+  const members = computed(() => team.data.value?.members || [])
+  const active = computed(() => members.value.filter((item) => item.participant?.status === 'AVAILABLE'))
+  const paused = computed(() => members.value.filter((item) => item.participant?.status !== 'AVAILABLE'))
+  const mix = computed(() => classMix(members.value))
+  // Equipe de outro evento (link antigo / troca de evento) não é montada aqui.
+  const wrongEvent = computed(() => team.data.value && eventContext.activeEventId && team.data.value.event_id !== eventContext.activeEventId)
+  const editable = computed(() => team.data.value?.status === 'ACTIVE' && !wrongEvent.value)
 
-  const { state, update, flash } = useHack()
-  const audit = useAudit()
-  const query = ref('')
-  const turma = ref('Todas')
-  const blocked = ref(null)
-  const team = computed(() => state.teams.find((item) => String(item.id) === String(props.params.id)) || state.teams[0])
-  const taken = computed(() => reservedIds(state.teams, team.value?.id))
-  const active = computed(() => (team.value ? activeMembers(team.value, state.students) : []))
-  const paused = computed(() => (team.value ? pausedMembers(team.value, state.students) : []))
-  const counts = computed(() => (team.value ? memberCounts(team.value, state.students, { onlyAvailable: true }) : {}))
-  const pool = computed(() => state.students.filter((student) => {
-    if (!team.value) return false
-    const matches = student.name.toLowerCase().includes(query.value.toLowerCase())
-    const turmaOk = turma.value === 'Todas' || student.turma === turma.value
-    return matches && turmaOk && isAvailable(student) && !team.value.members.includes(student.id) && !taken.value.has(student.id)
-  }))
-  const tabs = computed(() => [{ id: 'Todas', label: 'Todos' }, ...TURMAS.map((item) => ({ id: item.id, label: item.id }))])
+  // Turmas para as abas (seletor pequeno).
+  const classes = useRequest(() => (canClasses.value && eventContext.activeEventId
+    ? fetchAll((query) => participantsApi.listClasses(eventContext.activeEventId, query))
+    : []), { initial: [], watchSources: () => eventContext.activeEventId })
+  const tabs = computed(() => [{ id: '', label: 'Todos' }, ...(classes.data.value || []).map((item) => ({ id: String(item.id), label: item.name }))])
 
-  function add(student) {
-    if (!isAvailable(student)) {
-      flash('Somente participantes disponíveis entram na formação.', 'err')
-      return
+  // Participantes disponíveis: sem equipe (adicionar) ou em outra equipe (transferir).
+  const pool = usePaged((query, opts) => {
+    const eventId = team.data.value?.event_id
+    if (!eventId || !canParticipants.value) return { data: [] }
+    const { mode, ...rest } = query
+    return participantsApi.listParticipants(eventId, { ...rest, status: 'AVAILABLE', has_team: mode === 'others' }, opts)
+  }, {
+    filters: { search: '', class_id: '', mode: 'free' },
+    perPage: 20,
+    immediate: false,
+  })
+  const poolItems = computed(() => pool.items.value.filter((item) => item.team?.id !== teamId.value))
+  watch(() => team.data.value?.event_id, (eventId, before) => {
+    if (eventId && eventId !== before) {
+      pool.page.value = 1
+      pool.load()
     }
-    if (taken.value.has(student.id)) {
-      const owner = state.teams.find((item) => item.id !== team.value.id && item.members.includes(student.id))
-      blocked.value = { student, owner }
-      return
-    }
-    if (team.value.members.includes(student.id)) return
-    update((draft) => {
-      const current = draft.teams.find((item) => item.id === team.value.id)
-      current.members.push(student.id)
-      if (current.status === 'nao-formada') current.status = 'em-montagem'
-      audit.record(draft, { action: 'team.member-added', label: 'Adicionou participante à equipe', module: 'teams', entityType: 'Equipe', entityId: String(current.id), entityLabel: teamName(current.id), description: `${student.name} entrou na ${teamName(current.id)}.` })
-    })
+  })
+
+  async function refresh() {
+    await Promise.all([team.load(), pool.load()])
   }
 
-  function remove(studentId) {
-    update((draft) => {
-      const current = draft.teams.find((item) => item.id === team.value.id)
-      current.members = current.members.filter((item) => item !== studentId)
-      const student = draft.students.find((item) => item.id === studentId)
-      audit.record(draft, { action: 'team.member-removed', label: 'Removeu participante da equipe', module: 'teams', entityType: 'Equipe', entityId: String(current.id), entityLabel: teamName(current.id), description: `${student?.name || 'Participante'} saiu da ${teamName(current.id)}.` })
-    })
+  const add = useAction(async (item) => {
+    await teamsApi.addMember(teamId.value, item.id)
+    await refresh()
+    return item
+  }, { success: (item) => `${item.person?.full_name || 'Participante'} entrou na equipe.` })
+
+  // Remoção e transferência pedem confirmação.
+  const confirm = ref(null) // { kind: 'remove' | 'transfer', item }
+  function askRemove(member) {
+    confirm.value = { kind: 'remove', id: member.participant?.id, name: member.participant?.full_name }
+  }
+  function askTransfer(item) {
+    confirm.value = { kind: 'transfer', id: item.id, name: item.person?.full_name, from: item.team?.name }
   }
 
-  function transfer() {
-    if (!blocked.value?.owner) return
-    const student = blocked.value.student
-    update((draft) => {
-      const from = draft.teams.find((item) => item.id === blocked.value.owner.id)
-      const to = draft.teams.find((item) => item.id === team.value.id)
-      if (from) from.members = from.members.filter((item) => item !== student.id)
-      if (to && !to.members.includes(student.id)) to.members.push(student.id)
-      audit.record(draft, { action: 'team.member-moved', label: 'Moveu participante', module: 'teams', entityType: 'Equipe', entityId: String(to?.id || ''), entityLabel: teamName(to?.id), description: `${student.name} foi transferido entre equipes.`, changes: [{ field: 'Equipe', before: from ? teamName(from.id) : '—', after: teamName(to?.id) }] })
-    })
-    blocked.value = null
-    flash(`${student.name} foi transferido para a ${teamName(team.value.id)}.`)
-  }
+  const remove = useAction(async () => {
+    const target = confirm.value
+    await teamsApi.removeMember(teamId.value, target.id)
+    confirm.value = null
+    await refresh()
+    return target
+  }, { success: (target) => `${target.name || 'Participante'} saiu da equipe. O histórico foi preservado.` })
+
+  const transfer = useAction(async () => {
+    const target = confirm.value
+    await participantsApi.changeParticipantTeam(target.id, teamId.value)
+    confirm.value = null
+    await refresh()
+    return target
+  }, { success: (target) => `${target.name || 'Participante'} foi transferido para a ${team.data.value?.name || 'equipe'}.` })
+
+  const busy = computed(() => add.pending.value || remove.pending.value || transfer.pending.value)
 
   return {
-    countText,
-    availabilityOfSafe,
-    state,
-    query,
-    turma,
-    blocked,
+    teamId,
     team,
+    members,
     active,
     paused,
-    counts,
-    pool,
+    mix,
+    wrongEvent,
+    editable,
     tabs,
+    pool,
+    poolItems,
     add,
+    confirm,
+    askRemove,
+    askTransfer,
     remove,
     transfer,
-    balanceLabel,
-    teamName,
+    busy,
+    canParticipants,
+    countText,
+    label,
+    tone,
     go,
   }
 }

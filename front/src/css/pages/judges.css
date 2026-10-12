@@ -31,4 +31,8 @@
   .eval-row .input { min-height: 48px; font-size: 16px; }
   .eval-head { flex-direction: column; }
 }
-.invite-code { margin: 0 0 8px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 30px; font-weight: 700; letter-spacing: .06em; color: var(--blue); text-align: center; user-select: all; }
+/* Comentário opcional por critério ocupa a linha inteira do critério. */
+.eval-row .eval-row-comment { grid-column: 1 / -1; }
+.eval-actions .stat-hint { margin-right: auto; align-self: center; }
+.judge-summary { margin: 0 0 10px; }
+.judge-revision { margin-top: 6px !important; padding: 6px 10px; border-radius: 8px; background: var(--warn-bg); color: #6d4d12; font-size: 13px; }

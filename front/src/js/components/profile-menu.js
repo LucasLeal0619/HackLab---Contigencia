@@ -1,31 +1,30 @@
-// Lógica do componente ProfileMenu.vue (o template fica no .vue).
+// Lógica do componente ProfileMenu.vue: dados reais do usuário logado (/auth/me) e saída.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { PROFILE_NAMES, profileConfig, sectorScope } from '@/js/config/access'
-import { SETORES } from '@/js/data/model'
-import { go, useHack } from '@/js/stores/hack'
+import { label } from '@/js/labels'
+import { go } from '@/js/router'
+import { auth, hasPermission, logout } from '@/js/stores/auth'
+import { flash } from '@/js/stores/ui'
 
 export function useProfileMenu() {
-  // ProfileSwitcher é apenas uma ferramenta de simulação do protótipo.
-  // Posteriormente será substituído por autenticação e autorização reais.
-
-  const hack = useHack()
   const open = ref(false)
   const root = ref(null)
-  const session = computed(() => hack.state.session)
-  const config = computed(() => profileConfig(session.value?.profile))
-  const activeSector = computed(() => sectorScope(session.value)?.[0] || '')
-  // Conta criada no cadastro público: o seletor de perfis não aparece (é só ferramenta de demonstração).
-  const external = computed(() => Boolean(session.value?.external))
+  const leaving = ref(false)
+  const user = computed(() => auth.user)
+  const name = computed(() => user.value?.person?.full_name || user.value?.email || 'Usuário')
+  const role = computed(() => user.value?.role?.name || label('role', user.value?.role?.code, ''))
+  const sector = computed(() => user.value?.sector?.name || '')
 
-  function choose(profile) {
+  async function signOut() {
+    if (leaving.value) return
+    leaving.value = true
     open.value = false
-    if (profile !== session.value?.profile) hack.setProfile(profile)
-  }
-
-  function chooseSector(sector) {
-    hack.setDemoSector(sector)
-    open.value = false
-    go(`setores?setor=${encodeURIComponent(sector)}`)
+    try {
+      await logout()
+    } catch {
+      flash('Não foi possível confirmar a saída no servidor. A sessão foi encerrada neste navegador.', 'err')
+    } finally {
+      leaving.value = false
+    }
   }
 
   function run(action) {
@@ -50,19 +49,5 @@ export function useProfileMenu() {
     document.removeEventListener('keydown', onKey)
   })
 
-  return {
-    hack,
-    open,
-    root,
-    session,
-    config,
-    activeSector,
-    external,
-    choose,
-    chooseSector,
-    run,
-    PROFILE_NAMES,
-    SETORES,
-    go,
-  }
+  return { open, root, user, name, role, sector, leaving, signOut, run, go, hasPermission }
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { go } from '@/js/stores/hack'
+import { go } from '@/js/router'
 
 defineProps({
   label: { type: String, default: '' },

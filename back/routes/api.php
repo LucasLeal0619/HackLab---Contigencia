@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\ChallengeController;
 use App\Http\Controllers\Api\V1\ClassController;
 use App\Http\Controllers\Api\V1\CompanyController;
 use App\Http\Controllers\Api\V1\CompanyRepresentativeController;
+use App\Http\Controllers\Api\V1\DemandRoutingController;
 use App\Http\Controllers\Api\V1\EvaluationController;
 use App\Http\Controllers\Api\V1\EvaluationCriterionController;
 use App\Http\Controllers\Api\V1\Even3IntegrationController;
@@ -115,6 +116,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::patch('/challenges/{challenge}/team', [ChallengeController::class, 'updateTeam'])->name('challenges.team');
 
         // Pendências: forward/complete/reopen são operações próprias (não passam pelo PATCH genérico).
+        // Destinos válidos de encaminhamento/criação (setores ativos do evento), só para quem tem tasks.route.
+        Route::get('/events/{event}/tasks/routing-sectors', [DemandRoutingController::class, 'taskSectors'])->name('events.tasks.routing-sectors');
         Route::get('/events/{event}/tasks', [TaskController::class, 'index'])->name('events.tasks.index');
         Route::post('/events/{event}/tasks', [TaskController::class, 'store'])->name('events.tasks.store');
         Route::get('/tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
@@ -125,6 +128,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/tasks/{task}/reopen', [TaskController::class, 'reopen'])->name('tasks.reopen');
 
         // Ocorrências: forward/resolve/reopen/tasks são operações próprias.
+        Route::get('/events/{event}/occurrences/routing-sectors', [DemandRoutingController::class, 'occurrenceSectors'])->name('events.occurrences.routing-sectors');
         Route::get('/events/{event}/occurrences', [OccurrenceController::class, 'index'])->name('events.occurrences.index');
         Route::post('/events/{event}/occurrences', [OccurrenceController::class, 'store'])->name('events.occurrences.store');
         Route::get('/occurrences/{occurrence}', [OccurrenceController::class, 'show'])->name('occurrences.show');

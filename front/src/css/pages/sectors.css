@@ -1,22 +1,16 @@
-.sector-picks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: var(--space-4); }
-.sector-pick {
-  text-align: left;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 10px 12px;
-  min-width: 0;
+/* Setores: lista e área de trabalho do setor (resumo somente leitura de pendências, ocorrências e reuniões) */
+.sector-card { display: flex; flex-direction: column; gap: 6px; }
+.sector-card p { margin: 0; }
+.sector-card .row-actions { margin-top: auto; padding-top: 8px; }
+.sector-card.inactive { opacity: .8; }
+.sector-desc { color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.sector-stats { margin-top: 12px; }
+.sector-blocks .card { min-width: 0; }
+.sector-blocks .row-between { margin-bottom: 8px; }
+.sector-blocks .related-list li > span:not(.badge) { min-width: 0; overflow-wrap: anywhere; }
+.sector-blocks .related-list li > .badge { flex: 0 0 auto; }
+@media (max-width: 767px) {
+  .sector-blocks.grid.cols-2 { grid-template-columns: 1fr; }
 }
-.sector-pick.on { border-color: var(--blue); box-shadow: inset 3px 0 0 var(--orange); }
-.sector-pick b { display: block; color: var(--blue); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sector-pick small { color: var(--muted); font-size: 12px; }
-.mini-blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-.mini-block { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
-.mini-block h3 { margin: 0 0 6px; font-size: 14px; }
-@media (max-width: 1100px) {
-  .sector-picks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-.sector-line { grid-template-columns: 10px 1fr auto auto; }
-.sector-occ { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
-.sector-occ h3 { margin: 0 0 4px; }
-.sector-occ p { margin: 0 0 4px; }
+.sector-toolbar { flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; }
+.sector-toolbar .input { width: auto; min-width: 180px; }

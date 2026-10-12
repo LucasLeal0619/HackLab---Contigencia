@@ -343,6 +343,20 @@ opera       = permissão + (alcance global OU setor do usuário = responsável a
 encaminha   = permissão de roteamento + (alcance global OU setor do usuário = responsável atual)
 ```
 
+
+### 6.3 Setores de destino de demandas (Fase 10)
+
+`GET /events/{event}/sectors` continua escopado (Gestor/Editor veem só o próprio setor). Para encaminhar ou criar demanda para outro setor, quem tem a operação usa um contrato próprio:
+
+```text
+GET /events/{event}/tasks/routing-sectors         exige tasks.route
+GET /events/{event}/occurrences/routing-sectors   exige occurrences.route
+```
+
+- devolve só `{ id, name }` dos setores **ativos** do evento (os destinos que o backend aceita no encaminhamento);
+- quem tem setor só consulta o evento do próprio setor (403 nos demais); alcance global consulta qualquer evento;
+- Editor, Consultor, Jurado e Votante (sem `*.route`) recebem 403. A visibilidade normal de setores não muda.
+
 ## 7. Integração externa (Fase 9)
 
 ```text
@@ -400,33 +414,39 @@ Base:
 /api/v1
 ```
 
-Principais grupos:
+Principais grupos (fonte da verdade: `back/routes/api.php`):
 
 ```text
-/auth
-/users
+/health
+/auth (login, logout, me)
+/roles
 /people
-/events
-/participants
-/teams
-/companies
-/challenges
-/sectors
-/meetings
-/tasks
-/occurrences
-/documents
-/jurors
-/evaluations
-/voting-sessions
-/events/{event}/results
-/attendance
-/audit
-/integrations/even3
-/event-registrations
+/users (+ /role, /status, /sector)
+/events (+ /days)
+/events/{event}/sectors, /sectors
+/events/{event}/meetings, /meetings
+/events/{event}/classes, /classes
+/events/{event}/participants, /participants (+ /team)
+/events/{event}/teams, /teams (+ /members)
+/events/{event}/companies, /companies (+ /status, /representatives), /company-representatives
+/events/{event}/challenges, /challenges (+ /status, /team)
+/events/{event}/tasks (+ /routing-sectors), /tasks (+ /comments, /forward, /complete, /reopen)
+/events/{event}/occurrences (+ /routing-sectors), /occurrences (+ /comments, /forward, /resolve, /reopen, /tasks)
+/events/{event}/jurors, /jurors (+ /status, /assignments)
+/events/{event}/evaluation-criteria, /evaluation-criteria
+/events/{event}/my-evaluations, /juror-assignments/{a}/evaluation (+ /submit)
+/events/{event}/evaluations, /evaluations (+ /request-revision), /evaluation-progress, /technical-results
+/events/{event}/voting-sessions, /voting-sessions (+ /teams, /eligibilities, /open, /close, /cancel, /turnout, /results)
+/events/{event}/my-voting-sessions, /voting-sessions/{s}/ballot, /vote, /my-vote
+/events/{event}/results (/preview, /publications, /publish, /revoke, /published)
+/audit-logs (+ /meta, /{id})
+/events/{event}/integrations/even3 (/status, /tickets, /sync, /sync-runs), /external-ticket-types/{t}/mapping, /integration-sync-runs/{run}
+/events/{event}/event-registrations (+ /materialize-participants), /event-registrations/{r}
 /events/{event}/attendance
 /webhooks/even3
 ```
+
+Não existem endpoints de documentos, atas/decisões de reunião, premiações, relatórios ou finanças.
 
 ## 10. Respostas e erros
 
@@ -513,38 +533,80 @@ GET /api/v1/audit-logs/meta         catálogo de ações e módulos
 - SQL apenas via Eloquent/Query Builder parametrizado.
 - Nunca confiar em IDs enviados pelo frontend sem autorização.
 
-## 13. Frontend
+## 13. Frontend (Fase 10)
 
-O frontend não deve conhecer detalhes da Even3.
+O frontend é uma SPA Vue 3 (JavaScript, sem TypeScript, sem Pinia, sem Vue Router; roteamento por hash `#/rota`). O backend é o contrato: o Vue só exibe o que a API devolve e só executa operações que existem na API. Não há modo demonstração, dados locais de negócio, login simulado nem fallback quando a API está fora do ar.
 
-Exemplo:
-
-```text
-Vue
-→ GET /api/v1/attendance
-→ Laravel
-→ dados locais sincronizados
-```
-
-Botão de sincronização:
+### 13.1 Camadas
 
 ```text
-Vue
-→ POST /api/v1/integrations/even3/sync
-→ Laravel
-→ Even3
-→ PostgreSQL
-→ resposta resumida
+front/src/
+├── js/api/
+│   ├── client.js        único cliente HTTP (axios): base VITE_API_URL, cookies, XSRF, timeout, erros
+│   ├── errors.js        ApiError normalizado (status, kind, message, fieldErrors)
+│   └── pagination.js    leitura de data/meta/links do Laravel
+├── js/stores/
+│   ├── auth.js          sessão (UNKNOWN/AUTHENTICATED/GUEST), usuário, permissões de /auth/me
+│   ├── event-context.js eventos visíveis, evento ativo, dias e fuso do evento
+│   └── ui.js            toast e preferências de acessibilidade (hacklab.ui)
+├── js/services/         um arquivo por domínio; só eles chamam o client
+├── js/composables/      useRequest, usePaged, useAction (loading, erro, 422, duplo envio)
+├── js/config/access.js  navegação e rotas por permissão
+├── js/labels.js         rótulos pt-BR dos códigos de enum do backend
+└── js/utils/format.js   datas/horas pt-BR no fuso do evento
 ```
 
-## 14. Estratégia de migração do protótipo
+Componentes e páginas não chamam `fetch`/axios: chamam services. Services não guardam estado: devolvem dados da API.
 
-Migrar tela a tela:
+### 13.2 Autenticação (Sanctum SPA)
 
-1. manter layout;
-2. criar service no frontend;
-3. substituir mock/localStorage pelo endpoint;
-4. manter fallback apenas durante desenvolvimento;
-5. remover mock quando endpoint estiver validado.
+```text
+GET  /sanctum/csrf-cookie      cookie XSRF-TOKEN
+POST /api/v1/auth/login        cookie de sessão HttpOnly
+GET  /api/v1/auth/me           usuário, Person, role.code/name, setor, permissions[]
+POST /api/v1/auth/logout
+```
 
-Não reescrever todo o frontend antes da API estar pronta.
+- Cliente com `withCredentials` e `withXSRFToken`: o navegador envia o cookie de sessão e o axios copia `XSRF-TOKEN` para o header `X-XSRF-TOKEN`. O front nunca lê o cookie de sessão nem guarda token, senha ou sessão no navegador.
+- Ao abrir o app: tela de carregamento → `/auth/me` → `AUTHENTICATED` ou `GUEST`. Não existe flash de tela autenticada antes da resposta.
+- Tratamento central: 401 limpa a sessão e leva ao login; 403 não desloga (mostra "sem permissão"); 419 renova o CSRF e repete a requisição uma única vez; 422 vira erro por campo; 429 vira mensagem amigável; rede/5xx mostram erro com "tentar novamente". Nenhuma repetição infinita.
+- Em desenvolvimento o front (`localhost:5174`) e a API (`localhost:8000`) estão no mesmo host, então o cookie `XSRF-TOKEN` é legível pelo front. Em produção, com domínios diferentes, ver o risco de cookie entre domínios em `infraestrutura.md`.
+
+### 13.3 Autorização na interface
+
+- A interface decide o que mostrar por `auth.permissions` (`hasPermission`, `hasAnyPermission`). `role.code` só escolhe a experiência visual: `JUROR` → Área do Jurado (FocusShell), `VOTER` → Votação (FocusShell), demais → primeira área operacional permitida. Jurado e Votante também acessam, dentro da tela focada, o resultado oficial publicado (`#/painel`, `results.view_published`); prévia, histórico, publicação, revogação e contagens continuam só na gestão.
+- Esconder um item não é segurança: o backend continua validando tudo (Policies). Um 403 vindo da API é mostrado como "sem permissão" sem encerrar a sessão.
+- Ações por registro usam o que a API devolve quando ela devolve (`meta.abilities` de pendências e ocorrências, `meta.locked` dos critérios).
+
+### 13.4 Evento ativo
+
+- `GET /api/v1/events` define o contexto: 0 eventos → estado vazio; 1 → selecionado; mais de 1 → seletor no topo.
+- O `activeEventId` é preferência local (`hacklab.ui`), sempre validada contra a lista da API. Nunca há id de evento fixo no código.
+- Dias, horários e fuso vêm de `Event` e `EventDay[]` (não há "3 dias" ou "08:00" fixos). Datas chegam em ISO/UTC e são exibidas em pt-BR no fuso do evento.
+- Trocar de evento invalida as telas dependentes (recarregam pelo novo id).
+
+### 13.5 Armazenamento no navegador
+
+Única chave: `hacklab.ui` → `{ "a11y": {...}, "activeEventId": 1 }`. Opcional: `hacklab.remember` (só o e-mail digitado, quando o usuário marca "lembrar"). Nenhum dado de negócio, sessão, senha ou token.
+
+Limpeza única das chaves do protótipo: `hacklab` (estado inteiro do protótipo; só as preferências de acessibilidade são aproveitadas) e `hacklab.vote.cast` são apagadas na primeira abertura.
+
+### 13.6 O frontend não conhece a Even3
+
+```text
+Vue → GET /api/v1/events/{e}/event-registrations | /attendance → Laravel → dados locais sincronizados
+Vue → POST /api/v1/events/{e}/integrations/even3/sync → Laravel → Even3 → PostgreSQL → resumo
+```
+
+O front nunca chama `api.even3.com`, nunca recebe nem envia o token da Even3, o segredo ou o header do webhook.
+
+## 14. Migração do protótipo (Fase 10, concluída)
+
+O protótipo guardava tudo em `localStorage` e simulava login, perfis, auditoria e voto. Na Fase 10:
+
+1. layout, componentes visuais, responsividade e acessibilidade foram mantidos;
+2. cada tela passou a usar o service do seu domínio;
+3. operações sem endpoint foram removidas da interface (não há operação local fingindo persistência);
+4. foram removidos: modo demonstração, contas demonstrativas, troca de perfil, setor demonstrativo, perfil Validador, cadastro público, convites de jurado, scanner/QR/credenciais locais, auditoria local e voto local.
+
+A matriz tela a tela (REAL_API / UI_HELPER_WITH_REAL_API / DEFERRED / REMOVE_PROTOTYPE) está em `plano-implementacao.md`, Fase 10.

@@ -1,22 +1,7 @@
 .team-card h3 { display: flex; justify-content: space-between; align-items: center; }
-.quota { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: var(--muted); }
 .day-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .day-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fff; }
 .day-card b { display: block; color: var(--blue); margin-bottom: 6px; }
-.wheels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.wheel {
-  border: 1px dashed #c5d0dc;
-  border-radius: 16px;
-  min-height: 180px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 12px;
-  background: #f8fbfe;
-}
-.wheel strong { font-size: 18px; }
 .split { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; }
 .person {
   display: flex;
@@ -34,4 +19,3 @@
 .team-grid .card .btn { margin-top: auto; align-self: flex-start; }
 /* Botão pequeno do card de equipe mantém o espaçamento geral de .card .btn.small. */
 .team-grid .card .btn.small { margin-top: 8px; }
-.model-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

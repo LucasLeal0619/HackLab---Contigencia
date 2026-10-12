@@ -60,20 +60,8 @@
 .dot-status { width: 8px; height: 8px; border-radius: 50%; background: #9aafc4; }
 .dot-status.warn { background: var(--orange); }
 .dot-status.ok { background: var(--ok); }
-.demo-badge {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: rgba(242, 145, 0, .14);
-  color: #8a5600;
-  font-size: 12px;
-  font-weight: 700;
-}
 /* Barra superior administrativa em celular: mantém só ícones para não gerar scroll horizontal. */
 @media (max-width: 560px) {
-  .topbar .demo-badge { display: none; }
   .topbar .a11y-label { display: none; }
   .topbar .user-meta { display: none; }
 }

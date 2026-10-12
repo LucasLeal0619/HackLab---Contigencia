@@ -489,3 +489,11 @@ Sempre preferir:
 - operações idempotentes.
 
 Evitar regras frágeis baseadas em texto.
+
+## 22. Interface (Fase 10)
+
+- A interface só oferece operações que existem na API. Não há exclusão de participante, equipe, empresa, desafio, pendência ou ocorrência: saída de participante é mudança explícita de status (`WITHDRAWN`) feita pelo usuário, nunca efeito de um botão "Excluir".
+- Não há cadastro público nem convite de jurado pela interface: contas são criadas pelo Administrador (`/users`).
+- O voto é definitivo e registrado só no backend; a interface não guarda nada sobre o voto no navegador. Repetir o mesmo voto devolve sucesso; tentar mudar mostra a mensagem do backend.
+- O resultado exibido em painel/apresentação é sempre o publicado (`/results/published`); a prévia é só da gestão.
+- Atas, decisões, manifestações, documentos, premiações e finanças não têm backend e ficam fora da interface até existirem.

@@ -1,205 +1,184 @@
-import { SETORES } from '@/js/data/model'
+// Navegação e rotas a partir das permissões de /auth/me. Esconder um item não é segurança:
+// o backend valida tudo (Policies). role.code só escolhe a experiência visual (Jurado e Votante em tela focada).
 
-// Perfis de acesso do protótipo: navegação, página inicial e rotas visíveis de cada experiência.
-// ProfileSwitcher (menu "Meu perfil") é apenas uma ferramenta de simulação do protótipo.
-// Posteriormente será substituído por autenticação e autorização reais.
-// Ocultar páginas no front-end não é segurança; aqui só organiza a experiência visual.
-
-const ITEMS = {
-  dashboard: { id: 'dashboard', label: 'Dashboard', icon: 'home' },
-  preparacao: {
-    id: 'preparacao',
-    label: 'Preparação',
-    icon: 'sliders',
-    children: [
-      { id: 'config', label: 'Evento' },
-      { id: 'participantes', label: 'Participantes' },
-      { id: 'equipes', label: 'Equipes' },
-      { id: 'empresas', label: 'Empresas' },
-      { id: 'desafios', label: 'Desafios' },
-    ],
-  },
-  gestao: {
-    id: 'gestao',
-    label: 'Gestão',
-    icon: 'grid',
-    children: [
-      { id: 'setores', label: 'Setores' },
-      { id: 'reunioes', label: 'Reuniões' },
-      { id: 'pendencias', label: 'Pendências' },
-      { id: 'ocorrencias', label: 'Ocorrências' },
-      { id: 'documentos', label: 'Documentos' },
-    ],
-  },
-  presenca: { id: 'presenca', label: 'Credenciais e Presença', icon: 'ticket' },
-  encerramento: {
-    id: 'encerramento',
-    label: 'Encerramento',
-    icon: 'star',
-    children: [
-      { id: 'jurados', label: 'Jurados' },
-      { id: 'avaliacoes', label: 'Avaliações' },
-      { id: 'votacao-gestao', label: 'Votação' },
-      { id: 'resultados', label: 'Resultados' },
-    ],
-  },
-  relatorios: { id: 'relatorios', label: 'Relatórios', icon: 'chart' },
-  usuarios: { id: 'usuarios', label: 'Usuários e Permissões', icon: 'users' },
-  auditoria: { id: 'auditoria', label: 'Auditoria', icon: 'eye' },
+// Rota → permissões (basta uma). Rotas fora desta tabela não existem no app.
+export const ROUTES = {
+  dashboard: ['participants.view', 'teams.view', 'tasks.view', 'occurrences.view', 'sectors.view', 'users.view'],
+  config: ['events.manage'],
+  usuarios: ['users.view'],
+  participantes: ['participants.view'],
+  equipes: ['teams.view'],
+  montar: ['teams.manage'],
+  empresas: ['companies.view'],
+  empresa: ['companies.view'],
+  desafios: ['challenges.view'],
+  desafio: ['challenges.view'],
+  distribuicao: ['challenges.view'],
+  setores: ['sectors.view'],
+  reunioes: ['meetings.view'],
+  reuniao: ['meetings.view'],
+  pendencias: ['tasks.view'],
+  ocorrencias: ['occurrences.view'],
+  presenca: ['integrations.view', 'event_registrations.view', 'attendance.view'],
+  jurados: ['jurors.view', 'evaluation_criteria.manage'],
+  avaliacoes: ['evaluations.progress.view', 'evaluations.all.view'],
+  'votacao-gestao': ['voting_sessions.view'],
+  resultados: ['results.preview', 'results.view_published'],
+  painel: ['results.view_published'],
+  apresentacao: ['results.view_published'],
+  auditoria: ['audit_logs.view'],
+  'area-jurado': ['evaluations.own'],
+  avaliar: ['evaluations.own'],
+  votacao: ['votes.cast'],
 }
 
-// Item com apenas alguns submenus.
-function only(item, ids) {
-  return { ...item, children: item.children.filter((child) => ids.includes(child.id)) }
+// Páginas abertas sem o Shell administrativo (tela cheia ou focada).
+export const BARE_ROUTES = new Set(['area-jurado', 'avaliar', 'votacao', 'apresentacao'])
+
+// Perfis com experiência focada (sem Sidebar): rota inicial e rotas da experiência.
+// O resultado oficial publicado (painel) também fica disponível a eles (results.view_published).
+export const FOCUS = {
+  JUROR: { home: 'area-jurado', title: 'Área do Jurado', routes: ['area-jurado', 'avaliar', 'painel'], tabs: [['area-jurado', 'Minhas avaliações'], ['painel', 'Resultado oficial']] },
+  VOTER: { home: 'votacao', title: 'Votação do Público', routes: ['votacao', 'painel'], tabs: [['votacao', 'Votação'], ['painel', 'Resultado oficial']] },
 }
 
-// Páginas de detalhe que pertencem a cada destino da navegação.
+const NAV = [
+  { group: 'Dashboard', items: [{ id: 'dashboard', label: 'Dashboard', icon: 'home' }] },
+  {
+    group: 'Organização',
+    items: [
+      {
+        id: 'preparacao',
+        label: 'Preparação',
+        icon: 'sliders',
+        children: [
+          { id: 'config', label: 'Evento' },
+          { id: 'participantes', label: 'Participantes' },
+          { id: 'equipes', label: 'Equipes' },
+          { id: 'empresas', label: 'Empresas' },
+          { id: 'desafios', label: 'Desafios' },
+        ],
+      },
+      {
+        id: 'gestao',
+        label: 'Gestão',
+        icon: 'grid',
+        children: [
+          { id: 'setores', label: 'Setores' },
+          { id: 'reunioes', label: 'Reuniões' },
+          { id: 'pendencias', label: 'Pendências' },
+          { id: 'ocorrencias', label: 'Ocorrências' },
+        ],
+      },
+    ],
+  },
+  {
+    group: 'Evento',
+    items: [
+      { id: 'presenca', label: 'Inscrições e Presença', icon: 'ticket' },
+      {
+        id: 'encerramento',
+        label: 'Encerramento',
+        icon: 'star',
+        children: [
+          { id: 'jurados', label: 'Jurados' },
+          { id: 'avaliacoes', label: 'Avaliações' },
+          { id: 'votacao-gestao', label: 'Votação' },
+          { id: 'resultados', label: 'Resultados' },
+        ],
+      },
+    ],
+  },
+  {
+    group: 'Administração',
+    items: [
+      { id: 'usuarios', label: 'Usuários e Permissões', icon: 'users' },
+      { id: 'auditoria', label: 'Auditoria', icon: 'eye' },
+    ],
+  },
+]
+
+// Páginas de detalhe que acendem o item de navegação correspondente.
 const LEAF = {
-  dashboard: ['inicio', 'dashboard'],
-  config: ['config'],
-  participantes: ['participantes'],
-  equipes: ['equipes', 'montar', 'roletas'],
+  dashboard: ['dashboard'],
+  equipes: ['equipes', 'montar'],
   empresas: ['empresas', 'empresa'],
   desafios: ['desafios', 'desafio', 'distribuicao'],
-  setores: ['setores'],
-  reunioes: ['reunioes', 'reuniao', 'manifestacao'],
-  pendencias: ['pendencias'],
-  ocorrencias: ['ocorrencias'],
-  documentos: ['documentos'],
-  presenca: ['presenca'],
-  jurados: ['jurados', 'criterios'],
-  avaliacoes: ['avaliacoes'],
-  'votacao-gestao': ['votacao-gestao'],
-  resultados: ['resultados', 'premiacao', 'painel'],
-  usuarios: ['usuarios'],
-  auditoria: ['auditoria'],
-  relatorios: ['relatorios', 'relatorio'],
+  reunioes: ['reunioes', 'reuniao'],
+  resultados: ['resultados', 'painel'],
 }
 
-const SECTOR_WORK = { id: 'setores', label: 'Meu Setor', icon: 'grid' }
-
-// Ordem = ordem do seletor "Meu perfil".
-export const ACCESS_PROFILES = {
-  Administrador: {
-    key: 'superadmin',
-    represents: 'Administração geral do HackLab, com acesso global',
-    home: 'dashboard',
-    layout: 'admin',
-    globalAdmin: true,
-    routeDemands: true,
-    nav: [
-      { group: 'Dashboard', items: [ITEMS.dashboard] },
-      { group: 'Organização', items: [ITEMS.preparacao, ITEMS.gestao] },
-      { group: 'Evento', items: [ITEMS.presenca, ITEMS.encerramento] },
-      { group: 'Análise', items: [ITEMS.relatorios] },
-      { group: 'Administração', items: [ITEMS.usuarios, ITEMS.auditoria] },
-    ],
-    // Experiências focadas que o Administrador pode abrir a partir da gestão.
-    extra: ['area-jurado', 'avaliar', 'votacao', 'apresentacao'],
-  },
-  Consultor: {
-    key: 'consultant',
-    represents: 'Professores: acompanhamento, orientação e supervisão',
-    home: 'dashboard',
-    layout: 'admin',
-    nav: [
-      { group: 'Dashboard', items: [ITEMS.dashboard] },
-      { group: 'Organização', items: [only(ITEMS.preparacao, ['participantes', 'equipes', 'empresas', 'desafios']), ITEMS.gestao] },
-      { group: 'Evento', items: [ITEMS.presenca, only(ITEMS.encerramento, ['avaliacoes', 'resultados'])] },
-      { group: 'Análise', items: [ITEMS.relatorios] },
-    ],
-    extra: ['apresentacao'],
-  },
-  Gestor: {
-    key: 'sectorManager',
-    represents: 'Liderança do setor atribuído, sem acesso global',
-    home: 'dashboard',
-    layout: 'admin',
-    sectorScoped: true,
-    routeDemands: true,
-    nav: [
-      { group: 'Dashboard', items: [ITEMS.dashboard] },
-      { group: 'Meu setor', items: [SECTOR_WORK] },
-      {
-        group: 'Gestão',
-        items: [
-          { id: 'pendencias', label: 'Pendências', icon: 'check' },
-          { id: 'ocorrencias', label: 'Ocorrências', icon: 'alert' },
-          { id: 'documentos', label: 'Documentos', icon: 'file' },
-        ],
-      },
-    ],
-  },
-  Editor: {
-    key: 'editor',
-    represents: 'Membro operacional do setor atribuído',
-    home: 'dashboard',
-    layout: 'admin',
-    sectorScoped: true,
-    // Visão operacional: registra e atualiza o próprio trabalho, sem administrar o setor.
-    operational: true,
-    nav: [
-      { group: 'Dashboard', items: [ITEMS.dashboard] },
-      {
-        group: 'Meu trabalho',
-        items: [
-          SECTOR_WORK,
-          { id: 'pendencias', label: 'Minhas Pendências', icon: 'check' },
-          { id: 'ocorrencias', label: 'Ocorrências', icon: 'alert' },
-          { id: 'documentos', label: 'Documentos', icon: 'file' },
-        ],
-      },
-    ],
-  },
-  Validador: {
-    key: 'validator',
-    represents: 'Responsável por credenciais, check-in e presença',
-    home: 'presenca',
-    layout: 'focus',
-    title: '',
-    routes: ['presenca'],
-  },
-  Jurado: {
-    key: 'juror',
-    represents: 'Responsável pelas avaliações das equipes',
-    home: 'area-jurado',
-    layout: 'focus',
-    title: 'Área do Jurado',
-    routes: ['area-jurado', 'avaliar'],
-  },
-  Votante: {
-    key: 'voter',
-    represents: 'Pessoa habilitada para a votação pública',
-    home: 'votacao',
-    layout: 'focus',
-    title: '',
-    routes: ['votacao'],
-  },
+// Endereços antigos do protótipo continuam funcionando.
+export function legacyTarget(path, params = {}) {
+  if (path === 'inicio') return 'dashboard'
+  if (path === 'preparacao') {
+    if (params.aba === 'participantes') return 'participantes'
+    if (params.aba === 'equipes') return 'equipes'
+    if (params.aba === 'empresas') return params.inner === 'desafios' ? 'desafios' : 'empresas'
+    return 'config'
+  }
+  if (path === 'gestao') {
+    if (params.aba === 'pendencias') return 'pendencias'
+    if (params.aba === 'reunioes' || params.aba === 'atas' || params.aba === 'decisoes') return 'reunioes'
+    return 'setores'
+  }
+  if (path === 'encerramento') {
+    if (params.aba === 'avaliacoes') return 'avaliacoes'
+    if (params.aba === 'votacao') return 'votacao-gestao'
+    if (params.aba === 'resultados') return 'resultados'
+    return 'jurados'
+  }
+  if (path === 'empresas' && params.aba === 'desafios') return 'desafios'
+  if (['evento', 'ingresso', 'validar'].includes(path)) return 'presenca'
+  if (path === 'sala') return 'setores'
+  return ''
 }
 
-export const PROFILE_NAMES = Object.keys(ACCESS_PROFILES)
-
-export function profileConfig(profile) {
-  return ACCESS_PROFILES[profile] || ACCESS_PROFILES.Administrador
+function allowed(permissions, ids) {
+  return ids.some((code) => permissions.includes(code))
 }
 
-const ALLOWED = Object.fromEntries(PROFILE_NAMES.map((name) => {
-  const config = ACCESS_PROFILES[name]
-  const ids = (config.nav || []).flatMap((group) => group.items.flatMap((item) => (item.children ? item.children.map((child) => child.id) : [item.id])))
-  const routes = [...ids.flatMap((id) => LEAF[id] || [id]), ...(config.routes || []), ...(config.extra || [])]
-  return [name, new Set(routes)]
-}))
-
-export function canAccess(profile, path) {
-  return ALLOWED[profile in ALLOWED ? profile : 'Administrador'].has(String(path || '').split('?')[0])
+export function focusFor(role) {
+  return FOCUS[role] || null
 }
 
-export function homeFor(profile) {
-  return profileConfig(profile).home
+export function canAccess(user, path) {
+  const route = String(path || '').split('?')[0]
+  const required = ROUTES[route]
+  if (!required || !user) return false
+  const focus = focusFor(user.role?.code)
+  // Jurado e Votante ficam só na própria experiência focada (incluindo o resultado publicado, se permitido).
+  if (focus && !focus.routes.includes(route)) return false
+  return allowed(user.permissions || [], required)
 }
 
-export function navFor(profile) {
-  return profileConfig(profile).nav || []
+export function navFor(user) {
+  if (!user || focusFor(user.role?.code)) return []
+  const sectorScoped = Boolean(user.sector)
+  return NAV.map((group) => ({
+    group: group.group,
+    items: group.items.map((item) => {
+      if (!item.children) return canAccess(user, item.id) ? item : null
+      const children = item.children
+        .filter((child) => canAccess(user, child.id))
+        .map((child) => (child.id === 'setores' && sectorScoped ? { ...child, label: 'Meu setor' } : child))
+      return children.length ? { ...item, children } : null
+    }).filter(Boolean),
+  })).filter((group) => group.items.length)
+}
+
+export function homeFor(user) {
+  if (!user) return 'login'
+  const focus = focusFor(user.role?.code)
+  if (focus) return canAccess(user, focus.home) ? focus.home : ''
+  if (canAccess(user, 'dashboard')) return 'dashboard'
+  for (const group of navFor(user)) {
+    for (const item of group.items) {
+      if (item.children?.length) return item.children[0].id
+      if (!item.children) return item.id
+    }
+  }
+  return ''
 }
 
 export function navActive(id, path) {
@@ -207,9 +186,8 @@ export function navActive(id, path) {
   return (LEAF[id] || []).includes(path)
 }
 
-// Único ponto que traduz a rota atual em destino ativo da Sidebar do perfil.
-export function navState(path, profile) {
-  for (const group of navFor(profile)) {
+export function navState(path, user) {
+  for (const group of navFor(user)) {
     for (const item of group.items) {
       const child = item.children?.find((entry) => navActive(entry.id, path))
       if (child) return { item: child.id, group: item.id }
@@ -217,38 +195,4 @@ export function navState(path, profile) {
     }
   }
   return { item: '', group: '' }
-}
-
-// Gestor e Editor enxergam apenas os setores atribuídos; demais perfis não têm recorte (null).
-export function sectorScope(session) {
-  if (!profileConfig(session?.profile).sectorScoped) return null
-  const list = (session?.sectors?.length ? session.sectors : [session?.sector]).filter((name) => SETORES.includes(name))
-  return list.length ? list : [SETORES[0]]
-}
-
-export function inScope(session, sector) {
-  const scope = sectorScope(session)
-  return !scope || scope.includes(sector)
-}
-
-// Nomes antigos do protótipo continuam válidos em dados salvos: SuperAdmin → Administrador, Gestor de Setor → Gestor.
-const LEGACY_PROFILES = { SuperAdmin: 'Administrador', 'Gestor de Setor': 'Gestor' }
-
-export function migrateProfile(profile) {
-  return LEGACY_PROFILES[profile] || profile
-}
-
-export function isAdmin(session) {
-  return Boolean(profileConfig(session?.profile).globalAdmin)
-}
-
-// Editor: ações operacionais apenas. Gestor, Consultor e Administrador mantêm o controle do que veem.
-export function isOperational(session) {
-  return Boolean(profileConfig(session?.profile).operational)
-}
-
-// Encaminhar demandas entre setores e gerar pendências a partir de ocorrências: Administrador e Gestor.
-// O Editor registra e comenta; o Gestor decide os encaminhamentos do setor.
-export function canRouteDemands(session) {
-  return Boolean(profileConfig(session?.profile).routeDemands)
 }

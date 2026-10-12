@@ -194,6 +194,22 @@ Explícita e idempotente: inscrição `CONFIRMED` + entrada mapeada como `PARTIC
 
 Só ações administrativas: `EVEN3_INTEGRATION_CONFIGURED`, `EVEN3_TICKET_MAPPING_CHANGED`, `EVEN3_SYNC_TRIGGERED` (um por sync manual; o resultado fica no `integration_sync_run`) e `EVEN3_PARTICIPANTS_MATERIALIZED` (um por execução). Pessoas, inscrições e participantes criados pela integração não geram um log cada.
 
+## 9.1 Tela "Inscrições e Presença" (Fase 10)
+
+Substitui a antiga tela "Credenciais e Presença" do protótipo. Não existe scanner, câmera, QR, credencial local nem check-in pelo HackLab: credenciamento é operado na Even3 e não há perfil Validador.
+
+| Aba | Endpoints | Quem opera |
+|---|---|---|
+| Integração | `GET .../integrations/even3/status`, `PUT .../integrations/even3` (id externo e status) | configurar: `integrations.manage` |
+| Entradas | `GET .../integrations/even3/tickets`, `PATCH /external-ticket-types/{t}/mapping` | mapear: `integrations.manage` |
+| Sincronização | `POST .../integrations/even3/sync` (escopo), `GET .../sync-runs`, `GET /integration-sync-runs/{run}` | disparar: `integrations.sync` |
+| Inscrições | `GET .../event-registrations` (filtros), `GET /event-registrations/{r}`, `POST .../materialize-participants` | materializar: `integrations.manage` + `participants.manage` |
+| Presença | `GET .../attendance` (somente leitura) | `attendance.view` |
+
+- O Consultor vê tudo em modo leitura (`integrations.view`, `event_registrations.view`, `attendance.view`), sem botões de configurar, mapear, sincronizar ou materializar.
+- A tela nunca mostra nem recebe `EVEN3_API_TOKEN`, `EVEN3_WEBHOOK_SECRET` ou o header do webhook; o status só informa se o token está configurado.
+- Mapear uma entrada não concede perfil, não cria Jurado, Empresa nem Usuário.
+
 ## 10. Erros e timeouts
 
 `Even3Client` centraliza Bearer, base URL, timeouts (conexão 5 s, requisição 15 s), retry só de GET (timeout, rede, 429, 5xx; poucas tentativas com espera crescente) e erros tipados: `BAD_REQUEST` (400), `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `RATE_LIMITED` (429), `SERVER_ERROR` (5xx), `TIMEOUT`, `NETWORK_ERROR`, `INVALID_JSON`.

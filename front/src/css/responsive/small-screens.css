@@ -14,7 +14,7 @@
   .sidebar.open { transform: none; }
   .icon-btn.menu-btn { display: inline-flex; }
   .content { width: calc(100% - 32px); padding: 16px 0 40px; }
-  .page-head, .form-grid, .hero, .hero-meta, .grid.cols-3, .grid.cols-2, .quick, .split, .wheels, .day-cards, .model-pair { display: flex; flex-direction: column; }
+  .page-head, .form-grid, .hero, .hero-meta, .grid.cols-3, .grid.cols-2, .quick, .split, .day-cards { display: flex; flex-direction: column; }
   .form-grid { display: grid; grid-template-columns: 1fr; }
   .span-2 { grid-column: auto; }
   .user-meta { display: none; }
@@ -25,9 +25,8 @@
 @media (max-width: 767px) {
   .profile-back { display: block; position: fixed; inset: 0; z-index: 34; background: rgba(15, 32, 51, .35); }
   .profile-menu.popover { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: 100%; max-height: 85vh; border-radius: 16px 16px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
-  .profile-option { min-height: 46px; }
   .focus-bar { padding: 0 12px; height: 56px; }
-  .focus-bar .logo-name, .focus-bar .demo-badge, .focus-shell .user-meta { display: none; }
+  .focus-bar .logo-name, .focus-shell .user-meta { display: none; }
   .focus-shell main { width: calc(100% - 24px); padding-top: 14px; }
   .focus-exit { padding: 0 12px; }
   .attendance-bar { flex-direction: column; align-items: stretch; }

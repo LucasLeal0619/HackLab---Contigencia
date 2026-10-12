@@ -17,3 +17,7 @@
   .demand-comment .btn { justify-self: stretch; }
   .related-list .btn { flex: 1 1 100%; }
 }
+/* Lista de detalhes usada no drawer (mesma aparência da .detail-list global). */
+.demand-activity .detail-list, .occ-detail { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 8px 0 0; }
+.demand-activity .detail-list dt, .occ-detail dt { color: var(--muted); }
+.demand-activity .detail-list dd, .occ-detail dd { margin: 0; }

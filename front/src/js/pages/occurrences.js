@@ -1,274 +1,371 @@
-// Lógica do componente Occurrences.vue (o template fica no .vue).
-import { computed, ref, watch } from 'vue'
-import { OCC_CATEGORIES, OCC_PRIORITIES, OCC_STATUS, SETORES, demandVisible, historyEntry, nextRef, occurrenceCategory, occurrenceSector, occurrenceStatus, teamName, trackDemandEdit, uid } from '@/js/data/model'
-import { actorFrom, useAudit } from '@/js/audit/audit-logger'
-import { canRouteDemands, isOperational, sectorScope } from '@/js/config/access'
-import { go, useHack } from '@/js/stores/hack'
-import { toneFor } from '@/js/utils/tone'
+// Lógica da página Occurrences.vue: GET/POST /events/{event}/occurrences, GET/PATCH /occurrences/{occurrence},
+// comentários, encaminhamento, resolução (com solução obrigatória), reabertura e geração de pendência.
+// Não existe exclusão de ocorrência. Dia (EventDay) e equipe vêm do evento real.
+import { computed, ref, shallowRef, watch } from 'vue'
+import { useDemandSupport } from '@/js/components/demand-activity'
+import { fetchAll } from '@/js/api/pagination'
+import { useAction, usePaged, useRequest } from '@/js/composables/async'
+import { label, options, tone } from '@/js/labels'
+import { go } from '@/js/router'
+import { activeDays, eventContext } from '@/js/stores/event-context'
+import * as occurrencesApi from '@/js/services/occurrences'
+import { listTeams } from '@/js/services/teams'
+import { dayLabel, formatDateTime, fromLocalInput, toLocalInput } from '@/js/utils/format'
+
+const DETAIL_FIELDS = ['category', 'location', 'notes']
+
+function sameInstant(a, b) {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  return Date.parse(a) === Date.parse(b)
+}
+
+function sortedIds(list) {
+  return [...(list || [])].map(Number).sort((a, b) => a - b).join(',')
+}
 
 export function useOccurrences(props) {
-  const DAYS = [['', 'Fora dos dias do evento'], ['1', 'Dia 1'], ['2', 'Dia 2'], ['3', 'Dia 3']]
+  const support = useDemandSupport('occurrences')
+  const { mySectorId, globalScope, canRoute, activeSectors, rememberSectors, loadAssignees } = support
 
+  const list = usePaged(async (query, requestOptions) => {
+    if (!eventContext.activeEventId) return { data: [] }
+    const payload = await occurrencesApi.listOccurrences(eventContext.activeEventId, query, requestOptions)
+    rememberSectors(payload?.data)
+    return payload
+  }, {
+    filters: { search: '', category: '', responsible_sector_id: '', involved_sector_id: '', priority: '', status: '', event_day_id: '', team_id: '' },
+    perPage: 25,
+    watchSources: () => eventContext.activeEventId,
+  })
 
-  const { state, update, flash } = useHack()
-  const audit = useAudit()
-  const scope = computed(() => sectorScope(state.session))
-  // Filtro por setor responsável: a lista inclui demandas de outros setores que envolvem o meu.
-  const sectorOptions = computed(() => SETORES)
-  const operational = computed(() => isOperational(state.session))
-  // Administrador e Gestor podem atribuir a outro setor, envolver setores e gerar pendências.
-  const canRoute = computed(() => canRouteDemands(state.session))
-  const responsibleOptions = computed(() => (canRoute.value || !scope.value ? SETORES : scope.value))
-  const generating = ref(null)
-  const filters = ref({ query: '', category: '', sector: '', priority: '', status: '', day: '' })
-  const form = ref(null)
+  // Equipes do evento: carregadas sob demanda (formulário ou filtro), para não pesar a abertura da tela.
+  const teams = shallowRef([])
+  const teamsState = ref('idle') // idle | loading | ready | error
+  async function ensureTeams() {
+    if (!eventContext.activeEventId || teamsState.value === 'loading' || teamsState.value === 'ready') return
+    teamsState.value = 'loading'
+    try {
+      const eventId = eventContext.activeEventId
+      teams.value = await fetchAll((query) => listTeams(eventId, query))
+      teamsState.value = 'ready'
+    } catch {
+      teamsState.value = 'error'
+    }
+  }
+
+  const days = computed(() => activeDays.value)
+
+  // Detalhe (drawer): { data, meta: { abilities } }.
   const detailId = ref(null)
-  const solving = ref(null)
-  const removing = ref(null)
-
-  function dayLabel(value) {
-    return value ? `Dia ${value}` : '—'
-  }
-
-  function blank(extra = {}) {
-    return { title: '', category: 'Outro', description: '', day: '', at: '', place: '', team: '', sector: scope.value?.[0] || '', originSector: scope.value?.[0] || '', involvedSectors: [], priority: 'Média', responsible: state.session?.name || '', status: 'Aberta', notes: '', ...extra }
-  }
-
-  // Atalhos dos setores chegam como parâmetros e abrem o mesmo formulário da central.
-  watch(() => props.params, (params) => {
-    if (params.setor && SETORES.includes(params.setor)) filters.value.sector = params.setor
-    // Link direto vindo de uma pendência relacionada.
-    if (params.ver) detailId.value = params.ver
-    if (params.novo) {
-      form.value = blank({
-        title: params.titulo || '',
-        category: OCC_CATEGORIES.includes(params.categoria) ? params.categoria : 'Outro',
-        sector: SETORES.includes(params.setor) ? params.setor : scope.value?.[0] || '',
-        place: params.local || '',
-      })
-      filters.value.sector = ''
-      window.history.replaceState(null, '', '#/ocorrencias')
-    }
-  }, { immediate: true })
-
-  const list = computed(() => {
-    const f = filters.value
-    const term = f.query.trim().toLowerCase()
-    return state.occurrences
-      .map((item) => ({ ...item, categoryLabel: occurrenceCategory(item), sectorLabel: occurrenceSector(item), statusLabel: occurrenceStatus(item) }))
-      .filter((item) => demandVisible(scope.value, item, 'occurrence'))
-      .filter((item) => !term || `${item.title} ${item.description || ''} ${item.place || ''} ${item.responsible || ''}`.toLowerCase().includes(term))
-      .filter((item) => !f.category || item.categoryLabel === f.category)
-      .filter((item) => !f.sector || item.sectorLabel === f.sector)
-      .filter((item) => !f.priority || item.priority === f.priority)
-      .filter((item) => !f.status || item.statusLabel === f.status)
-      .filter((item) => !f.day || String(item.day || '') === f.day)
+  const detail = useRequest(async ({ signal }) => {
+    if (!detailId.value) return null
+    const payload = await occurrencesApi.getOccurrence(detailId.value, { signal })
+    rememberSectors([payload?.data])
+    return payload
+  }, { immediate: false })
+  const occurrence = computed(() => (detail.data.value?.data?.id === detailId.value ? detail.data.value.data : null))
+  const abilities = computed(() => detail.data.value?.meta?.abilities || {})
+  const closed = computed(() => occurrence.value?.status === 'RESOLVED')
+  watch(detailId, (id) => {
+    if (id) detail.load()
+    else detail.data.value = null
   })
-  const counts = computed(() => OCC_STATUS.map((status) => [status, state.occurrences.filter((item) => demandVisible(scope.value, item, 'occurrence') && occurrenceStatus(item) === status).length]))
-  const detail = computed(() => {
-    // Só abre ocorrências visíveis para o setor do usuário (inclusive por link direto).
-    const item = state.occurrences.find((entry) => entry.id === detailId.value && demandVisible(scope.value, entry, 'occurrence'))
-    return item ? { ...item, categoryLabel: occurrenceCategory(item), sectorLabel: occurrenceSector(item), statusLabel: occurrenceStatus(item) } : null
-  })
-  const filtering = computed(() => Object.values(filters.value).some(Boolean))
-  const advancedFilters = computed(() => ['category', 'sector', 'priority', 'status', 'day'].filter((key) => filters.value[key]).length)
-
-  function clearFilters() {
-    filters.value = { query: '', category: '', sector: '', priority: '', status: '', day: '' }
-  }
-
-  function openNew() {
-    form.value = blank()
-  }
-
-  function openEdit(item) {
-    form.value = blank({ ...item, category: occurrenceCategory(item), sector: occurrenceSector(item), status: occurrenceStatus(item), day: item.day ? String(item.day) : '', involvedSectors: [...(item.involvedSectors || [])] })
+  watch(() => eventContext.activeEventId, () => {
     detailId.value = null
-  }
-
-  function save() {
-    const current = form.value
-    if (!current.title.trim()) {
-      flash('Informe o título da ocorrência.', 'err')
-      return
-    }
-    const record = {
-      title: current.title.trim(),
-      category: current.category,
-      description: current.description,
-      day: current.day ? Number(current.day) : '',
-      at: current.at,
-      place: current.place,
-      team: current.team,
-      sector: current.sector,
-      priority: current.priority,
-      responsible: current.responsible,
-      status: current.status,
-      notes: current.notes,
-      involvedSectors: [...new Set([...(current.involvedSectors || []), current.originSector, current.sector].filter(Boolean))],
-    }
-    const actor = actorFrom(state.session)
-    update((draft) => {
-      const index = current.id ? draft.occurrences.findIndex((item) => item.id === current.id) : -1
-      if (index >= 0) {
-        const before = draft.occurrences[index]
-        const after = { ...before, ...record }
-        const tracked = trackDemandEdit('occurrence', before, after)
-        after.history = [...(before.history || []), ...tracked.events.map((text) => historyEntry(actor, 'event', text))]
-        draft.occurrences[index] = after
-        if (tracked.events.length) audit.record(draft, { action: tracked.action, label: tracked.label, module: 'occurrences', entityType: 'Ocorrência', entityId: after.id, entityLabel: after.ref, description: `Ocorrência "${after.title}".`, changes: tracked.changes })
-      } else {
-        const created = { id: uid('oc'), ref: nextRef(draft.occurrences, 'OCO'), ...record, originSector: current.originSector || '', solution: '', history: [historyEntry(actor, 'event', 'Registrou a ocorrência.')] }
-        draft.occurrences.unshift(created)
-        audit.record(draft, { action: 'occurrence.created', label: 'Registrou ocorrência', module: 'occurrences', entityType: 'Ocorrência', entityId: created.id, entityLabel: created.ref, description: `Registrou a ocorrência "${created.title}" (responsável: ${created.sector || 'sem setor'}).` })
-      }
-    })
-    flash(current.id ? 'Ocorrência atualizada.' : 'Ocorrência registrada.')
     form.value = null
+    acting.value = null
+    generating.value = null
+    teams.value = []
+    teamsState.value = 'idle'
+  })
+
+  async function refresh() {
+    if (detailId.value) await detail.load()
+    await list.load()
   }
 
-  function openSolve() {
-    solving.value = { id: detail.value.id, solution: '', responsible: detail.value.responsible || state.session?.name || '', note: '' }
-  }
+  // Formulário: registro e edição (conteúdo/estrutura exige gestão do setor responsável).
+  const form = ref(null)
 
-  function saveSolution() {
-    const current = solving.value
-    if (!current.solution.trim()) {
-      flash('Descreva a solução adotada.', 'err')
-      return
+  function blank() {
+    return {
+      id: null,
+      title: '',
+      description: '',
+      category: 'OTHER',
+      origin_sector_id: mySectorId.value || '',
+      responsible_sector_id: mySectorId.value || '',
+      involved_sector_ids: [],
+      assigned_user_id: '',
+      priority: 'MEDIUM',
+      event_day_id: '',
+      occurred_at: '',
+      location: '',
+      team_id: '',
+      notes: '',
     }
-    const actor = actorFrom(state.session)
-    update((draft) => {
-      const item = draft.occurrences.find((entry) => entry.id === current.id)
-      if (!item) return
-      const before = occurrenceStatus(item)
-      item.status = 'Resolvida'
-      item.solution = current.solution.trim()
-      if (current.responsible) item.responsible = current.responsible
-      if (current.note) item.notes = [item.notes, current.note].filter(Boolean).join(' · ')
-      item.history.push(historyEntry(actor, 'event', `Resolveu a ocorrência. Solução: ${item.solution}`))
-      audit.record(draft, { action: 'occurrence.resolved', label: 'Resolveu ocorrência', module: 'occurrences', entityType: 'Ocorrência', entityId: item.id, entityLabel: item.ref, description: `Ocorrência "${item.title}" resolvida.`, changes: [{ field: 'Status', before, after: 'Resolvida' }] })
-    })
-    solving.value = null
-    flash('Ocorrência resolvida.')
   }
 
-  function reopen() {
-    const id = detail.value.id
-    const actor = actorFrom(state.session)
-    update((draft) => {
-      const item = draft.occurrences.find((entry) => entry.id === id)
-      if (!item) return
-      item.status = 'Aberta'
-      item.history.push(historyEntry(actor, 'event', 'Reabriu a ocorrência.'))
-      audit.record(draft, { action: 'occurrence.reopened', label: 'Reabriu ocorrência', module: 'occurrences', entityType: 'Ocorrência', entityId: item.id, entityLabel: item.ref, description: `Ocorrência "${item.title}" reaberta.`, changes: [{ field: 'Status', before: 'Resolvida', after: 'Aberta' }] })
-    })
-    flash('Ocorrência reaberta.')
+  function openNew(extra = {}) {
+    save.clear()
+    form.value = { ...blank(), ...extra } // o watch do setor responsável carrega os responsáveis possíveis
+    ensureTeams()
   }
 
-  // Ocorrência (algo que aconteceu) pode gerar uma Pendência (algo a fazer) relacionada.
-  const relatedTasks = computed(() => (detail.value ? state.tasks.filter((task) => task.sourceOccurrenceId === detail.value.id) : []))
+  function openEdit() {
+    const item = occurrence.value
+    if (!item) return
+    save.clear()
+    form.value = {
+      id: item.id,
+      title: item.title,
+      description: item.description || '',
+      category: item.category || 'OTHER',
+      origin_sector_id: item.origin_sector?.id || '',
+      responsible_sector_id: item.responsible_sector?.id || '',
+      involved_sector_ids: (item.involved_sectors || []).map((sector) => sector.id),
+      assigned_user_id: item.assigned_user?.id || '',
+      priority: item.priority || 'MEDIUM',
+      event_day_id: item.event_day?.id || '',
+      occurred_at: toLocalInput(item.occurred_at),
+      location: item.location || '',
+      team_id: item.team?.id || '',
+      notes: item.notes || '',
+    }
+    loadAssignees(form.value.responsible_sector_id, item.assigned_user)
+    ensureTeams()
+  }
+
+  watch(() => form.value && !form.value.id && form.value.responsible_sector_id, (id, before) => {
+    if (!form.value || form.value.id || id === before) return
+    form.value.assigned_user_id = ''
+    form.value.involved_sector_ids = form.value.involved_sector_ids.filter((sid) => sid !== Number(id))
+    loadAssignees(id)
+  })
+
+  // Ao escolher a data/horário, sugere o dia do evento correspondente (no fuso do evento).
+  watch(() => form.value?.occurred_at, (value) => {
+    if (!form.value || !value || form.value.event_day_id) return
+    const day = days.value.find((item) => item.date === value.slice(0, 10))
+    if (day) form.value.event_day_id = day.id
+  })
+
+  const chooseOrigin = computed(() => globalScope.value)
+  const chooseResponsible = computed(() => globalScope.value || canRoute.value)
+  const chooseInvolved = computed(() => canRoute.value)
+  const involvedOptions = computed(() => {
+    const f = form.value
+    if (!f) return []
+    return activeSectors.value.filter((sector) => sector.id !== Number(f.origin_sector_id) && sector.id !== Number(f.responsible_sector_id))
+  })
+
+  function toggleInvolved(id) {
+    const current = form.value.involved_sector_ids
+    form.value.involved_sector_ids = current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+  }
+
+  function sectorNameById(id) {
+    return support.allSectors.value.find((sector) => sector.id === Number(id))?.name || '—'
+  }
+
+  const nullableId = (value) => (value ? Number(value) : null)
+  const nullableText = (value) => (String(value || '').trim() || null)
+
+  const save = useAction(async () => {
+    const f = form.value
+    if (f.id) {
+      const item = occurrence.value
+      const body = {}
+      if (f.title.trim() !== item.title) body.title = f.title.trim()
+      if (f.description.trim() !== (item.description || '')) body.description = f.description.trim()
+      if (f.priority !== item.priority) body.priority = f.priority
+      DETAIL_FIELDS.forEach((key) => {
+        const value = key === 'category' ? f.category : nullableText(f[key])
+        if (value !== (item[key] ?? null)) body[key] = value
+      })
+      if (nullableId(f.event_day_id) !== (item.event_day?.id ?? null)) body.event_day_id = nullableId(f.event_day_id)
+      if (nullableId(f.team_id) !== (item.team?.id ?? null)) body.team_id = nullableId(f.team_id)
+      const at = fromLocalInput(f.occurred_at)
+      if (!sameInstant(at, item.occurred_at)) body.occurred_at = at
+      const assigned = nullableId(f.assigned_user_id)
+      if (assigned !== (item.assigned_user?.id ?? null)) body.assigned_user_id = assigned
+      if (sortedIds(f.involved_sector_ids) !== sortedIds((item.involved_sectors || []).map((sector) => sector.id))) body.involved_sector_ids = f.involved_sector_ids.map(Number)
+      if (!Object.keys(body).length) {
+        form.value = null
+        return { changed: 0 }
+      }
+      await occurrencesApi.updateOccurrence(item.id, body)
+      form.value = null
+      await refresh()
+      return { changed: 1 }
+    }
+    const body = {
+      title: f.title.trim(),
+      description: f.description.trim(),
+      category: f.category,
+      priority: f.priority,
+      event_day_id: nullableId(f.event_day_id),
+      occurred_at: fromLocalInput(f.occurred_at),
+      location: nullableText(f.location),
+      team_id: nullableId(f.team_id),
+      notes: nullableText(f.notes),
+    }
+    if (chooseOrigin.value) body.origin_sector_id = nullableId(f.origin_sector_id)
+    if (chooseResponsible.value) body.responsible_sector_id = nullableId(f.responsible_sector_id)
+    if (chooseInvolved.value && f.involved_sector_ids.length) body.involved_sector_ids = f.involved_sector_ids.map(Number)
+    if (f.assigned_user_id) body.assigned_user_id = Number(f.assigned_user_id)
+    const created = await occurrencesApi.createOccurrence(eventContext.activeEventId, body)
+    form.value = null
+    await list.load()
+    if (created?.data?.id) detailId.value = created.data.id
+    return { created: created?.data }
+  }, {
+    success: (result) => {
+      if (result?.created) return result.created.reference ? `Ocorrência ${result.created.reference} registrada.` : 'Ocorrência registrada.'
+      return result?.changed ? 'Ocorrência atualizada.' : 'Nenhuma alteração para salvar.'
+    },
+  })
+
+  // Status (PATCH entre OPEN e IN_PROGRESS), resolver (solução obrigatória) e reabrir.
+  const acting = ref(null) // { type: 'resolve' | 'reopen', text }
+
+  const setStatus = useAction(async (status) => {
+    await occurrencesApi.updateOccurrence(occurrence.value.id, { status })
+    await refresh()
+    return status
+  }, { success: (status) => `Ocorrência marcada como ${label('occurrenceStatus', status).toLowerCase()}.` })
+
+  const runAction = useAction(async () => {
+    const current = acting.value
+    if (current.type === 'resolve') await occurrencesApi.resolveOccurrence(occurrence.value.id, { resolution: current.text.trim() })
+    else await occurrencesApi.reopenOccurrence(occurrence.value.id, { message: current.text.trim() || null })
+    acting.value = null
+    await refresh()
+    return current.type
+  }, { success: (type) => (type === 'resolve' ? 'Ocorrência resolvida.' : 'Ocorrência reaberta.') })
+
+  function openAction(type) {
+    runAction.clear()
+    acting.value = { type, text: '' }
+  }
+
+  // Gerar pendência a partir da ocorrência (Administrador ou Gestor de setor relacionado).
+  const generating = ref(null)
+  const generateOrigin = computed(() => globalScope.value)
 
   function openGenerate() {
-    generating.value = { title: '', sector: detail.value.sectorLabel || scope.value?.[0] || SETORES[0], priority: detail.value.priority || 'Média', due: '', description: `Originada da ocorrência ${detail.value.ref}: ${detail.value.title}.` }
+    const item = occurrence.value
+    generate.clear()
+    generating.value = {
+      title: '',
+      description: `Originada da ocorrência ${item.reference}: ${item.title}.`,
+      origin_sector_id: mySectorId.value || item.responsible_sector?.id || '',
+      responsible_sector_id: item.responsible_sector?.active ? item.responsible_sector.id : '',
+      assigned_user_id: '',
+      priority: item.priority || 'MEDIUM',
+      due_at: '',
+    } // o watch do setor responsável carrega os responsáveis possíveis
   }
 
-  function generateTask() {
-    const current = generating.value
-    if (!current.title.trim()) {
-      flash('Informe o título da pendência.', 'err')
-      return
+  watch(() => generating.value?.responsible_sector_id, (id, before) => {
+    if (!generating.value || id === before) return
+    generating.value.assigned_user_id = ''
+    loadAssignees(id)
+  })
+
+  const generate = useAction(async () => {
+    const g = generating.value
+    const body = {
+      title: g.title.trim(),
+      description: g.description.trim(),
+      responsible_sector_id: nullableId(g.responsible_sector_id),
+      priority: g.priority,
     }
-    const occurrenceId = detail.value.id
-    const actor = actorFrom(state.session)
-    let ref = ''
-    update((draft) => {
-      const occurrence = draft.occurrences.find((entry) => entry.id === occurrenceId)
-      ref = nextRef(draft.tasks, 'PEN')
-      const origin = actor.sector || occurrenceSector(occurrence) || ''
-      const task = {
-        id: uid('pen'),
-        ref,
-        title: current.title.trim(),
-        description: current.description,
-        sector: current.sector,
-        due: current.due,
-        responsible: '',
-        status: 'Pendente',
-        priority: current.priority,
-        origin: `Ocorrência ${occurrence.ref}`,
-        sourceOccurrenceId: occurrence.id,
-        originSector: origin,
-        involvedSectors: [...new Set([origin, current.sector, ...(occurrence.involvedSectors || [])].filter(Boolean))],
-        notes: '',
-        createdAt: new Date().toLocaleString('pt-BR'),
-        history: [historyEntry(actor, 'event', `Criou a pendência a partir da ocorrência ${occurrence.ref}.`)],
-      }
-      draft.tasks.unshift(task)
-      occurrence.history.push(historyEntry(actor, 'event', `Gerou a pendência ${ref}: ${task.title}.`))
-      audit.record(draft, { action: 'occurrence.task-generated', label: 'Gerou pendência', module: 'occurrences', entityType: 'Ocorrência', entityId: occurrence.id, entityLabel: occurrence.ref, description: `Gerou a pendência ${ref} "${task.title}" (responsável: ${task.sector}).`, metadata: { taskId: task.id } })
-    })
+    if (generateOrigin.value) body.origin_sector_id = nullableId(g.origin_sector_id)
+    if (g.assigned_user_id) body.assigned_user_id = Number(g.assigned_user_id)
+    if (g.due_at) body.due_at = fromLocalInput(g.due_at)
+    const created = await occurrencesApi.generateOccurrenceTask(occurrence.value.id, body)
     generating.value = null
-    flash(`Pendência ${ref} criada.`)
-  }
+    await refresh()
+    return created?.data
+  }, { success: (task) => (task?.reference ? `Pendência ${task.reference} criada.` : 'Pendência criada.') })
+
+  // Links: ?ver=ID abre o detalhe; ?novo=1 abre o registro; ?responsible_sector_id=ID / ?involved_sector_id=ID (ou ?setor=ID) filtram por setor.
+  watch(() => props.params, (params = {}) => {
+    const id = (value) => (value && /^\d+$/.test(value) ? Number(value) : null)
+    const responsible = id(params.responsible_sector_id) || id(params.setor)
+    if (responsible) list.filters.responsible_sector_id = responsible
+    if (id(params.involved_sector_id)) list.filters.involved_sector_id = id(params.involved_sector_id)
+    if (params.ver && /^\d+$/.test(params.ver)) detailId.value = Number(params.ver)
+    if (params.novo && support.canCreate.value) {
+      openNew({
+        title: params.titulo || '',
+        category: options('occurrenceCategory').some(([code]) => code === params.categoria) ? params.categoria : 'OTHER',
+        location: params.local || '',
+      })
+    }
+    if (params.ver || params.novo || params.setor || params.responsible_sector_id || params.involved_sector_id) window.history.replaceState(null, '', '#/ocorrencias')
+  }, { immediate: true })
 
   function openTask(id) {
     go(`pendencias?ver=${id}`)
   }
 
-  function toggleInvolved(sector) {
-    const list = form.value.involvedSectors || []
-    form.value.involvedSectors = list.includes(sector) ? list.filter((item) => item !== sector) : [...list, sector]
+  // EventDay da ocorrência: rótulo completo se o dia está no evento ativo; senão o que a API mandou.
+  function shortDay(eventDay) {
+    return eventDay ? eventDay.label || `Dia ${eventDay.day_number}` : ''
   }
 
-  function remove() {
-    const id = removing.value.id
-    update((draft) => {
-      draft.occurrences = draft.occurrences.filter((item) => item.id !== id)
-    })
-    removing.value = null
-    detailId.value = null
-    flash('Ocorrência excluída.')
+  function dayText(eventDay) {
+    if (!eventDay) return '—'
+    const day = days.value.find((item) => item.id === eventDay.id)
+    return day ? dayLabel(day) : shortDay(eventDay)
+  }
+
+  function teamName(id) {
+    return teams.value.find((team) => team.id === Number(id))?.name || ''
   }
 
   return {
-    canRoute,
-    responsibleOptions,
-    generating,
-    reopen,
-    relatedTasks,
-    openGenerate,
-    generateTask,
-    openTask,
-    toggleInvolved,
-    SETORES,
-    DAYS,
-    state,
-    scope,
-    sectorOptions,
-    operational,
-    filters,
-    form,
-    detailId,
-    solving,
-    removing,
-    dayLabel,
+    ...support,
     list,
-    counts,
+    teams,
+    teamsState,
+    ensureTeams,
+    teamName,
+    days,
+    detailId,
     detail,
-    filtering,
-    advancedFilters,
-    clearFilters,
+    occurrence,
+    abilities,
+    closed,
+    refresh,
+    form,
     openNew,
     openEdit,
+    chooseOrigin,
+    chooseResponsible,
+    chooseInvolved,
+    involvedOptions,
+    toggleInvolved,
+    sectorNameById,
     save,
-    openSolve,
-    saveSolution,
-    remove,
-    OCC_CATEGORIES,
-    OCC_PRIORITIES,
-    OCC_STATUS,
-    teamName,
-    toneFor,
+    acting,
+    openAction,
+    runAction,
+    setStatus,
+    generating,
+    generateOrigin,
+    openGenerate,
+    generate,
+    openTask,
+    dayLabel,
+    dayText,
+    shortDay,
+    label,
+    tone,
+    options,
+    formatDateTime,
   }
 }

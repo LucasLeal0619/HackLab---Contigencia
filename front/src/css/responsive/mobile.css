@@ -16,7 +16,6 @@
   .tabs { flex-wrap: wrap; }
   .tabs button { min-height: var(--touch); white-space: nowrap; }
   .input-icon .eye { min-width: var(--touch); min-height: var(--touch); }
-  .demo-list button { min-height: 40px; }
   input.input, select.input, textarea.input { font-size: 16px; min-height: var(--touch); }
   .page-actions { flex-wrap: wrap; }
   .page-actions:not(.page-head .page-actions) .btn { flex: 1 1 auto; }
@@ -57,7 +56,6 @@
   .sheet { width: 100%; }
   .sheet footer { flex-wrap: wrap; }
   .sheet footer .btn { flex: 1 1 auto; }
-  .report-preview .modal { height: 100dvh; max-height: 100dvh; border-radius: 0; }
 
   /* Feedback */
   .toast { left: 12px; right: 12px; bottom: 12px; width: auto; }

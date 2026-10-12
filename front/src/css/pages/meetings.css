@@ -1,3 +1,6 @@
-.choice.acordo.on { border-color: #1f7a4d; box-shadow: 0 0 0 3px rgba(31, 122, 77, .15); }
-.choice.obs.on { border-color: var(--orange); }
-.choice.ciente.on { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0, 73, 140, .12); }
+/* Reuniões: lista, formulário e detalhe */
+.meeting-title small { display: block; }
+.meeting-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.meeting-detail .kv dd { overflow-wrap: anywhere; }
+.meeting-description { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.meeting-status-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

@@ -1,356 +1,249 @@
-// Lógica do componente Sectors.vue (o template fica no .vue).
+// Lógica da página Sectors.vue: setores do evento (GET /events/{e}/sectors, já no escopo do usuário)
+// e a área de trabalho do setor — resumo real, somente leitura, de pendências, ocorrências e reuniões.
+// Gestor/Editor só alcançam o próprio setor; criar e ativar/inativar setores é exclusivo de quem tem escopo global.
 import { computed, ref, watch } from 'vue'
-import { isOperational, sectorScope } from '@/js/config/access'
-import { EXPENSE_CATEGORIES, occurrenceSector, occurrenceStatus, SETORES, uid } from '@/js/data/model'
-import { useHack, go } from '@/js/stores/hack'
-import { toneFor } from '@/js/utils/tone'
+import { toPage } from '@/js/api/pagination'
+import { useAction, useRequest } from '@/js/composables/async'
+import { label, tone } from '@/js/labels'
+import { go } from '@/js/router'
+import { auth, hasPermission } from '@/js/stores/auth'
+import { eventContext } from '@/js/stores/event-context'
+import { listMeetings } from '@/js/services/meetings'
+import { listOccurrences } from '@/js/services/occurrences'
+import { changeSectorStatus, createSector, listSectors, updateSector } from '@/js/services/sectors'
+import { listTasks } from '@/js/services/tasks'
+import { listUsers } from '@/js/services/users'
+import { formatDate, formatDateTime } from '@/js/utils/format'
+
+// Quantos itens a área de trabalho busca por bloco (máximo do backend). Os contadores dizem quando há mais.
+const SUMMARY_SIZE = 100
+const PREVIEW = 6
+
+function emptyForm() {
+  return { name: '', description: '' }
+}
 
 export function useSectors(props) {
-  const { state, update, flash } = useHack()
+  const ownSectorId = computed(() => auth.user?.sector?.id || null)
+  const globalScope = computed(() => !ownSectorId.value)
+  const canManage = computed(() => hasPermission('sectors.manage'))
+  // SectorPolicy: criar e ativar/inativar exigem escopo global; editar, alcançar o setor.
+  const canCreate = computed(() => canManage.value && globalScope.value)
+  const canChangeStatus = canCreate
+  const canEdit = (sector) => canManage.value && (globalScope.value || sector?.id === ownSectorId.value)
+  const canTasks = computed(() => hasPermission('tasks.view'))
+  const canOccurrences = computed(() => hasPermission('occurrences.view'))
+  const canMeetings = computed(() => hasPermission('meetings.view'))
+  const canUsers = computed(() => hasPermission('users.view'))
 
-  const COPY = {
-    'Recursos Humanos': 'Integrantes da organização, funções, responsáveis, participantes e apoio.',
-    Finanças: 'Orçamento, receitas, despesas, saldo, fornecedores e comprovantes.',
-    Marketing: 'Campanhas, conteúdos, materiais, canais e cronograma.',
-    Tecnologia: 'Equipamentos, infraestrutura, suporte e ocorrências técnicas.',
-    Produção: 'Espaços, materiais, estrutura, alimentação e logística.',
-  }
-
-  const SUB = {
-    'Recursos Humanos': [
-      { id: 'integrantes', label: 'Integrantes' },
-      { id: 'funcoes', label: 'Funções' },
-      { id: 'responsaveis', label: 'Responsáveis' },
-    ],
-    Finanças: [
-      { id: 'mov', label: 'Movimentações' },
-      { id: 'fornecedores', label: 'Fornecedores' },
-      { id: 'comprovantes', label: 'Comprovantes' },
-    ],
-    Marketing: [
-      { id: 'campanhas', label: 'Campanhas' },
-      { id: 'conteudos', label: 'Conteúdos e Materiais' },
-      { id: 'cronograma', label: 'Cronograma' },
-    ],
-    Tecnologia: [
-      { id: 'equipamentos', label: 'Equipamentos' },
-      { id: 'infra', label: 'Infraestrutura' },
-      { id: 'suporte', label: 'Suporte' },
-    ],
-    Produção: [
-      { id: 'espacos', label: 'Espaços' },
-      { id: 'materiais', label: 'Materiais' },
-      { id: 'operacao', label: 'Operação' },
-    ],
-  }
-
-  const EQUIP_STATUS = ['Disponível', 'Em uso', 'Com problema', 'Em manutenção', 'Indisponível']
-  const ITEM_STATUS = ['Não iniciado', 'Em andamento', 'Concluído', 'Com problema']
-  const CHANNELS = ['Instagram', 'WhatsApp', 'E-mail', 'Site', 'Cartazes', 'Comunicação interna', 'Outros']
-  const EQUIP_CATEGORIES = ['Computador', 'Notebook', 'Projetor', 'Tela', 'Áudio', 'Vídeo', 'Cabo', 'Extensão', 'Rede', 'Outro']
-  const PRIORITIES = ['Baixa', 'Média', 'Alta', 'Urgente']
-  const MOV_KINDS = ['Todos', 'Receitas', 'Despesas']
-  const CONTENT_KINDS = ['Todos', 'Conteúdos', 'Materiais']
-
-  const NEW_TITLES = {
-    membro: 'Novo integrante',
-    mov: 'Nova movimentação',
-    fornecedor: 'Novo fornecedor',
-    comprovante: 'Adicionar comprovante',
-    campanha: 'Nova campanha',
-    conteudo: 'Novo item',
-    equip: 'Novo equipamento',
-    espaco: 'Novo espaço',
-    material: 'Novo material',
-    infra: 'Novo item',
-    operacao: 'Novo item',
-  }
-
-  const EDIT_TITLES = {
-    membro: 'Editar integrante',
-    mov: 'Editar movimentação',
-    fornecedor: 'Editar fornecedor',
-    comprovante: 'Editar comprovante',
-    campanha: 'Editar campanha',
-    conteudo: 'Editar item',
-    equip: 'Editar equipamento',
-    espaco: 'Editar espaço',
-    material: 'Editar material',
-    infra: 'Editar item',
-    operacao: 'Editar item',
-  }
-
-  function brl(value) {
-    if (value === '' || value == null) return '—'
-    const number = Number(value)
-    if (Number.isNaN(number)) return '—'
-    return number.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-  }
-
-  function matches(text, query) {
-    return String(text || '').toLowerCase().includes(query.trim().toLowerCase())
-  }
-
-  function sectorPulse(name) {
-    const open = state.tasks.filter((task) => task.sector === name && task.status !== 'Concluído').length
-    if (open) return { label: 'Com pendências', count: open }
-    const started = {
-      'Recursos Humanos': state.orgMembers.length,
-      Finanças: state.incomes.length + state.expenses.length + (state.suppliers || []).length,
-      Marketing: state.campaigns.length + (state.contents || []).length,
-      Tecnologia: state.equipment.length + (state.infra || []).length + (state.occurrences || []).filter((item) => occurrenceSector(item) === 'Tecnologia').length,
-      Produção: state.spaces.length + (state.materials || []).length + (state.operations || []).length,
-    }[name]
-    return started ? { label: 'Em andamento', count: open } : { label: 'Não iniciado', count: 0 }
-  }
-
-  function leadOf(name) {
-    return state.orgMembers.find((item) => item.sector === name)?.name || '—'
-  }
-
-  const scope = computed(() => sectorScope(state.session))
-  // Editor registra e atualiza informações do setor, mas não exclui registros nem administra integrantes.
-  const operational = computed(() => isOperational(state.session))
-  const opened = computed(() => {
-    const wanted = SETORES.includes(props.params.setor) ? props.params.setor : ''
-    if (!scope.value) return wanted
-    if (wanted && scope.value.includes(wanted)) return wanted
-    return scope.value.length === 1 ? scope.value[0] : ''
+  const statusFilter = ref('')
+  const sectors = useRequest(() => (eventContext.activeEventId ? listSectors(eventContext.activeEventId) : []), {
+    initial: [],
+    watchSources: () => eventContext.activeEventId,
   })
-  const sector = computed(() => opened.value || 'Recursos Humanos')
-  const view = ref(SUB[sector.value][0].id)
+  const visibleSectors = computed(() => {
+    const list = sectors.data.value || []
+    if (statusFilter.value === 'ACTIVE') return list.filter((item) => item.active)
+    if (statusFilter.value === 'INACTIVE') return list.filter((item) => !item.active)
+    return list
+  })
+  const mySectors = computed(() => visibleSectors.value.filter((item) => item.id === ownSectorId.value))
+  const otherSectors = computed(() => visibleSectors.value.filter((item) => item.id !== ownSectorId.value))
+
+  // Setor aberto: ?setor=<id>. Quem só alcança um setor cai direto nele.
+  const openedId = computed(() => {
+    const fromRoute = Number(props.params?.setor) || null
+    if (fromRoute) return fromRoute
+    const list = sectors.data.value || []
+    return ownSectorId.value && list.length === 1 ? list[0].id : null
+  })
+  const opened = computed(() => (openedId.value ? (sectors.data.value || []).find((item) => item.id === openedId.value) || null : null))
+  const showBack = computed(() => globalScope.value || (sectors.data.value || []).length > 1)
+
+  function selectSector(item) {
+    go(`setores?setor=${item.id}`)
+  }
+
+  // ---- Área de trabalho do setor -------------------------------------------------------------
+  // Pendências/ocorrências: setor responsável ou envolvido (filtros do backend).
+  const relation = ref('responsible')
+  const sectorQuery = (id) => (relation.value === 'responsible' ? { responsible_sector_id: id } : { involved_sector_id: id })
+  const eventId = () => eventContext.activeEventId
+
+  const tasks = useRequest(async ({ signal }) => {
+    if (!opened.value || !canTasks.value) return null
+    return toPage(await listTasks(eventId(), { ...sectorQuery(opened.value.id), per_page: SUMMARY_SIZE }, { signal }))
+  }, { immediate: false })
+  const occurrences = useRequest(async ({ signal }) => {
+    if (!opened.value || !canOccurrences.value) return null
+    return toPage(await listOccurrences(eventId(), { ...sectorQuery(opened.value.id), per_page: SUMMARY_SIZE }, { signal }))
+  }, { immediate: false })
+  const meetings = useRequest(async ({ signal }) => {
+    if (!opened.value || !canMeetings.value) return null
+    return toPage(await listMeetings(eventId(), { sector_id: opened.value.id, per_page: SUMMARY_SIZE }, { signal }))
+  }, { immediate: false })
+  // Usuários do setor: só sob demanda e só para quem tem users.view.
+  const usersOpen = ref(false)
+  const users = useRequest(async ({ signal }) => {
+    if (!opened.value || !canUsers.value) return null
+    return toPage(await listUsers({ sector_id: opened.value.id, per_page: SUMMARY_SIZE }, { signal }))
+  }, { immediate: false })
+
+  watch(() => opened.value?.id, (id) => {
+    usersOpen.value = false
+    // Não mostra números do setor anterior enquanto o novo carrega.
+    for (const request of [users, tasks, occurrences, meetings]) {
+      request.data.value = null
+      request.loaded.value = false
+    }
+    if (!id) return
+    tasks.load()
+    occurrences.load()
+    meetings.load()
+  }, { immediate: true })
+  watch(relation, () => {
+    if (!opened.value) return
+    tasks.load()
+    occurrences.load()
+  })
+
+  function toggleUsers() {
+    usersOpen.value = !usersOpen.value
+    if (usersOpen.value && !users.loaded.value) users.load()
+  }
+
+  const summarize = (page, openCodes) => {
+    const items = page?.items || []
+    return {
+      items,
+      total: page?.meta?.total ?? items.length,
+      open: items.filter((item) => openCodes.includes(item.status)),
+      partial: (page?.meta?.total ?? items.length) > items.length,
+    }
+  }
+  const taskSummary = computed(() => summarize(tasks.data.value, ['PENDING', 'IN_PROGRESS']))
+  const occurrenceSummary = computed(() => summarize(occurrences.data.value, ['OPEN', 'IN_PROGRESS']))
+  const meetingSummary = computed(() => {
+    const result = summarize(meetings.data.value, ['SCHEDULED'])
+    const now = Date.now()
+    result.upcoming = result.open.filter((item) => !item.scheduled_at || new Date(item.scheduled_at).getTime() >= now)
+    return result
+  })
+  const overdueTasks = computed(() => taskSummary.value.open.filter((item) => item.overdue).length)
+  const urgentOccurrences = computed(() => occurrenceSummary.value.open.filter((item) => item.priority === 'URGENT' || item.priority === 'HIGH').length)
+  const countText = (summary, count) => (summary.partial ? `${count}+` : String(count))
+
+  // Prévia: abertas primeiro (já vêm da mais recente para a mais antiga).
+  const preview = (summary) => [...summary.open, ...summary.items.filter((item) => !summary.open.includes(item))].slice(0, PREVIEW)
+  const taskPreview = computed(() => preview(taskSummary.value))
+  const occurrencePreview = computed(() => preview(occurrenceSummary.value))
+  const meetingPreview = computed(() => {
+    const summary = meetingSummary.value
+    const past = summary.items.filter((item) => !summary.upcoming.includes(item)).reverse()
+    return [...summary.upcoming, ...past].slice(0, PREVIEW)
+  })
+
+  // Links para as telas próprias (o filtro por setor na URL é uma sugestão; a tela de destino decide).
+  const openTasks = () => go(`pendencias?${relation.value === 'responsible' ? 'responsible_sector_id' : 'involved_sector_id'}=${opened.value.id}`)
+  const openOccurrences = () => go(`ocorrencias?${relation.value === 'responsible' ? 'responsible_sector_id' : 'involved_sector_id'}=${opened.value.id}`)
+
+  // ---- Cadastro / edição / status ------------------------------------------------------------
   const modal = ref(null)
-  const form = ref({})
-  const query = ref('')
-  const status = ref('')
-  const kind = ref('Todos')
-  const detail = ref(null)
-  const removing = ref(null)
+  const selected = ref(null)
+  const form = ref(emptyForm())
 
-  watch(sector, (name) => {
-    view.value = SUB[name][0].id
-    query.value = ''
-    status.value = ''
-    kind.value = 'Todos'
-  })
-
-  const pendencias = computed(() => state.tasks.filter((task) => task.sector === sector.value && task.status !== 'Concluído'))
-  const knownExpenses = computed(() => state.expenses.filter((item) => (item.actual !== '' && item.actual != null) || (item.planned !== '' && item.planned != null)))
-  const sectorOccurrences = computed(() => (state.occurrences || []).filter((item) => occurrenceSector(item) === sector.value))
-  const openSectorOccurrences = computed(() => sectorOccurrences.value.filter((item) => occurrenceStatus(item) !== 'Resolvida').length)
-  const suppliers = computed(() => state.suppliers || [])
-  const contents = computed(() => state.contents || [])
-  const materials = computed(() => state.materials || [])
-  const receipts = computed(() => state.documents.filter((doc) => doc.category === 'Finanças'))
-  const infraList = computed(() => state.infra || [])
-  const operations = computed(() => state.operations || [])
-  const members = computed(() => state.orgMembers.filter((item) => matches(`${item.name} ${item.func} ${item.profile}`, query.value) && (!status.value || item.status === status.value)))
-  const roleMembers = computed(() => state.orgMembers.filter((item) => item.func))
-  const movements = computed(() => [
-    ...state.incomes.map((item) => ({ ...item, tipo: 'Receita', valor: item.value })),
-    ...state.expenses.map((item) => ({ ...item, tipo: 'Despesa', valor: item.actual !== '' && item.actual != null ? item.actual : item.planned })),
-  ].filter((item) => matches(item.description, query.value) && (!status.value || item.status === status.value)))
-  const typed = computed(() => movements.value.filter((item) => kind.value === 'Todos' || (kind.value === 'Receitas' && item.tipo === 'Receita') || (kind.value === 'Despesas' && item.tipo === 'Despesa')))
-  const visibleContents = computed(() => contents.value.filter((item) => kind.value === 'Todos' || (kind.value === 'Conteúdos' && item.kind !== 'Material') || (kind.value === 'Materiais' && item.kind === 'Material')))
-  const schedule = computed(() => [
-    ...state.campaigns.map((item) => ({ ...item, source: 'campanha' })),
-    ...contents.value.map((item) => ({ ...item, source: 'conteudo' })),
-  ].sort((a, b) => String(a.date || '9999').localeCompare(String(b.date || '9999'))))
-  const expenseChips = computed(() => EXPENSE_CATEGORIES.map((category) => {
-    const total = state.expenses.filter((item) => item.category === category).reduce((sum, item) => sum + Number(item.actual || item.planned || 0), 0)
-    return total ? { category, total } : null
-  }).filter(Boolean))
-  const mine = computed(() => {
-    if (state.session?.sectors?.length) return state.session.sectors
-    if (state.session?.profile === 'Editor' && state.session.sector) return [state.session.sector]
-    return []
-  })
-  const mineSet = computed(() => new Set(mine.value.filter((name) => SETORES.includes(name))))
-  const primarySectors = computed(() => scope.value || (mineSet.value.size ? SETORES.filter((name) => mineSet.value.has(name)) : SETORES))
-  const otherSectors = computed(() => (scope.value ? [] : mineSet.value.size ? SETORES.filter((name) => !mineSet.value.has(name)) : []))
-  const modalTitle = computed(() => (form.value.id ? EDIT_TITLES : NEW_TITLES)[modal.value])
-
-  function reportOccurrence(extra = {}) {
-    const query = new URLSearchParams({ novo: '1', setor: sector.value, categoria: sector.value === 'Tecnologia' ? 'Tecnologia' : 'Infraestrutura', ...extra })
-    go(`ocorrencias?${query.toString()}`)
+  function openCreate() {
+    form.value = emptyForm()
+    selected.value = null
+    save.clear()
+    modal.value = 'form'
   }
 
-  function selectSector(name) {
-    go(`setores?setor=${encodeURIComponent(name)}`)
+  function openEdit(item) {
+    selected.value = item
+    form.value = { name: item.name || '', description: item.description || '' }
+    save.clear()
+    modal.value = 'form'
   }
 
-  function open(type, seed) {
-    form.value = seed
-    modal.value = type
+  function askStatus(item) {
+    selected.value = item
+    modal.value = 'status'
   }
 
-  function save() {
-    const type = modal.value
-    const current = form.value
-    if ((type === 'membro' || type === 'campanha' || type === 'equip' || type === 'espaco' || type === 'material' || type === 'fornecedor' || type === 'conteudo' || type === 'comprovante' || type === 'infra' || type === 'operacao') && !String(current.name || current.title || '').trim()) {
-      flash('Informe o nome para salvar.', 'err')
-      return
+  function replaceSector(updated) {
+    sectors.data.value = (sectors.data.value || []).map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
+  }
+
+  const save = useAction(async () => {
+    const body = { name: form.value.name.trim(), description: form.value.description.trim() || null }
+    if (selected.value) {
+      const updated = await updateSector(selected.value.id, body)
+      replaceSector(updated)
+      modal.value = null
+      return { updated }
     }
-    if (type === 'mov' && !String(current.description || '').trim()) {
-      flash('Informe a descrição da movimentação.', 'err')
-      return
-    }
-    update((draft) => {
-      const place = (list, record) => {
-        const index = record.id ? list.findIndex((item) => item.id === record.id) : -1
-        if (index >= 0) list[index] = { ...list[index], ...record }
-        else list.push(record)
-      }
-      if (type === 'membro') place(draft.orgMembers, { ...current, id: current.id || uid('org') })
-      if (type === 'mov') {
-        if (current.id) {
-          draft.incomes = draft.incomes.filter((item) => item.id !== current.id)
-          draft.expenses = draft.expenses.filter((item) => item.id !== current.id)
-        }
-        const id = current.id || uid(current.kind === 'Despesa' ? 'desp' : 'rec')
-        if (current.kind === 'Despesa') {
-          draft.expenses.push({
-            id,
-            description: current.description,
-            category: current.category,
-            supplier: current.supplier,
-            responsible: current.responsible,
-            planned: current.value === '' ? '' : Number(current.value),
-            actual: current.value === '' ? '' : Number(current.value),
-            date: current.date,
-            status: current.status,
-            notes: current.notes,
-          })
-        } else {
-          draft.incomes.push({
-            id,
-            description: current.description,
-            category: current.category,
-            origin: current.origin,
-            responsible: current.responsible,
-            value: current.value === '' ? '' : Number(current.value),
-            date: current.date,
-            status: current.status,
-            notes: current.notes,
-          })
-        }
-      }
-      if (type === 'fornecedor') {
-        if (!draft.suppliers) draft.suppliers = []
-        place(draft.suppliers, { id: current.id || uid('forn'), name: current.name, category: current.category, contact: current.contact, status: current.status })
-      }
-      if (type === 'comprovante') {
-        const record = {
-          name: current.name,
-          category: 'Finanças',
-          sector: 'Finanças',
-          responsible: current.responsible || '',
-          description: current.description || '',
-          version: current.version || '1.0',
-          note: current.note || 'Comprovante demonstrativo',
-          fileName: current.fileName || '',
-        }
-        const index = current.id ? draft.documents.findIndex((item) => item.id === current.id) : -1
-        if (index >= 0) draft.documents[index] = { ...draft.documents[index], ...record }
-        else draft.documents.unshift({ ...record, id: uid('doc'), date: new Date().toLocaleDateString('pt-BR'), history: [{ version: '1.0', date: new Date().toLocaleDateString('pt-BR'), responsible: current.responsible || '—', note: 'Comprovante demonstrativo' }] })
-      }
-      if (type === 'campanha') place(draft.campaigns, { ...current, id: current.id || uid('camp') })
-      if (type === 'conteudo') {
-        if (!draft.contents) draft.contents = []
-        place(draft.contents, { id: current.id || uid('cont'), name: current.name, kind: current.kind, channel: current.channel, responsible: current.responsible, date: current.date, status: current.status })
-      }
-      if (type === 'equip') place(draft.equipment, { ...current, id: current.id || uid('eq'), qty: Number(current.qty || 1) })
-      if (type === 'espaco') place(draft.spaces, { ...current, id: current.id || uid('sp') })
-      if (type === 'material') {
-        if (!draft.materials) draft.materials = []
-        place(draft.materials, { id: current.id || uid('mat'), name: current.name, needed: current.needed, available: current.available, status: current.status })
-      }
-      if (type === 'infra') {
-        if (!draft.infra) draft.infra = []
-        place(draft.infra, { id: current.id || uid('inf'), name: current.name, status: current.status, responsible: current.responsible || '', notes: current.notes || '' })
-      }
-      if (type === 'operacao') {
-        if (!draft.operations) draft.operations = []
-        place(draft.operations, { id: current.id || uid('op'), name: current.name, description: current.description || '', status: current.status })
-      }
-    })
-    flash(current.id ? 'Alterações salvas.' : 'Registro salvo neste navegador.')
+    const created = await createSector(eventContext.activeEventId, body)
     modal.value = null
-  }
+    await sectors.load()
+    return { created }
+  }, { success: (result) => (result?.created ? 'Setor cadastrado.' : 'Setor atualizado.') })
 
-  function confirmRemove() {
-    if (!removing.value) return
-    const target = removing.value
-    update((draft) => {
-      if (target.list === 'mov') {
-        draft.incomes = draft.incomes.filter((item) => item.id !== target.id)
-        draft.expenses = draft.expenses.filter((item) => item.id !== target.id)
-        return
-      }
-      draft[target.list] = (draft[target.list] || []).filter((item) => item.id !== target.id)
-    })
-    removing.value = null
-    flash('Registro excluído.')
-  }
-
-  function editSchedule(item) {
-    const { source, ...rest } = item
-    open(source, rest)
-  }
+  const toggleStatus = useAction(async (item) => {
+    const updated = await changeSectorStatus(item.id, !item.active)
+    replaceSector(updated)
+    modal.value = null
+    return updated
+  }, { success: (updated) => (updated?.active ? 'Setor ativado.' : 'Setor inativado.') })
 
   return {
-    state,
-    COPY,
-    SUB,
-    EQUIP_STATUS,
-    ITEM_STATUS,
-    CHANNELS,
-    EQUIP_CATEGORIES,
-    MOV_KINDS,
-    CONTENT_KINDS,
-    brl,
-    sectorPulse,
-    leadOf,
-    scope,
-    operational,
-    opened,
-    sector,
-    view,
-    modal,
-    form,
-    query,
-    status,
-    kind,
-    detail,
-    removing,
-    pendencias,
-    knownExpenses,
-    sectorOccurrences,
-    openSectorOccurrences,
-    suppliers,
-    contents,
-    materials,
-    receipts,
-    infraList,
-    operations,
-    members,
-    roleMembers,
-    typed,
-    visibleContents,
-    schedule,
-    expenseChips,
-    mineSet,
-    primarySectors,
+    sectors,
+    statusFilter,
+    visibleSectors,
+    mySectors,
     otherSectors,
-    modalTitle,
-    reportOccurrence,
+    opened,
+    openedId,
+    showBack,
+    globalScope,
+    canCreate,
+    canChangeStatus,
+    canEdit,
+    canTasks,
+    canOccurrences,
+    canMeetings,
+    canUsers,
     selectSector,
-    open,
+    relation,
+    tasks,
+    occurrences,
+    meetings,
+    users,
+    usersOpen,
+    toggleUsers,
+    taskSummary,
+    occurrenceSummary,
+    meetingSummary,
+    overdueTasks,
+    urgentOccurrences,
+    countText,
+    taskPreview,
+    occurrencePreview,
+    meetingPreview,
+    openTasks,
+    openOccurrences,
+    modal,
+    selected,
+    form,
+    openCreate,
+    openEdit,
+    askStatus,
     save,
-    confirmRemove,
-    editSchedule,
-    EXPENSE_CATEGORIES,
+    toggleStatus,
     go,
-    toneFor,
+    label,
+    tone,
+    formatDate,
+    formatDateTime,
   }
 }

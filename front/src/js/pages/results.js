@@ -1,64 +1,20 @@
-// Lógica do componente Results.vue (o template fica no .vue).
-import { computed, ref } from 'vue'
-import { useAudit } from '@/js/audit/audit-logger'
-import { isAdmin } from '@/js/config/access'
-import { companyOf, teamChallenge, teamName } from '@/js/data/model'
-import { useHack, go } from '@/js/stores/hack'
+// Lógica da página Results.vue (Painel de Resultados): só o resultado PUBLICADO (/results/published).
+// Sem publicação, estado vazio. Nada é calculado no front.
+import { computed } from 'vue'
+import { useRequest } from '@/js/composables/async'
+import { canAccess } from '@/js/config/access'
+import { go } from '@/js/router'
+import { auth } from '@/js/stores/auth'
+import { eventContext } from '@/js/stores/event-context'
+import { publishedResults } from '@/js/services/results'
+import { formatDateTime } from '@/js/utils/format'
 
 export function useResults() {
-  const { state, update, flash } = useHack()
-  const audit = useAudit()
-  const ask = ref(false)
+  const published = useRequest(({ signal }) => publishedResults(eventContext.activeEventId, { signal }))
+  const current = computed(() => (published.data.value?.status === 'PUBLISHED' ? published.data.value : null))
 
-  function teamLabel(team) {
-    const challenge = teamChallenge(state, team.id)
-    const company = challenge ? companyOf(state, challenge.companyId) : null
-    return { challenge, company }
-  }
+  // Jurado/Votante veem o painel sem os atalhos para a gestão e a apresentação.
+  const can = (route) => canAccess(auth.user, route)
 
-  function doneEvals(teamId) {
-    return state.evaluations.filter((item) => item.teamId === teamId && item.status === 'concluida')
-  }
-
-  function averageOf(teamId) {
-    const scores = doneEvals(teamId).flatMap((item) => Object.values(item.scores || {}).map(Number).filter((value) => !Number.isNaN(value)))
-    if (!scores.length) return null
-    return scores.reduce((sum, value) => sum + value, 0) / scores.length
-  }
-
-  function voteCount(teamId) {
-    return state.voting.ballots.filter((item) => item.teamId === teamId).length
-  }
-
-  const rows = computed(() => state.teams.map((team) => {
-    const meta = teamLabel(team)
-    return { team, ...meta, avg: averageOf(team.id), votes: voteCount(team.id) }
-  }))
-  const technical = computed(() => rows.value.filter((item) => item.avg != null))
-  const totalVotes = computed(() => state.voting.ballots.length)
-  const topVotes = computed(() => Math.max(0, ...rows.value.map((item) => item.votes)))
-  const leaders = computed(() => rows.value.filter((item) => item.votes === topVotes.value && topVotes.value > 0))
-  const admin = computed(() => isAdmin(state.session))
-
-  function release() {
-    update((draft) => {
-      draft.resultsReleased = true
-      audit.record(draft, { action: 'results.published', label: 'Publicou resultados', module: 'results', entityType: 'Resultados', description: 'Resultados liberados no painel.' })
-    })
-    ask.value = false
-    flash('Resultados liberados.')
-  }
-
-  return {
-    state,
-    ask,
-    rows,
-    technical,
-    totalVotes,
-    leaders,
-    admin,
-    release,
-    teamName,
-    go,
-  }
+  return { published, current, go, can, formatDateTime }
 }

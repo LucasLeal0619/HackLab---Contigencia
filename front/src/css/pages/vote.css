@@ -5,7 +5,6 @@
   padding: 16px;
 }
 .vote-admin .card { background: #fff; }
-.vote-qr { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 .vote-public { min-height: 100vh; background: var(--bg); padding: 28px 16px 48px; }
 /* Votação do Público (mobile first) */
 .vote-wrap { width: min(1100px, 100%); margin: 0 auto; }
@@ -31,3 +30,8 @@
   .vote-board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 .vote-wait .vote-check { background: var(--info-bg); color: var(--blue); }
+.vote-head .row-between { gap: 12px; }
+.vote-sessions { margin-bottom: 16px; }
+.vote-session-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; font-size: 16px; }
+.vote-pick { max-height: 50vh; overflow: auto; margin: 8px 0; }
+.vote-pick .check { padding: 6px 0; color: inherit; flex-wrap: wrap; }
