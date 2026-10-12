@@ -306,19 +306,42 @@ Sem POST/PATCH/DELETE, purge, retenção ou exportação.
 
 ## Fase 9 — Integração Even3
 
-- [ ] event_integrations;
-- [ ] external_ticket_types;
-- [ ] event_registrations;
-- [ ] attendance_records;
-- [ ] integration_sync_runs;
-- [ ] EventPlatformProvider;
-- [ ] Even3Client;
-- [ ] Even3Mapper;
-- [ ] Even3SyncService;
-- [ ] status;
-- [ ] sync manual;
-- [ ] PoC real;
-- [ ] webhook opcional.
+- [x] PoC/comando migrados para a API V2 (Bearer), sem fallback para V1;
+- [x] events.timezone (IANA);
+- [x] event_integrations (vínculo explícito, conferido na Even3);
+- [x] external_ticket_types + mapeamento manual por `external_ticket_id`;
+- [x] event_registrations (matching de Person, source_*, status, conflitos);
+- [x] attendance_records (presença derivada por dia);
+- [x] integration_sync_runs (1 RUNNING por integração, SUCCESS/PARTIAL/FAILED);
+- [x] integration_webhook_receipts (idempotência por disparo);
+- [x] EventPlatformProvider, Even3Client, Even3Provider, Even3Mapper, serviço de sincronização;
+- [x] webhook (token em header configurável), sync manual e comando `even3:sync`;
+- [x] materialização explícita de participantes;
+- [x] permissões/policies, auditoria administrativa, testes (sem rede real);
+- [x] PoC real da API V2: evento, entradas (5, identidade `prices[].ticket_id`), participantes por categoria, paginação, erros e sync/mapeamento/materialização pelo HackLab;
+- [ ] PoC real de cancelamento (implementação via webhook concluída e testada);
+- [ ] PoC real do webhook: `pending_public_url` (Fase 12).
+
+Implementada em 12/10/2026 (aguardando aprovação; PoCs pendentes acima): 490 testes passando em `hacklab_test` dentro do Docker (427 anteriores + 63 novos, incluindo 4 de concorrência real), 31 migrations do zero, seed idempotente e offline, `db-check`, Pint, fluxo configurar → status → sync de entradas → sync de participantes → inscrições → materialização → histórico validado via HTTP com cookies reais **contra a Even3 V2 real**, Consultor só consulta, nenhuma tabela em `public`, `hacklab_dev` intacto após os testes.
+
+Especificação fechada em 12/10/2026: ver `integracao-even3.md`, `banco-de-dados.md` §8 e `regras-de-negocio.md` §13–18.
+
+Endpoints (`/api/v1`):
+
+| Método | Rota | Acesso |
+|---|---|---|
+| GET | `/events/{event}/integrations/even3/status` | `integrations.view` |
+| PUT | `/events/{event}/integrations/even3` | `integrations.manage` |
+| GET | `/events/{event}/integrations/even3/tickets` | `integrations.view` |
+| PATCH | `/external-ticket-types/{ticket}/mapping` | `integrations.manage` |
+| POST | `/events/{event}/integrations/even3/sync` | `integrations.sync` |
+| GET | `/events/{event}/integrations/even3/sync-runs` · `/integration-sync-runs/{run}` | `integrations.view` (detalhe de avisos/erros só com `integrations.manage`) |
+| GET | `/events/{event}/event-registrations` · `/event-registrations/{registration}` | `event_registrations.view` |
+| POST | `/events/{event}/event-registrations/materialize-participants` | `integrations.manage` + `participants.manage` |
+| GET | `/events/{event}/attendance` | `attendance.view` |
+| POST | `/webhooks/even3` | público, token de segurança do webhook |
+
+Fora desta fase: frontend, relatórios, escrita na Even3 (participante/check-in), pagamentos, certificados, submissões, criação automática de User/Juror/Company/Voter, elegibilidade de voto por check-in.
 
 ## Fase 10 — Integração progressiva do frontend
 

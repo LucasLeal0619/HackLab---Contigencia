@@ -26,6 +26,8 @@ class MigrationsTest extends TestCase
             'occurrences', 'occurrence_sectors', 'occurrence_interactions',
             'jurors', 'juror_team_assignments', 'evaluation_criteria', 'evaluations', 'evaluation_scores',
             'voting_sessions', 'voting_session_teams', 'voting_eligibilities', 'public_votes', 'result_publications',
+            'event_integrations', 'external_ticket_types', 'event_registrations', 'attendance_records',
+            'integration_sync_runs', 'integration_webhook_receipts',
         ];
 
         foreach ($tables as $table) {

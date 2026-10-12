@@ -371,9 +371,9 @@ Representante de empresa **não** vira Jurado automaticamente, e a empresa **nã
 - Em `IN_DEVELOPMENT` ou `FINISHED`, mover ou retirar a equipe exige primeiro mudar o status explicitamente.
 - Desafio pode existir sem equipe durante preparação e análise.
 
-## 13. Integração de inscrição
+## 13. Integração de inscrição (Fase 9)
 
-Categorias externas sugeridas:
+Entradas sugeridas na Even3:
 
 ```text
 Participante
@@ -383,28 +383,35 @@ Jurado
 Público
 ```
 
-A plataforma externa pode usar nomes diferentes.
-
-O HackLab mantém mapeamento:
+A plataforma externa pode usar outros nomes. O HackLab mapeia **por id da entrada**, manualmente:
 
 ```text
-external_ticket_type_id
-→ internal_category
+external_ticket_id → internal_category (PARTICIPANT | ORGANIZATION | COMPANY_GUEST | JUROR | PUBLIC)
 ```
 
-Não depender apenas do texto.
+- Entrada nova nasce sem categoria até o Administrador mapear. Mapeamento pode ser removido (`null`) e é auditado.
+- Renomear a entrada na Even3 não perde o mapeamento. Entrada que some de uma leitura completa fica inativa (histórico preservado).
+- O texto da categoria do participante só é associado a uma entrada quando corresponde a **exatamente uma** entrada conhecida; ambíguo ou desconhecido fica sem entrada, nunca escolhido arbitrariamente.
+- Vínculo explícito Event ↔ evento externo (`PUT /events/{event}/integrations/even3`), conferido na Even3 antes de ativar. Um evento externo alimenta um único evento interno.
+- Nesta versão: um token da Even3 por deployment (a chave é por evento).
 
 ## 14. Sincronização de pessoas
 
 A sincronização traz todos os inscritos do evento, não apenas Participantes.
 
 O HackLab:
-1. localiza vínculo externo existente;
-2. se não existir, tenta associação controlada;
-3. cria/atualiza `Person`;
-4. cria/atualiza `EventRegistration`;
-5. classifica pela entrada externa;
-6. não concede automaticamente permissão interna sensível.
+1. localiza a inscrição já conhecida pelos IDs externos;
+2. senão, associa por documento normalizado único, depois por e-mail normalizado único;
+3. se documento e e-mail apontam para pessoas diferentes (ou são ambíguos): **conflito**, nada é vinculado nem sobrescrito;
+4. senão, cria a `Person`;
+5. cria/atualiza a `EventRegistration` — identificada pelos IDs externos; uma pessoa pode ter várias; inscrição da pessoa só é reaproveitada se for a única compatível (ambíguo = conflito) — e guarda os dados da origem (`source_*`);
+6. preenche só campos vazios de uma `Person` existente (nunca sobrescreve cadastro interno);
+7. classifica pela entrada externa;
+8. não concede permissão, conta, perfil ou vínculo de domínio.
+
+Status: confirmado/pendente/cancelado. Cancelamento só por informação explícita (webhook): **não aparecer na sincronização não cancela**, e `is_confirmed = false` da API não desfaz um cancelamento conhecido.
+
+Participante interno (aluno) só nasce pela operação explícita e idempotente de materialização: inscrição confirmada + entrada `PARTICIPANT` → `Participant` `AVAILABLE` sem turma, se ainda não existir. Participante existente não muda; cancelamento externo não tira ninguém de equipe.
 
 ## 15. Jurado externo
 
@@ -414,18 +421,21 @@ Isso não deve conceder sozinho:
 - conta;
 - senha;
 - role;
+- registro `Juror`;
 - equipes atribuídas.
 
-Esses vínculos são internos.
+Esses vínculos são internos. O mesmo vale para `COMPANY_GUEST` (não cria empresa nem representante) e `ORGANIZATION` (não cria perfil).
 
 ## 16. Público e Votante
 
-Público pode existir sem conta.
+Público pode existir sem conta. Inscrição `PUBLIC` não cria `User`, perfil `VOTER` nem elegibilidade de votação.
 
 Quando criar conta para votar:
 - tentar vincular à pessoa já sincronizada;
 - não duplicar pessoa;
 - aplicar critérios de elegibilidade definidos pelo HackLab.
+
+"Quem fez check-in pode votar" **não** é regra (nem automática nem implícita).
 
 ## 17. Organização externa vs perfil interno
 
@@ -449,14 +459,13 @@ Perfil interno: Consultor
 ## 18. Presença
 
 Na arquitetura atual:
-- QR e credenciamento são feitos fora do HackLab;
-- HackLab sincroniza e consolida presença.
+- QR e credenciamento são feitos fora do HackLab (Even3);
+- o HackLab recebe os check-ins (webhook) e consolida presença.
 
-A presença deve poder ser analisada por dia do evento.
-
-Criar `event_days`.
-
-Não modelar presença apenas como booleano global.
+- Cada check-in é um registro (vários por dia permitidos); um disparo do webhook gera no máximo um.
+- Presença por dia é derivada: existe ao menos um check-in naquele `EventDay`. Não existe booleano global de presença.
+- O dia vem do horário convertido pelo timezone do evento (`events.timezone`, IANA). Fora dos dias cadastrados → sem dia + aviso; o HackLab nunca cria `EventDay` a partir de check-in.
+- Horário exato do check-in só é preenchido quando a origem o informar explicitamente; o instante observado é guardado à parte.
 
 ## 19. Contas
 

@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Integrations\Even3\Even3Client;
+use App\Integrations\Even3\Even3Provider;
+use App\Integrations\EventPlatform\EventPlatformProvider;
 use App\Support\Database\DatabaseEnvironmentGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Events\ConnectionEstablished;
@@ -21,6 +24,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(DatabaseEnvironmentGuard::class, fn ($app) => new DatabaseEnvironmentGuard(
             environment: $app->environment(),
         ));
+
+        // Integração de inscrições: Even3 (V2). Lido da config a cada resolução (nunca guarda token em outro lugar).
+        $this->app->bind(Even3Client::class, fn () => Even3Client::fromConfig());
+        $this->app->bind(EventPlatformProvider::class, Even3Provider::class);
     }
 
     /**
@@ -39,6 +46,11 @@ class AppServiceProvider extends ServiceProvider
         // Login: 5 tentativas por minuto por e-mail + IP.
         RateLimiter::for('login', function (Request $request) {
             return Limit::perMinute(5)->by(mb_strtolower((string) $request->input('email')).'|'.$request->ip());
+        });
+
+        // Webhook da Even3 (sem usuário autenticado): limite por IP.
+        RateLimiter::for('webhooks', function (Request $request) {
+            return Limit::perMinute(600)->by($request->ip());
         });
 
         Password::defaults(fn () => Password::min(8)->letters()->numbers());

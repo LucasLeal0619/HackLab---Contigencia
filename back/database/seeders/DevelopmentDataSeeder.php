@@ -80,7 +80,13 @@ class DevelopmentDataSeeder extends Seeder
             'start_date' => $start->toDateString(),
             'end_date' => $start->copy()->addDays(2)->toDateString(),
             'status' => EventStatus::Planned,
+            'timezone' => 'America/Sao_Paulo',
         ]);
+
+        // Timezone IANA (Fase 9): preenchido só se ainda vazio, sem alterar o que já foi configurado.
+        if ($event->timezone === null) {
+            $event->forceFill(['timezone' => 'America/Sao_Paulo'])->save();
+        }
 
         foreach (range(1, 3) as $number) {
             $event->days()->firstOrCreate(['day_number' => $number], [

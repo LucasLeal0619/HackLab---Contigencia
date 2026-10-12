@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BallotController;
@@ -9,8 +10,11 @@ use App\Http\Controllers\Api\V1\CompanyController;
 use App\Http\Controllers\Api\V1\CompanyRepresentativeController;
 use App\Http\Controllers\Api\V1\EvaluationController;
 use App\Http\Controllers\Api\V1\EvaluationCriterionController;
+use App\Http\Controllers\Api\V1\Even3IntegrationController;
+use App\Http\Controllers\Api\V1\Even3WebhookController;
 use App\Http\Controllers\Api\V1\EventController;
 use App\Http\Controllers\Api\V1\EventDayController;
+use App\Http\Controllers\Api\V1\EventRegistrationController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\JurorController;
 use App\Http\Controllers\Api\V1\MeetingController;
@@ -30,6 +34,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('/health', HealthController::class)->name('health');
+
+    // Webhook da Even3: público (sem Sanctum), autenticado pelo token de segurança no header configurado.
+    Route::post('/webhooks/even3', Even3WebhookController::class)
+        ->middleware('throttle:webhooks')
+        ->name('webhooks.even3');
 
     // Login da SPA: antes, GET /sanctum/csrf-cookie.
     Route::post('/auth/login', [AuthController::class, 'login'])
@@ -184,5 +193,19 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
         Route::get('/audit-logs/meta', [AuditLogController::class, 'meta'])->name('audit-logs.meta');
         Route::get('/audit-logs/{auditLog}', [AuditLogController::class, 'show'])->whereNumber('auditLog')->name('audit-logs.show');
+
+        // Integração Even3 (Even3 → HackLab). O frontend nunca chama a Even3.
+        Route::get('/events/{event}/integrations/even3/status', [Even3IntegrationController::class, 'status'])->name('events.integrations.even3.status');
+        Route::put('/events/{event}/integrations/even3', [Even3IntegrationController::class, 'configure'])->name('events.integrations.even3.configure');
+        Route::get('/events/{event}/integrations/even3/tickets', [Even3IntegrationController::class, 'tickets'])->name('events.integrations.even3.tickets');
+        Route::patch('/external-ticket-types/{ticket}/mapping', [Even3IntegrationController::class, 'mapping'])->name('external-ticket-types.mapping');
+        Route::post('/events/{event}/integrations/even3/sync', [Even3IntegrationController::class, 'sync'])->name('events.integrations.even3.sync');
+        Route::get('/events/{event}/integrations/even3/sync-runs', [Even3IntegrationController::class, 'syncRuns'])->name('events.integrations.even3.sync-runs');
+        Route::get('/integration-sync-runs/{run}', [Even3IntegrationController::class, 'showSyncRun'])->name('integration-sync-runs.show');
+
+        Route::get('/events/{event}/event-registrations', [EventRegistrationController::class, 'index'])->name('events.event-registrations.index');
+        Route::post('/events/{event}/event-registrations/materialize-participants', [EventRegistrationController::class, 'materialize'])->name('events.event-registrations.materialize');
+        Route::get('/event-registrations/{registration}', [EventRegistrationController::class, 'show'])->name('event-registrations.show');
+        Route::get('/events/{event}/attendance', [AttendanceController::class, 'index'])->name('events.attendance.index');
     });
 });

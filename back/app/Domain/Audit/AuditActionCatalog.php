@@ -30,6 +30,7 @@ final class AuditActionCatalog
         'evaluations' => 'Avaliações',
         'voting' => 'Votação',
         'results' => 'Resultados',
+        'integrations' => 'Integrações',
     ];
 
     /** @var array<string, array{0: string, 1: string}> código => [módulo, rótulo] */
@@ -128,6 +129,11 @@ final class AuditActionCatalog
 
         AuditAction::RESULTS_PUBLISHED => ['results', 'Resultados publicados'],
         AuditAction::RESULTS_PUBLICATION_REVOKED => ['results', 'Publicação de resultados revogada'],
+
+        AuditAction::EVEN3_INTEGRATION_CONFIGURED => ['integrations', 'Integração Even3 configurada'],
+        AuditAction::EVEN3_TICKET_MAPPING_CHANGED => ['integrations', 'Mapeamento de entrada Even3 alterado'],
+        AuditAction::EVEN3_SYNC_TRIGGERED => ['integrations', 'Sincronização Even3 disparada'],
+        AuditAction::EVEN3_PARTICIPANTS_MATERIALIZED => ['integrations', 'Participantes criados a partir das inscrições Even3'],
     ];
 
     /**

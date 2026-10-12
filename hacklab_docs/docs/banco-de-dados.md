@@ -96,9 +96,12 @@ Event
 ├── Challenge*
 └── VotingSession*
 
-EventRegistration
-├── ExternalTicketType
-└── AttendanceRecord*
+EventIntegration (EVEN3)
+├── ExternalTicketType*
+├── EventRegistration*  (Person)
+│   └── AttendanceRecord*
+├── IntegrationSyncRun*
+└── IntegrationWebhookReceipt*
 
 Sector
 ├── User*
@@ -249,6 +252,11 @@ Permissões iniciais (Fase 1), definidas em `App\Domain\Users\Enums\PermissionCo
 | `votes.cast` | | | | | | ✓ |
 | `results.preview` / `results.publish` | ✓ | | | | | |
 | `results.view_published` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `integrations.view` | ✓ | | | ✓ | | |
+| `integrations.manage` / `integrations.sync` | ✓ | | | | | |
+| `event_registrations.view` / `attendance.view` | ✓ | | | ✓ | | |
+
+Materializar participantes a partir das inscrições exige `integrations.manage` **e** `participants.manage`.
 
 O Administrador recebe todas as permissões **exceto `votes.cast`**. `votes.cast` ainda exige, na Policy, conta `ACTIVE`, perfil `VOTER` e elegibilidade na sessão; o status `OPEN` é verificado sob lock no momento do voto.
 
@@ -894,157 +902,164 @@ posição           = 1 + quantidade de equipes com valor estritamente maior (em
 
 Sem desempate artificial (ID, cadastro, hora do voto, nome, nota técnica). Ordem alfabética só para apresentação, mantendo a mesma posição.
 
-## 8. Integração externa
+## 8. Integração Even3 (Fase 9)
+
+Formatos externos e PoC em `integracao-even3.md`. Nenhuma tabela guarda token ou segredo.
+
+### events.timezone (Fase 9)
+
+```text
+events.timezone nullable   IANA (ex.: America/Sao_Paulo); validado pelo backend
+```
+
+Necessário para associar check-ins a `event_days`. Nunca deduzido de cidade/UF.
 
 ### event_integrations
 
 ```text
 id
 event_id FK
-provider
-external_event_id
-status
+provider                   EVEN3
+external_event_id          id do evento na plataforma (texto)
+external_event_title nullable   último título lido (só exibição)
+api_version                V2
+status                     ACTIVE | DISABLED
+last_connection_checked_at nullable
 last_sync_at nullable
-settings json nullable
+last_sync_status nullable  SUCCESS | PARTIAL | FAILED
+last_error_code nullable
+last_error_at nullable
 created_at
 updated_at
 
 unique(event_id, provider)
+unique(provider, external_event_id)    o mesmo evento externo não alimenta dois eventos internos
+unique(id, event_id)                   alvo das FKs compostas
 ```
-
-Não guardar secret sensível em `settings`.
 
 ### external_ticket_types
 
-Representa entrada/categoria externa.
-
 ```text
 id
-event_integration_id FK
-external_id
-external_name
-internal_category nullable
-active
-metadata json nullable
+event_id
+event_integration_id
+external_ticket_id         prices[].ticket_id da V2 (identidade estável)
+external_name              título atual da entrada
+internal_category nullable PARTICIPANT | ORGANIZATION | COMPANY_GUEST | JUROR | PUBLIC
+active                     false quando some de uma leitura completa (nunca apagada)
+last_seen_at nullable
 created_at
 updated_at
 
-unique(event_integration_id, external_id)
+unique(event_integration_id, external_ticket_id)
 ```
 
-Categorias internas sugeridas:
-
-```text
-PARTICIPANT
-ORGANIZATION
-COMPANY_GUEST
-JUROR
-PUBLIC
-OTHER
-```
+- FK composta `(event_integration_id, event_id) → event_integrations`.
+- Nova entrada nasce sem `internal_category`. Renomear na Even3 só muda `external_name`.
 
 ### event_registrations
 
 ```text
 id
-event_id FK
+event_id
+event_integration_id
 person_id FK
-event_integration_id FK nullable
-external_attendee_id nullable
+external_attendee_id nullable        attendees[].id da V2
+external_person_id nullable          pessoa.id do webhook
+external_registration_id nullable    inscricao.id do webhook
 external_ticket_type_id FK nullable
-external_registration_status nullable
-external_checkin_code nullable
+external_category_label nullable     texto da categoria como veio da origem
+status                     PENDING | CONFIRMED | CANCELLED | UNKNOWN
+status_changed_at nullable           base para não aplicar webhook mais antigo
+check_in_code nullable
 registered_at nullable
-cancelled_at nullable
-metadata json nullable
+source_name
+source_badge_name nullable
+source_email nullable
+source_phone nullable
+source_document nullable
+identity_mismatch          e-mail/documento da origem ≠ cadastro interno
+last_seen_at nullable
+last_synced_at nullable
 created_at
 updated_at
 ```
 
-Índices/uniques devem impedir duplicidade por integração.
+- Índices únicos parciais (valores não nulos): `(event_integration_id, external_attendee_id)` e `(event_integration_id, external_registration_id)`.
+- Sem unique por pessoa: a mesma Person pode ter várias inscrições externas na integração (índice `(event_integration_id, person_id)` só para consulta). A identidade da inscrição são os IDs externos; documento/e-mail só associam a Person.
+- FKs compostas com `event_id` para integração e entrada; `unique(id, event_id)` como alvo de `attendance_records`.
+- Ausência numa sincronização nunca muda o status.
 
 ### attendance_records
 
 ```text
 id
-event_id FK
-event_day_id FK
-person_id FK
-event_registration_id FK nullable
-source
-external_id nullable
-checked_in_at
-metadata json nullable
+event_id
+event_integration_id
+event_registration_id
+event_day_id nullable      derivado do horário + events.timezone; nulo se fora dos dias
+kind                       EVENT | ACTIVITY
+external_activity_id nullable
+checked_in_at nullable     só com horário de check-in explícito na origem
+observed_at                instante observado (created do webhook)
+source                     WEBHOOK | API
+webhook_receipt_id FK nullable
 created_at
-updated_at
+
+unique(webhook_receipt_id) quando não nulo   um check-in por disparo
 ```
 
-Constraint lógica:
-
-```text
-uma presença consolidada por pessoa + dia + evento
-```
-
-Se houver necessidade de armazenar múltiplas passagens no mesmo dia, criar `attendance_events` bruto separado da presença consolidada.
-
-### attendance_events
-
-Opcional, recomendado se webhook fornecer cada check-in:
-
-```text
-id
-event_id FK
-person_id FK nullable
-event_registration_id FK nullable
-provider
-external_event_key nullable
-event_type
-occurred_at
-payload json
-created_at
-```
-
-Usar para rastreabilidade de integração.
-
-## 9. Webhooks e sincronização
-
-### webhook_receipts
-
-```text
-id
-provider
-external_event_key nullable
-event_type
-payload_hash
-payload json
-status
-received_at
-processed_at nullable
-error_message nullable
-created_at
-updated_at
-```
-
-Criar índice para idempotência.
+- FKs compostas com `event_id` para inscrição e dia (`event_days` ganha `unique(id, event_id)`).
+- Vários registros no mesmo dia são permitidos. Presença diária é derivada (ao menos um registro no `EventDay`).
 
 ### integration_sync_runs
 
 ```text
 id
-event_integration_id FK
-triggered_by_user_id FK nullable
-mode
-status
+event_integration_id
+scope                      EVENT | TICKETS | ATTENDEES | ALL
+trigger                    MANUAL | SCHEDULED | RECONCILIATION
+status                     RUNNING | SUCCESS | PARTIAL | FAILED
+started_by_user_id FK nullable
 started_at
 finished_at nullable
-created_count default 0
-updated_count default 0
-skipped_count default 0
-error_count default 0
-summary json nullable
+duration_ms nullable
+counters jsonb
+warnings jsonb nullable    [{ code, external_id, message }] — sem payload externo nem dados pessoais completos
+error_code nullable
+error_message nullable     mensagem segura (nunca token)
 created_at
 updated_at
+
+unique(event_integration_id) where status = 'RUNNING'    um sync por integração
 ```
+
+### integration_webhook_receipts
+
+```text
+id
+event_integration_id nullable   nulo quando o evento do payload não é de nenhuma integração
+external_delivery_id            id único do disparo (Even3)
+event_type_id nullable
+event_type_name
+payload_hash                    sha256 do corpo (sem guardar o payload)
+status                          RECEIVED | PROCESSED | IGNORED | FAILED
+received_at
+processed_at nullable
+error_code nullable
+error_message nullable
+created_at
+updated_at
+
+unique(event_integration_id, external_delivery_id)
+unique(external_delivery_id) where event_integration_id is null
+```
+
+Não guarda token nem payload completo.
+
+## 9. Webhooks e sincronização
+
+Ver `integration_sync_runs` e `integration_webhook_receipts` (§8). Webhook é atualização rápida; a sincronização pela API reconcilia.
 
 ## 10. Documentos
 

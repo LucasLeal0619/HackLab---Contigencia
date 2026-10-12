@@ -54,7 +54,7 @@ class AuditCatalogTest extends TestCase
                 }
 
                 $calls++;
-                preg_match_all('/AuditAction::([A-Z_]+)/', $action, $matches);
+                preg_match_all('/AuditAction::([A-Z][A-Z0-9_]*)/', $action, $matches);
                 $this->assertMatchesRegularExpression("/^'[a-z_]+'$/", $module, "{$file->getFilename()}: módulo não literal.");
 
                 foreach ($matches[1] as $constant) {

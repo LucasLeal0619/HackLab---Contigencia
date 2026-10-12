@@ -26,6 +26,8 @@ class StoreEventRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'location' => ['nullable', 'string', 'max:255'],
+            // IANA (ex.: America/Sao_Paulo). Necessário para associar check-ins aos dias do evento.
+            'timezone' => ['nullable', 'string', 'max:64', 'timezone:all'],
             'start_date' => ['required', 'date_format:Y-m-d'],
             'end_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'status' => ['sometimes', Rule::enum(EventStatus::class)],

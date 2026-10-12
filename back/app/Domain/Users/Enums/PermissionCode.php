@@ -59,6 +59,11 @@ enum PermissionCode: string
     case ResultsPreview = 'results.preview';
     case ResultsPublish = 'results.publish';
     case ResultsViewPublished = 'results.view_published';
+    case IntegrationsView = 'integrations.view';
+    case IntegrationsManage = 'integrations.manage';
+    case IntegrationsSync = 'integrations.sync';
+    case EventRegistrationsView = 'event_registrations.view';
+    case AttendanceView = 'attendance.view';
 
     public function label(): string
     {
@@ -111,6 +116,11 @@ enum PermissionCode: string
             self::ResultsPreview => 'Consultar a prévia e o histórico das publicações de resultado',
             self::ResultsPublish => 'Publicar e revogar o resultado oficial',
             self::ResultsViewPublished => 'Consultar o resultado oficial publicado',
+            self::IntegrationsView => 'Consultar status, entradas e histórico de sincronização da integração Even3',
+            self::IntegrationsManage => 'Configurar a integração Even3 e mapear entradas',
+            self::IntegrationsSync => 'Disparar sincronização com a Even3',
+            self::EventRegistrationsView => 'Consultar inscrições externas',
+            self::AttendanceView => 'Consultar presença (check-ins)',
         };
     }
 
@@ -151,6 +161,7 @@ enum PermissionCode: string
                 self::OccurrencesView, self::OccurrencesComment,
                 self::EvaluationsProgressView,
                 self::ResultsViewPublished,
+                self::IntegrationsView, self::EventRegistrationsView, self::AttendanceView,
             ],
             RoleCode::Juror->value => [self::EventsView, self::EvaluationCriteriaView, self::EvaluationsOwn, self::ResultsViewPublished],
             RoleCode::Voter->value => [self::EventsView, self::VotesCast, self::ResultsViewPublished],

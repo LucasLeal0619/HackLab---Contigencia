@@ -178,4 +178,18 @@ final class AuditAction
     public const RESULTS_PUBLISHED = 'RESULTS_PUBLISHED';
 
     public const RESULTS_PUBLICATION_REVOKED = 'RESULTS_PUBLICATION_REVOKED';
+
+    /**
+     * Integração Even3: só ações administrativas. Pessoas, inscrições, check-ins e participantes criados pela
+     * integração não geram um log cada (o histórico operacional fica nas tabelas da integração).
+     */
+    public const EVEN3_INTEGRATION_CONFIGURED = 'EVEN3_INTEGRATION_CONFIGURED';
+
+    public const EVEN3_TICKET_MAPPING_CHANGED = 'EVEN3_TICKET_MAPPING_CHANGED';
+
+    /** Um por sync manual; o resultado fica em integration_sync_runs. */
+    public const EVEN3_SYNC_TRIGGERED = 'EVEN3_SYNC_TRIGGERED';
+
+    /** Um por execução da materialização (não um por participante criado). */
+    public const EVEN3_PARTICIPANTS_MATERIALIZED = 'EVEN3_PARTICIPANTS_MATERIALIZED';
 }

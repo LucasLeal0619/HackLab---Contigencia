@@ -1,470 +1,212 @@
-# Integração Even3
+# Integração Even3 (Fase 9)
 
 ## 1. Objetivo
 
-Usar a Even3 como plataforma externa para:
-- página pública;
-- inscrição;
-- entradas/categorias;
-- QR/código de credenciamento;
-- credenciamento;
-- check-in.
-
-O HackLab consome/sincroniza esses dados para gestão interna.
-
-## 2. Princípio
-
-O frontend nunca chama a Even3.
+A Even3 é a plataforma externa de página pública, inscrição, credencial/QR e check-in. O HackLab **lê** dela inscrições e presença e consolida esses dados internamente.
 
 ```text
-Vue
- ↓
-Laravel
- ↓
-Even3
+Vue → Laravel → EventPlatformProvider → Even3Provider → Even3Client → Even3 API V2
+                                                                       (Even3 → HackLab)
 ```
 
-Credenciais da Even3 ficam exclusivamente no backend.
+- O frontend nunca chama a Even3.
+- Nesta fase o HackLab **não escreve** na Even3 (não cria participante, não faz check-in, não altera inscrição), mesmo que a API permita.
 
-## 3. Abstração
+## 2. Princípios
 
-Criar contrato genérico:
+- Nenhum módulo de negócio depende da Even3: só `App\Integrations\Even3` conhece formatos externos; o resto lê o banco do HackLab.
+- Uma sincronização central (evento → entradas → inscritos), nunca um "sincronizar" por módulo.
+- Webhook = atualização rápida; sincronização pela API = reconciliação. Os dois convergem para o mesmo registro.
+- Categoria externa classifica a inscrição; **não concede** conta, perfil, jurado, empresa, votante nem elegibilidade.
+- Sincronização idempotente: rodar N vezes sem mudança externa não cria nem altera nada.
+
+## 3. Credencial e configuração
 
 ```text
-EventPlatformProvider
+EVEN3_ENABLED=false                         # true para habilitar sync/webhook
+EVEN3_BASE_URL=https://api.even3.com/api/v2
+EVEN3_API_TOKEN=                            # só no .env do backend
+EVEN3_WEBHOOK_HEADER=                       # nome do header do token de segurança do webhook (confirmar no PoC real)
+EVEN3_WEBHOOK_SECRET=                       # diferente do EVEN3_API_TOKEN
 ```
 
-Implementação:
+- Autenticação V2: `Authorization: Bearer <token>` (documentação oficial "Autenticação" e PoC real).
+- A chave é **por evento** (gerada em Ferramentas → Integrações → API Even3). Nesta versão: **1 `EVEN3_API_TOKEN` ativo por deployment**. O banco aceita vários eventos, mas guardar e escolher tokens por evento com segurança fica fora desta fase.
+- O token e o segredo do webhook nunca vão para Vue, banco, `audit_logs`, logs, exceções ou respostas. O `Even3Client` substitui o token por `[token oculto]` em qualquer mensagem.
+- **V1 (`https://www.even3.com.br/api/v1`, header `Authorization-Token`) é legado/diagnóstico.** A integração usa só V2, sem fallback silencioso.
+
+Configurar o vínculo é explícito (nunca "o primeiro evento da chave = o primeiro evento do HackLab"):
 
 ```text
-Even3Provider
+PUT /api/v1/events/{event}/integrations/even3   { "external_event_id": "793572", "status": "ACTIVE" }
 ```
 
-Componentes sugeridos:
+Antes de salvar/ativar, o HackLab consulta a Even3 e exige que o evento externo seja acessível pela chave. Nome, datas e local diferentes geram só avisos.
+
+## 4. API V2 — observado no PoC real (12/10/2026, evento 793572)
+
+| Endpoint | Status | Formato observado |
+|---|---|---|
+| `GET /events` | 200 | `{ data: [evento], count, pagination }` |
+| `GET /events/{id}` | 200 | objeto do evento **sem** envelope `data`; `tickets: null` |
+| `GET /events/{id}/tickets` | 200 | **lista pura** (sem envelope); vazia enquanto não há entradas |
+| `GET /attendees` | 200 | `{ data: [participante], count, pagination }` |
+| `GET /attendees/{id}` | 200 | objeto do participante, sem envelope |
+| `GET /events/1` (outro evento) | 404 | `{ success:false, message, detail, help, code:"NotFound" }` |
+| `GET /attendees?event_id=…` | 400 | `code:"InvalidParameter"` (o filtro por evento não existe; a chave já é do evento) |
+| token inválido / ausente | 401 | `code:"InvalidAuthorizationToken"` / `"AuthorizationToken"` |
+
+Paginação (observada e documentada): `page` (padrão 1), `page_size` (padrão 30, **máximo 100**; valores maiores viram 100).
 
 ```text
-backend/app/Integrations/
-├── EventPlatform/
-│   ├── Contracts/
-│   │   └── EventPlatformProvider.php
-│   └── DTOs/
-└── Even3/
-    ├── Even3Client.php
-    ├── Even3Provider.php
-    ├── Even3Mapper.php
-    ├── Even3SyncService.php
-    └── Exceptions/
+pagination: { current_page, total_page, page_size, quantity, has_previous, has_next }
 ```
 
-## 4. Configuração
-
-`.env`:
-
-```text
-EVEN3_ENABLED=false
-EVEN3_BASE_URL=
-EVEN3_TOKEN=
-EVEN3_EVENT_ID=
-EVEN3_WEBHOOK_SECRET=
-```
-
-Os nomes exatos podem ser adaptados.
-
-Nunca commitar token real.
-
-## 5. Dados sincronizados
+O HackLab percorre páginas enquanto `has_next = true` (com teto de segurança de páginas).
 
 ### Evento
 
-Trazer, quando disponível:
-- ID externo;
-- título;
-- início/fim;
-- local;
-- URL pública;
-- entradas/categorias;
-- programação.
+`id` (inteiro), `title`, `url`, `start_date`/`end_date` (ISO UTC), `registration_*`, `country`, `state`, `city`, `venue`, `tickets`.
 
-### Inscritos
-
-Trazer:
-- ID externo do inscrito;
-- nome;
-- e-mail;
-- telefone se disponível;
-- categoria/entrada;
-- status da inscrição;
-- código de credenciamento quando aplicável;
-- metadados úteis.
-
-### Categorias
-
-Mapear entrada externa para categoria interna.
-
-Exemplo:
+### Entradas (`/events/{id}/tickets`) — documentação oficial
 
 ```text
-ID externo 1001 → PARTICIPANT
-ID externo 1002 → ORGANIZATION
-ID externo 1003 → COMPANY_GUEST
-ID externo 1004 → JUROR
-ID externo 1005 → PUBLIC
+[ { title, ticket_confirmed_quantity,
+    prices: [ { id, ticket_id, price, sales_start_date, sales_end_date, lot_confirmed_quantity } ] } ]
 ```
 
-Não mapear somente por nome.
+- A entrada **não tem `id` no nível de cima**. O identificador estável é `prices[].ticket_id` (cada lote/preço tem o seu `id`, e todos apontam para o mesmo `ticket_id`).
+- `external_ticket_id = ticket_id`. Entrada sem preço/lote (sem `ticket_id`) ou com `ticket_id` divergente entre lotes é ignorada com aviso (`TICKET_WITHOUT_ID` / `TICKET_ID_AMBIGUOUS`).
+- **PoC real (12/10/2026, 5 entradas gratuitas):** cada entrada veio com exatamente 1 item em `prices` (`price = 0`), com `id` do lote e `ticket_id` distintos; nenhuma entrada tem id próprio no nível de cima (chaves: `title`, `ticket_confirmed_quantity`, `prices`). `ticket_id` é a única identidade estável disponível e foi mantido como `external_ticket_id`.
+- Entradas gratuitas: o painel da Even3 não ofereceu configuração de múltiplos lotes. O comportamento com vários lotes (pagos) segue a documentação (mesmo `ticket_id` em todos os lotes) e não foi observado.
 
-## 6. Sincronização central
-
-Endpoint interno sugerido:
-
-```http
-POST /api/v1/integrations/even3/sync
-```
-
-Apenas Administrador.
-
-Payload opcional:
-
-```json
-{
-  "scope": "all"
-}
-```
-
-Scopes futuros:
-- event;
-- attendees;
-- schedule;
-- attendance.
-
-Resposta:
-
-```json
-{
-  "data": {
-    "status": "completed",
-    "created": 10,
-    "updated": 4,
-    "skipped": 82,
-    "errors": 0,
-    "synced_at": "..."
-  }
-}
-```
-
-## 7. Algoritmo de inscritos
-
-Para cada inscrito externo:
-
-1. buscar `event_registration` pelo ID externo;
-2. se existir, atualizar dados permitidos;
-3. se não existir:
-   - tentar associação controlada com Person;
-   - criar Person quando necessário;
-   - criar EventRegistration;
-4. associar ExternalTicketType;
-5. atualizar status;
-6. nunca duplicar silenciosamente.
-
-E-mail pode ajudar no match, mas ID externo é a referência principal da integração.
-
-## 8. Participante interno
-
-Se a categoria mapeada for `PARTICIPANT`, o sistema pode:
-- sugerir criação/vínculo com `participants`;
-- ou criar automaticamente se esta regra for habilitada.
-
-Mesmo assim, campos internos continuam no HackLab:
-- turma;
-- status;
-- equipe;
-- desafio.
-
-## 9. Jurado
-
-Categoria externa `JUROR` não deve conceder automaticamente acesso.
-
-Fluxo recomendado:
+### Participantes (`/attendees`) — observado
 
 ```text
-Even3: inscrição como Jurado
-        ↓
-Person + EventRegistration
-        ↓
-Jurado interno criado/vinculado
-        ↓
-Administrador confirma conta/perfil
-        ↓
-equipes atribuídas explicitamente
+id, event_id, name, badge_name, email, gender, photo, document_number,
+check_in_code, is_confirmed, registration_category, registration_date ("dd/mm/aaaa"), registration_hour ("hh:mm")
 ```
 
-`assignedTeamIds` é regra interna.
+- Só existe `id` (participante/inscrição da V2): **não há** id de pessoa, id de inscrição separado nem id de entrada.
+- A entrada vem só como texto em `registration_category`. **PoC real:** nas 3 inscrições de teste o texto é idêntico ao `title` da entrada ("Participante", "Jurado", "Público"); uma inscrição sem entrada veio com `registration_category = ""`.
+- **Não há status de cancelamento**: só `is_confirmed`.
+- Não há telefone.
+- **`registration_date` diverge da documentação:** a doc mostra `"22/07/2026"`; o PoC real devolveu `"2026-12-10T00:00:00Z"` (+ `registration_hour: "12:56"`) para inscrições feitas em 12/10/2026 — dia e mês aparentemente invertidos. O HackLab só interpreta o formato documentado `dd/mm/aaaa`; fora dele, `registered_at` fica nulo.
+- A API V2 possui operações de check-in (credenciamento no evento e em atividade). O que **não** foi localizado/validado é um endpoint GET V2 de histórico de check-ins adequado para reconciliar a presença no HackLab. Nesta arquitetura: presença recebida = webhook; reconciliação histórica de presença = ainda não validada.
 
-## 10. Empresa/Convidado
+## 5. Modelo interno
 
-Categoria externa `COMPANY_GUEST` cria/vincula pessoa e inscrição.
+- `event_integrations`: vínculo Event ↔ evento externo (`EVEN3`, `V2`, `ACTIVE`/`DISABLED`). `unique(event_id, provider)` e `unique(provider, external_event_id)`. Sem token.
+- `external_ticket_types`: entradas descobertas, identidade = `external_ticket_id`. Mapeamento manual para `PARTICIPANT`, `ORGANIZATION`, `COMPANY_GUEST`, `JUROR`, `PUBLIC` (nova entrada nasce sem mapeamento).
+- `event_registrations`: inscrição externa ligada a uma Person, com os dados da origem em `source_*`.
+- `attendance_records`: check-ins (vários por dia permitidos), presença diária derivada.
+- `integration_sync_runs`: histórico e contadores de cada sincronização.
+- `integration_webhook_receipts`: um recibo por disparo do webhook (idempotência), sem payload completo.
 
-Não criar empresa automaticamente.
+Detalhes em `banco-de-dados.md` §8–9.
 
-Administrador pode vincular a pessoa como representante de empresa existente.
-
-## 11. Público
-
-Público pode existir apenas como:
-- Person;
-- EventRegistration;
-- Attendance.
-
-Não precisa de User.
-
-Se criar conta para votar:
-- vincular à Person existente;
-- conceder Votante conforme regra interna.
-
-## 12. Presença
-
-Na arquitetura atual, o HackLab não lê QR.
-
-O operador usa a Even3.
-
-HackLab sincroniza presença.
-
-O modelo interno é por dia:
+## 6. Sincronização (API → HackLab)
 
 ```text
-Dia 1
-Dia 2
-Dia 3
+POST /api/v1/events/{event}/integrations/even3/sync   { "scope": "EVENT" | "TICKETS" | "ATTENDEES" | "ALL" }
+php artisan even3:sync                                 (pronto para o Scheduler; frequência ainda não definida)
 ```
 
-Usar `event_days` + `attendance_records`.
+`ALL` = evento → entradas → participantes. Regras:
 
-## 13. Múltiplos check-ins
+- No máximo **1 sync `RUNNING` por integração** (lock + índice único parcial). O segundo recebe 409. Um `RUNNING` abandonado há mais de 30 min é encerrado como `FAILED` (`STALE_RUN`) na próxima tentativa.
+- Cada participante é processado numa transação pequena; um item ruim não derruba os outros. `SUCCESS` (tudo ok), `PARTIAL` (algum item rejeitado, em conflito ou com erro), `FAILED` (recurso externo essencial não pôde ser lido).
+- Contadores contam só mudança real; avisos guardam id externo + código + mensagem segura (nunca o payload completo).
+- `event_id` de cada participante precisa ser o `external_event_id` configurado; senão é rejeitado (`EVENT_MISMATCH`).
+- Ausência na resposta **nunca** cancela inscrição.
 
-A Even3 possui recursos de credenciamento/múltiplos check-ins e check-in por atividade, mas a implementação do HackLab deve ser baseada no contrato real disponível no ambiente escolhido.
+### Entradas
 
-### Ponto de validação obrigatório
+Nova → criada sem mapeamento. Nome alterado → `external_name` atualizado, mapeamento preservado. Entrada conhecida que some numa leitura completa e bem-sucedida → `active = false` (nunca apagada).
 
-Antes de depender exclusivamente de sincronização por API para presença diária, realizar PoC para confirmar:
+### Categoria do participante
 
-- quais endpoints GET devolvem histórico de check-ins;
-- se múltiplos check-ins por dia são retornados;
-- quais IDs correlacionam check-in e inscrito;
-- se data/hora completa está disponível;
-- como atividade/sessão é representada;
-- como cancelamentos aparecem.
+`registration_category` (texto) → entrada **só se** o nome corresponde (sem diferença de caixa/espaços) a exatamente uma entrada conhecida da integração. Zero → sem entrada; mais de uma → sem entrada + aviso `CATEGORY_AMBIGUOUS`. O texto nunca cria mapeamento persistente: o mapeamento é sempre do `external_ticket_id`.
 
-Não assumir comportamento não confirmado.
+### Pessoa (matching)
 
-## 14. Webhook
+1. inscrição já conhecida pelos IDs externos (`external_attendee_id`, `external_registration_id`);
+2. documento normalizado (maiúsculas, só letras e dígitos) que aponte para **uma** Person;
+3. e-mail normalizado (trim + minúsculas) que aponte para **uma** Person;
+4. nova Person.
 
-Se a infraestrutura do Senac permitir endpoint HTTPS público, usar Webhook como caminho em tempo real.
+Documento e e-mail apontando para Persons diferentes (ou um deles ambíguo) = conflito (`IDENTITY_CONFLICT`): o item não é vinculado, nada é sobrescrito, nenhuma terceira Person é criada.
 
-Exemplo:
+Person nova recebe os dados da Even3. Person existente só tem **campos vazios** preenchidos. Os valores da origem ficam em `source_name`, `source_badge_name`, `source_email`, `source_phone`, `source_document`; e-mail/documento diferentes do cadastro interno marcam `identity_mismatch`.
 
-```http
-POST /api/v1/webhooks/even3
-```
+Uma Person pode ter **várias** inscrições externas na mesma integração (não há unique por pessoa). A inscrição é identificada pelos IDs externos, nesta ordem: `external_registration_id` → `external_attendee_id` → `external_person_id` (este só quando aponta para exatamente uma inscrição compatível). Documento/e-mail associam a **Person**, mas não provam que duas inscrições externas são a mesma: uma inscrição existente da pessoa só é reaproveitada quando é a **única compatível** (nenhum id externo ou código de credenciamento divergente — caso típico: criada pelo webhook, completada pela API). Mais de uma compatível → conflito `REGISTRATION_AMBIGUOUS`, sem merge. Nenhuma compatível → nova inscrição da mesma pessoa.
 
-Fluxo:
+### Status
+
+| Fonte | Valor | Status interno |
+|---|---|---|
+| API | `is_confirmed = true` | `CONFIRMED` |
+| API | `is_confirmed = false` | `PENDING`, **exceto** se já estiver `CANCELLED` (cancelamento explícito é preservado) |
+| Webhook | inscrição pendente / confirmada / cancelada no evento | `PENDING` / `CONFIRMED` / `CANCELLED` |
+
+Webhook mais antigo que a última mudança de status conhecida (`created` < `status_changed_at`) não rebaixa o status (o gatilho "pendente" pode chegar até 30 min depois).
+
+## 7. Webhook (Even3 → HackLab)
 
 ```text
-Even3
- ↓ POST
-WebhookController
- ↓
-validação/autenticidade
- ↓
-persistir webhook_receipt
- ↓
-Job
- ↓
-processar
- ↓
-atualizar banco
+POST /api/v1/webhooks/even3     (público, sem Sanctum; protegido pelo token de segurança)
 ```
 
-### Eventos de interesse
+Documentação oficial (developers.even3.com, "Webhook" e "Gatilhos de participantes"):
 
-Prioridade:
-- inscrição confirmada no evento;
-- inscrição cancelada no evento;
-- inscrição confirmada em atividade;
-- inscrição cancelada em atividade;
-- check-in no evento;
-- check-in em atividade.
+- o organizador define um **token de segurança** enviado num header — o **nome do header não está documentado**, por isso é configurável (`EVEN3_WEBHOOK_HEADER`) e precisa ser confirmado no PoC real;
+- cada disparo tem `id` único (GUID), `created` (epoch) e `type { id, name }`; dados em `pessoa { id, nome, email, cpf, passaporte, nome_para_cracha, celular, … }`, `inscricao { id, codigo, titulo, data_inscricao }`, `evento { id, url, titulo, data }`;
+- resposta fora de 2xx ou acima de 60 s gera até 3 reenvios (15, 30 e 150 min); 3 dias sem nenhuma entrega bem-sucedida desativam o webhook;
+- uma ação pode disparar mais de um gatilho.
 
-Ignorar inicialmente:
-- vendas;
-- submissões;
-- outros eventos sem uso no HackLab.
+Regras do HackLab:
 
-## 15. Idempotência
+- Token ausente/errado → 401, nada é gravado. Webhook sem header/segredo configurado ou com segredo igual ao token da API → 503.
+- `evento.id` diferente do `external_event_id` configurado → recibo `IGNORED` (`EVENT_MISMATCH`), 2xx, nada processado. Nunca pelo título.
+- Idempotência por `id` do disparo (`unique(event_integration_id, external_delivery_id)`): já `PROCESSED`/`IGNORED` → 2xx sem novo efeito; `FAILED` → reprocessa no reenvio.
+- Gatilhos tratados: inscrição pendente, confirmada e cancelada no evento; check-in no evento; check-in em atividade. Os demais (atividades, venda, submissão…) → `IGNORED` + 2xx.
+- Despacho pelo `type.name` (nomes oficiais da documentação). O `type.id` recebido é guardado no recibo, mas não decide nada: só o id `2` aparece na documentação, num exemplo de inscrição confirmada; os demais não são inventados. Confirmar ids e nomes no PoC real.
+- `inscricao.codigo` não é tratado como `check_in_code` até o PoC real mostrar que é o mesmo código da API.
+- Webhook pode chegar antes de qualquer sync: o HackLab localiza a inscrição pelos IDs externos ou pela Person (matching da seção 6) ou cria Person + inscrição. A próxima sincronização completa os dados.
+- Não gera um AuditLog por inscrito/check-in: o histórico operacional fica em `event_registrations`, `attendance_records`, `integration_webhook_receipts` e `integration_sync_runs`.
 
-Webhook pode ser reenviado.
+### Presença
 
-Nunca duplicar presença ou inscrição.
+- Cada check-in vira um `attendance_record` (`EVENT` ou `ACTIVITY`, fonte `WEBHOOK`), no máximo um por disparo (`unique(webhook_receipt_id)`).
+- `observed_at` = `created` do disparo. `checked_in_at` fica **nulo** enquanto o payload real não mostrar um horário específico do check-in (não documentado).
+- Dia do evento: horário UTC → `events.timezone` (IANA, ex.: `America/Sao_Paulo`) → data local → `event_days.date`. Sem timezone ou sem dia correspondente → `event_day_id = null` + aviso no recibo. Nunca cria `EventDay`.
+- Presença no dia = existe ao menos um registro naquele `EventDay`. Não existe booleano global de presença.
 
-Usar, conforme payload disponível:
-- event ID externo;
-- tipo;
-- attendee ID;
-- session/activity ID;
-- timestamp;
-- hash do payload.
-
-Persistir recibo antes do processamento.
-
-## 16. Se webhook não for permitido
-
-Modo fallback:
+## 8. Materialização de participantes
 
 ```text
-Administrador
-→ Inscrições e Presença
-→ Sincronizar Even3
+POST /api/v1/events/{event}/event-registrations/materialize-participants
 ```
 
-O backend consulta a API e reconcilia dados.
+Explícita e idempotente: inscrição `CONFIRMED` + entrada mapeada como `PARTICIPANT` → cria `Participant(event, person)` (`AVAILABLE`, sem turma) se não existir. Participante existente não muda (status, turma, equipe, desafio). Cancelar na Even3 não tira ninguém de equipe: isso é ação humana.
 
-Também pode existir Job agendado se a política do ambiente permitir chamadas de saída:
+## 9. Auditoria
 
-```text
-HackLab → Even3
-```
+Só ações administrativas: `EVEN3_INTEGRATION_CONFIGURED`, `EVEN3_TICKET_MAPPING_CHANGED`, `EVEN3_SYNC_TRIGGERED` (um por sync manual; o resultado fica no `integration_sync_run`) e `EVEN3_PARTICIPANTS_MATERIALIZED` (um por execução). Pessoas, inscrições e participantes criados pela integração não geram um log cada.
 
-A arquitetura não pode depender obrigatoriamente de conexões de entrada externas.
+## 10. Erros e timeouts
 
-## 17. Requisitos de rede para webhook
+`Even3Client` centraliza Bearer, base URL, timeouts (conexão 5 s, requisição 15 s), retry só de GET (timeout, rede, 429, 5xx; poucas tentativas com espera crescente) e erros tipados: `BAD_REQUEST` (400), `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `RATE_LIMITED` (429), `SERVER_ERROR` (5xx), `TIMEOUT`, `NETWORK_ERROR`, `INVALID_JSON`.
 
-Para webhook direto:
+## 11. Estado dos PoCs
 
-- DNS público;
-- HTTPS válido;
-- porta 443 acessível;
-- proxy/firewall permitindo POST externo;
-- rota pública específica;
-- autenticação/validação do webhook.
+| PoC | Situação |
+|---|---|
+| API V2 real (evento, entradas, participantes, paginação, erros) | **concluída** (12/10/2026) |
+| Entradas reais | **concluída**: 5 entradas gratuitas, 1 lote cada; identidade = `prices[].ticket_id` (não há id no nível da entrada). Múltiplos lotes não observados (o painel não oferece lotes para entradas gratuitas) |
+| Participantes reais por categoria | **concluída**: 3 inscrições fictícias confirmadas; `registration_category` = `title` da entrada, correlação inequívoca |
+| Sync real pelo HackLab | **concluída**: 1º sync criou 5 entradas, 4 inscrições e 4 Persons; 2º e 3º syncs sem nenhuma alteração; mapeamento preservado; materialização criou só o participante fictício e é idempotente |
+| Cancelamento | implementação via webhook **concluída e testada**; PoC real **pendente** (ausência na API nunca é cancelamento) |
+| Webhook real (header, ids, timestamps, reenvio) | implementação e testes automatizados **concluídos**; PoC real `pending_public_url` — obrigatório na Fase 12, antes de produção |
 
-Se servidor estiver apenas em IP privado, Even3 não conseguirá acessá-lo diretamente.
-
-## 18. Tela no HackLab
-
-A antiga ideia de `Credenciais e Presença` deve evoluir para algo como:
-
-```text
-Inscrições e Presença
-```
-
-Mostrar:
-- status da integração;
-- evento externo;
-- última sincronização;
-- total de inscritos;
-- totais por categoria;
-- presentes por dia;
-- ausentes;
-- inconsistências;
-- botão `Sincronizar Even3`.
-
-Não incluir:
-- câmera;
-- leitor QR;
-- botão “Liberar entrada”;
-- perfil Validador.
-
-## 19. Status de integração
-
-Criar endpoints internos:
-
-```http
-GET /api/v1/integrations/even3/status
-POST /api/v1/integrations/even3/sync
-```
-
-Resposta de status pode incluir:
-
-```json
-{
-  "data": {
-    "enabled": true,
-    "connected": true,
-    "external_event_id": "...",
-    "last_sync_at": "...",
-    "last_sync_status": "success"
-  }
-}
-```
-
-## 20. Observabilidade
-
-Registrar:
-- início/fim de sync;
-- quantidade criada/atualizada;
-- erros;
-- endpoint externo com falha;
-- status HTTP;
-- webhook recebido/processado;
-- tempo de processamento.
-
-Nunca logar token.
-
-## 21. Erros
-
-Separar:
-- erro de autenticação externa;
-- rate limit;
-- timeout;
-- erro de payload;
-- evento não encontrado;
-- inscrito inconsistente;
-- erro de mapeamento;
-- indisponibilidade externa.
-
-Uma falha da Even3 não deve derrubar toda a API do HackLab.
-
-## 22. Timeouts/retry
-
-Definir timeout curto e retry controlado para chamadas idempotentes.
-
-Não repetir automaticamente operações que possam gerar efeito duplicado sem confirmação.
-
-## 23. Testes
-
-Criar testes com HTTP fake/mock para:
-- sync de evento;
-- novo inscrito;
-- atualização;
-- cancelamento;
-- duplicidade;
-- categoria desconhecida;
-- erro 401/403;
-- timeout;
-- webhook duplicado;
-- webhook inválido;
-- criação de presença;
-- presença já existente.
-
-Não usar API real em testes automatizados.
-
-## 24. PoC antes de produção
-
-Checklist:
-
-- [ ] criar evento de teste Even3;
-- [ ] gerar token;
-- [ ] consultar evento;
-- [ ] consultar inscritos;
-- [ ] confirmar IDs das entradas;
-- [ ] mapear categorias;
-- [ ] realizar credenciamento;
-- [ ] testar múltiplos check-ins;
-- [ ] testar atividade/sessão;
-- [ ] inspecionar payload de webhook;
-- [ ] confirmar mecanismo de autenticação do webhook;
-- [ ] confirmar consulta posterior do histórico de presença;
-- [ ] testar cancelamento;
-- [ ] testar falha de rede;
-- [ ] documentar resultados reais.
-
-Somente depois do PoC fechar o contrato definitivo.
+Tudo o que está marcado como pendente é suposição documentada, não fato observado, até o PoC correspondente.

@@ -25,6 +25,7 @@ class UpdateEventRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'string'],
             'location' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'timezone' => ['sometimes', 'nullable', 'string', 'max:64', 'timezone:all'],
             'start_date' => ['sometimes', 'required', 'date_format:Y-m-d'],
             'end_date' => ['sometimes', 'required', 'date_format:Y-m-d'],
             'status' => ['sometimes', 'required', Rule::enum(EventStatus::class)],

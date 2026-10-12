@@ -144,6 +144,7 @@ class EventService
             'name' => $event->name,
             'description' => $event->description,
             'location' => $event->location,
+            'timezone' => $event->timezone,
             'start_date' => $event->start_date?->toDateString(),
             'end_date' => $event->end_date?->toDateString(),
             'status' => $event->status?->value,

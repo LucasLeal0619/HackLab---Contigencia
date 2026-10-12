@@ -343,59 +343,54 @@ opera       = permissão + (alcance global OU setor do usuário = responsável a
 encaminha   = permissão de roteamento + (alcance global OU setor do usuário = responsável atual)
 ```
 
-## 7. Integração externa
+## 7. Integração externa (Fase 9)
 
-Criar contrato abstrato:
+```text
+App\Integrations\EventPlatform\EventPlatformProvider     contrato neutro (sem formato da Even3)
+        ↑
+App\Integrations\Even3\Even3Provider                      usa Even3Client + Even3Mapper
+App\Integrations\Even3\Even3Client                        único lugar com HTTP: Bearer, base URL, timeouts, retry, paginação, erros, redação do token
+App\Integrations\Even3\Even3Mapper                        formatos V2/webhook → arrays neutros
+App\Domain\Integrations\*                                 regras do HackLab (sync, matching, webhook, materialização)
+```
 
 ```php
 interface EventPlatformProvider
 {
-    public function getEvent(): array;
-    public function getAttendees(): array;
-    public function getSchedule(): array;
+    public function fetchEvent(string $externalEventId): array;          // id, title, start_date, end_date…
+    public function fetchTickets(string $externalEventId): array;        // [{ external_ticket_id, name }]
+    public function fetchAttendees(): iterable;                         // páginas de participantes normalizados
 }
 ```
 
-O contrato real pode evoluir.
-
-Implementação inicial:
-
-```text
-EventPlatformProvider
-        ↑
-   Even3Provider
-```
-
-Futuro possível:
-
-```text
-EventPlatformProvider
-   ↑             ↑
-Even3         Sympla
-```
+- Outra plataforma (ex.: Sympla) = outro Provider/Client/Mapper; os Services do domínio não mudam.
+- Nenhum `Http::` fora do `Even3Client`. Token só em `config('services.even3.token')`; nunca em banco, log, exceção ou resposta.
+- Nesta fase o fluxo é só Even3 → HackLab (nenhuma escrita na Even3).
 
 ## 8. Fluxo de sincronização
 
 ```text
-Even3
+POST /events/{event}/integrations/even3/sync  (ou even3:sync)
   ↓
-Even3Client
+IntegrationSyncService: abre IntegrationSyncRun (lock; 1 RUNNING por integração)
   ↓
-Even3Mapper
+Provider: evento → entradas → participantes (paginado)
   ↓
-Even3SyncService
+por participante: transação pequena + advisory lock da integração
+  ↓ RegistrationMatcher (IDs externos → documento → e-mail → nova Person)
+  ↓ RegistrationUpserter (status, categoria por ticket conhecido, source_*)
+people / event_registrations / external_ticket_types
   ↓
-transaction
-  ↓
-people
-event_registrations
-external_ticket_types
-attendance
-  ↓
-módulos internos
+IntegrationSyncRun: SUCCESS | PARTIAL | FAILED + contadores + avisos seguros
 ```
 
-Sincronização deve ser idempotente.
+```text
+POST /webhooks/even3
+  ↓ token de segurança (header configurável) → recibo idempotente (id do disparo)
+  ↓ mesmo RegistrationMatcher/Upserter (mesmo advisory lock) → event_registrations / attendance_records
+```
+
+Webhook e sincronização usam o mesmo lock por integração e a mesma regra de matching: a inscrição é casada pelos IDs externos (inscrição → participante → pessoa externa); documento/e-mail só associam a Person e reaproveitam uma inscrição dela apenas quando há uma única candidata compatível (ambíguo = conflito, sem merge). Uma pessoa pode ter várias inscrições.
 
 ## 9. API
 
@@ -428,6 +423,9 @@ Principais grupos:
 /attendance
 /audit
 /integrations/even3
+/event-registrations
+/events/{event}/attendance
+/webhooks/even3
 ```
 
 ## 10. Respostas e erros
