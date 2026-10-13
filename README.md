@@ -1,25 +1,161 @@
 # HackLab
 
-Sistema interno de gestão do Hackathon do Senac.
+Sistema interno de gestão de Hackathons do Senac: organização, operação durante o evento e encerramento (avaliação dos jurados, votação do público e resultado oficial).
 
-- `front` — interface em JavaScript com Vue 3 e Vite.
-- `back` — API em PHP com Laravel 12 e PostgreSQL.
-- `docker-compose.yml` — ambiente de desenvolvimento e testes (Laravel + PostgreSQL).
+```text
+Vue 3 SPA (front/)
+    ↓  HTTP + cookie de sessão (Sanctum)
+Laravel REST API /api/v1 (back/)
+    ↓
+PostgreSQL 17 (schema hacklab)
+```
 
-A documentação de arquitetura e regras está em [`CLAUDE.md`](CLAUDE.md) e [`hacklab_docs/`](hacklab_docs/README.md).
+| Ambiente | Frontend | API | Banco |
+|---|---|---|---|
+| Desenvolvimento | Vue/Vite em `http://localhost:5174` | Laravel em Docker, `http://localhost:8000` | PostgreSQL 17 em Docker, `127.0.0.1:5442` |
+| Produção (planejada) | Static Site | Laravel no Render (Web Service) | PostgreSQL gerenciado no Supabase |
 
-`node_modules`, `vendor` e os arquivos `.env` não vão no Git. Quem clonar o repositório precisa instalar na própria máquina.
+A implantação em produção é a **Fase 12** e ainda não foi feita.
 
-## O que instalar antes
+As inscrições e o credenciamento acontecem na plataforma externa **Even3**. O HackLab importa inscrições e presença pelo backend e cuida da gestão interna. Não vende ingresso, não gera QR e não faz check-in próprio.
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/macOS) ou Docker Engine + Compose (Linux)
-- [Node.js](https://nodejs.org/) 20 ou mais recente, com npm (para o front)
+## Estado do projeto
 
-PHP, Composer e PostgreSQL **não** precisam estar instalados na máquina: rodam nos containers.
+**Fases 0 a 11 concluídas. Fase 12 (implantação) e Fase 13 (teste de carga) pendentes.**
 
-## Back (Docker)
+| Fase | Conteúdo | Situação |
+|---|---|---|
+| 0 | Fundação: Docker, PostgreSQL, Laravel, Sanctum | concluída |
+| 1 | Pessoas, usuários, perfis e autenticação | concluída |
+| 2 | Eventos, dias, setores e reuniões | concluída |
+| 3 | Participantes, turmas e equipes | concluída |
+| 4 | Empresas, representantes e desafios | concluída |
+| 5 | Pendências, ocorrências e operação intersetorial | concluída |
+| 6 | Jurados, critérios e avaliações | concluída |
+| 7 | Votação, resultados e publicação oficial | concluída |
+| 8 | Auditoria completa | concluída |
+| 9 | Integração Even3 | concluída |
+| 10 | Frontend integrado ao backend real | concluída |
+| 11 | Relatórios reais e PDF | concluída |
+| 12 | Implantação (Render + Supabase + Static Site) | pendente |
+| 13 | Teste de carga | pendente |
 
-A partir da raiz do projeto:
+O detalhe de cada fase está em [`plano-implementacao.md`](hacklab_docs/docs/plano-implementacao.md).
+
+## Funcionalidades
+
+- **Autenticação e autorização**: login por sessão (Sanctum SPA); permissões por perfil, verificadas no Laravel.
+- **Pessoas e usuários**: uma pessoa pode existir sem login; contas são criadas pelo Administrador e sempre ligadas a uma pessoa.
+- **Eventos e dias**: evento com datas, local, fuso horário e dias reais (`EventDay`).
+- **Setores e reuniões**: reuniões gerais ou setoriais.
+- **Participantes e turmas**: status Disponível, Indisponível ou Desistente; não há exclusão.
+- **Equipes**: composição com histórico de entrada e saída de membros.
+- **Empresas e representantes**.
+- **Desafios e distribuição**: uma equipe por desafio.
+- **Pendências e ocorrências**:
+  - demandas entre setores, com comentários, encaminhamento, conclusão ou resolução, reabertura e histórico;
+  - geração de pendência a partir de uma ocorrência.
+- **Jurados e atribuições**: as equipes de cada jurado são atribuídas explicitamente, nunca de forma automática.
+- **Critérios e avaliações técnicas**:
+  - o critério trava depois que começam as avaliações;
+  - o jurado salva rascunho e envia; a revisão é solicitada pela gestão.
+- **Votação pública autenticada**: sessões com equipes candidatas e eleitores elegíveis.
+- **Resultados**:
+  - resultado técnico e Escolha do Público, sempre separados;
+  - publicação oficial versionada, que pode ser revogada.
+- **Inscrições Even3 e presença**:
+  - configuração da integração, entradas e mapeamento de categorias;
+  - sincronização com histórico de execuções e webhook;
+  - inscrições e criação explícita de participantes a partir delas;
+  - presença (check-ins) sincronizada.
+- **Auditoria**: trilha somente leitura das ações relevantes, gerada no backend.
+- **Relatórios**: quatro relatórios consolidados com PDF.
+
+O que o HackLab **não** tem nesta versão:
+- financeiro, premiações, documentos e atas separadas;
+- cadastro público e convite de jurado;
+- QR, scanner ou check-in próprio (o credenciamento é feito na Even3);
+- votação anônima e nota combinada entre jurados e público;
+- Supabase Auth ou qualquer recurso do Supabase além do PostgreSQL.
+
+## Perfis
+
+Seis perfis: **Administrador**, **Gestor**, **Editor**, **Consultor**, **Jurado** e **Votante**.
+
+- Cada perfil tem um conjunto de permissões. As Policies/Gates do Laravel combinam permissão e escopo.
+- **Gestor e Editor** só atuam no próprio setor. O Gestor gerencia e encaminha; o Editor opera, mas não encaminha.
+- O **Consultor** consulta de forma transversal (inclusive relatórios), sem administrar usuários.
+- O **Jurado** vê só as equipes atribuídas a ele.
+- O **Votante** vota quando é elegível e vê o resultado oficial publicado.
+- Esconder um botão no frontend não é segurança: toda requisição é autorizada no Laravel. A matriz completa de permissões está em [`banco-de-dados.md`](hacklab_docs/docs/banco-de-dados.md).
+
+## Autenticação
+
+Laravel Sanctum no modo SPA:
+
+```text
+GET  /sanctum/csrf-cookie     cookie XSRF-TOKEN
+POST /api/v1/auth/login       cria a sessão (cookie HttpOnly)
+GET  /api/v1/auth/me          usuário, pessoa, perfil, setor e permissões
+POST /api/v1/auth/logout
+```
+
+- A sessão fica num cookie HttpOnly, protegido por CSRF.
+- Não há bearer token guardado no navegador.
+- Não há login simulado nem troca de perfil para demonstração.
+- O login tem limite de tentativas.
+
+## Frontend (`front/`)
+
+- Vue 3, Vite e JavaScript, com roteamento por hash (`#/rota`).
+- Um único cliente HTTP (`src/js/api/client.js`): `fetch` com `credentials: 'include'`, XSRF, tempo limite e tratamento de 401, 403, 419, 422 e 429.
+- As páginas chamam os services de `src/js/services/`, nunca o `fetch` diretamente.
+- A URL da API vem de `VITE_API_URL` (`front/.env.development` aponta para `http://localhost:8000`).
+- Todo dado vem da API real. Com a API fora do ar, a tela mostra erro de conexão.
+- O navegador guarda só preferências:
+  - `hacklab.ui`: acessibilidade e evento ativo;
+  - `hacklab.remember` (opcional): só o e-mail do login.
+
+  Nenhum dado de negócio, sessão, senha ou token fica no navegador.
+- Testes com Vitest, Vue Test Utils e jsdom.
+- PDF com pdfmake, baixado só quando um relatório é gerado.
+
+## Backend (`back/`)
+
+- Laravel 12 (PHP 8.3 no Docker de desenvolvimento) e API REST em `/api/v1`.
+- Organização:
+  - Form Requests para validação;
+  - API Resources para as respostas;
+  - Services do domínio (`app/Domain/*`) para as regras de negócio;
+  - Policies/Gates para autorização;
+  - Controllers finos.
+- Banco: migrations, factories e seeders.
+- Testes Feature no PostgreSQL.
+- Toda operação que altera várias tabelas roda em transação, e as ações sensíveis geram auditoria.
+
+O contrato completo da API está em [`back/routes/api.php`](back/routes/api.php), e o resumo por fase em [`plano-implementacao.md`](hacklab_docs/docs/plano-implementacao.md).
+
+## Banco de dados
+
+- PostgreSQL 17, com todas as tabelas no schema `hacklab` (nunca `public`).
+- Bancos: `hacklab_dev` (desenvolvimento) e `hacklab_test` (testes automatizados, recriado a cada execução).
+- Porta na máquina local: `127.0.0.1:5442`, usuário e senha `hacklab`/`hacklab` (só desenvolvimento).
+- A estrutura vem só das migrations do Laravel (31 hoje). Não crie tabelas à mão nem pelo painel do Supabase.
+- No ambiente de testes, o backend recusa qualquer banco cujo nome não termine em `_test` e qualquer host do Supabase.
+
+## Desenvolvimento local
+
+Pré-requisitos:
+- Docker Desktop (Windows/macOS) ou Docker Engine com Compose (Linux);
+- Node.js 20 ou mais recente, com npm.
+
+PHP, Composer e PostgreSQL rodam nos containers.
+
+`node_modules`, `vendor` e os arquivos `.env` não vão para o Git.
+
+### Primeira instalação
+
+Na raiz do projeto:
 
 ```bash
 cp back/.env.example back/.env
@@ -34,81 +170,152 @@ docker compose exec app php artisan migrate --seed
 
 No PowerShell, troque `cp` por `Copy-Item`.
 
-**Rede que bloqueia o build** (proxy/firewall que barra o `apt` do Debian dentro do Docker): faça o primeiro `docker compose up -d --build` em outra rede; depois as camadas ficam em cache e só é preciso rebuild se o `back/Dockerfile` mudar. Alternativa: suba só o banco com `docker compose up -d postgres` e rode o Laravel no PHP da máquina (PHP 8.2+ com `pdo_pgsql` e `pgsql`), usando `php artisan …` dentro de `back/`. O `.env` já aponta para `127.0.0.1:5442`.
-
-- API: http://localhost:8000/api/v1/health
-- PostgreSQL (para DBeaver/pgAdmin): `127.0.0.1:5442`, usuário `hacklab`, senha `hacklab`, schema `hacklab`
-
-Bancos:
-
-| Banco | Uso |
-|---|---|
-| `hacklab_dev` | desenvolvimento |
-| `hacklab_test` | testes automatizados (apagado a cada execução) |
-| Supabase | produção (só nas variáveis do Render, nunca no `.env` local) |
-
-As tabelas são criadas só pelas migrations do Laravel. Não crie tabelas manualmente.
-
-### Login de desenvolvimento
-
-O seed cria, **só em `local` e `testing`**, um Administrador de desenvolvimento:
-
-- e-mail: `admin@hacklab.local`
-- senha: `hacklab123`
-
-E dados fictícios para desenvolver (`DevelopmentDataSeeder`): um evento de exemplo com 3 dias, dois setores, uma reunião geral, 3 turmas, 12 participantes, 2 equipes (8 participantes já em equipe), 3 empresas com representantes (sem conta de acesso), 5 desafios em etapas diferentes (um distribuído), 5 pendências e 4 ocorrências intersetoriais (com encaminhamento, conclusão, solução, comentários e uma pendência gerada por ocorrência) e dois usuários de exemplo, também com senha `hacklab123`:
-
-- `gestor@hacklab.local` (Gestor do "Setor Exemplo A")
-- `editor@hacklab.local` (Editor do "Setor Exemplo B")
-- `jurado@hacklab.local` (Jurado com duas equipes atribuídas: uma avaliação enviada e um rascunho)
-
-- `votante01@hacklab.local` … `votante05@hacklab.local` (Votantes elegíveis nas duas sessões de exemplo)
-
-Também há 3 critérios de avaliação e 3 jurados de exemplo: um que é representante de empresa, um com conta e um sem conta (Juror não implica User).
-
-Votação: uma sessão encerrada de teste (empate 2 x 2, participação 80%) e uma sessão em rascunho já configurada. Nenhum resultado publicado.
-
-Dá para trocar com `DEV_ADMIN_EMAIL` e `DEV_ADMIN_PASSWORD` no `.env`. Em qualquer outro ambiente o seeder não cria essa conta. Em produção, o primeiro Administrador é criado com:
+### Dia a dia
 
 ```bash
-php artisan db:seed --class=RolePermissionSeeder --force
-php artisan hacklab:create-admin   # pede nome, e-mail e senha no terminal
+docker compose up -d        # sobe a API e o PostgreSQL
+docker compose ps
 ```
-
-### Testes
-
-```bash
-docker compose exec app php artisan test
-```
-
-Os testes rodam em PostgreSQL, no banco `hacklab_test`. O backend recusa rodar testes em qualquer banco que não termine em `_test` e qualquer conexão de desenvolvimento ou teste com o Supabase.
-
-### Comandos úteis
-
-```bash
-docker compose ps                     # status
-docker compose logs -f app            # logs do Laravel
-docker compose exec app php artisan … # qualquer comando artisan
-docker compose down                   # para os containers (dados do PostgreSQL ficam no volume)
-docker compose down -v                # para e APAGA o volume do PostgreSQL (recria hacklab_dev e hacklab_test)
-```
-
-## Front
 
 ```bash
 cd front
 npm ci
-npm run dev     # http://localhost:5174/ (API em VITE_API_URL, ver front/.env.development)
-npm run test    # Vitest
+npm run dev
+```
+
+| | URL |
+|---|---|
+| Frontend | http://localhost:5174 |
+| API | http://localhost:8000 |
+| Health check | http://localhost:8000/api/v1/health |
+
+Comandos úteis:
+
+```bash
+docker compose logs -f app            # logs do Laravel
+docker compose exec app php artisan … # qualquer comando artisan
+docker compose down                   # para os containers (os dados ficam no volume)
+docker compose down -v                # para e APAGA o volume do PostgreSQL
+```
+
+O servidor PHP de desenvolvimento atende uma requisição por vez e é lento no Docker do Windows (alguns segundos por requisição). Isso afeta só o desenvolvimento; desempenho é assunto das Fases 12 e 13.
+
+**Rede que bloqueia o build** (proxy ou firewall barrando o `apt` dentro do Docker): faça o primeiro `docker compose up -d --build` em outra rede. Depois as camadas ficam em cache. Outra opção é subir só o banco (`docker compose up -d postgres`) e rodar o Laravel no PHP da máquina (8.2+ com `pdo_pgsql`), dentro de `back/`.
+
+### Contas de desenvolvimento
+
+O seed cria essas contas **apenas nos ambientes `local` e `testing`, nunca em produção**. Todas usam a senha `hacklab123`:
+
+| Conta | Perfil |
+|---|---|
+| `admin@hacklab.local` | Administrador (e-mail e senha trocáveis por `DEV_ADMIN_EMAIL` e `DEV_ADMIN_PASSWORD`) |
+| `gestor@hacklab.local` | Gestor do "Setor Exemplo A" |
+| `editor@hacklab.local` | Editor do "Setor Exemplo B" |
+| `jurado@hacklab.local` | Jurado com duas equipes atribuídas (uma avaliação enviada e um rascunho) |
+| `votante01@hacklab.local` … `votante05@hacklab.local` | Votantes elegíveis nas sessões de exemplo |
+
+O seed também cria um evento fictício com:
+- 3 dias, setores, uma reunião, turmas e 12 participantes;
+- 2 equipes, 3 empresas com representantes e 5 desafios;
+- pendências, ocorrências, critérios e jurados;
+- uma votação encerrada e outra em rascunho;
+- nenhum resultado publicado.
+
+O seed pode ser executado mais de uma vez sem duplicar dados.
+
+Em produção, o primeiro Administrador é criado pelo terminal:
+
+```bash
+php artisan db:seed --class=RolePermissionSeeder --force
+php artisan hacklab:create-admin   # pede nome, e-mail e senha
+```
+
+## Testes
+
+```bash
+# Backend (PostgreSQL, banco hacklab_test)
+docker compose exec app php artisan test
+docker compose exec app vendor/bin/pint --test
+
+# Frontend
+cd front
+npm run test
 npm run build
 ```
 
-O front usa só a API (`/api/v1`) com login Sanctum por cookie; com a API fora do ar, mostra erro de conexão (não há modo demonstração). Entre com uma conta criada pelo seed do backend. No navegador fica só `hacklab.ui` (preferências de acessibilidade e evento ativo).
+Na validação da Fase 11 eram 525 testes no backend e 82 no frontend, todos passando.
 
-## Produção
+## Integração Even3
 
-- API Laravel: Render Web Service (Docker)
-- Frontend: Static Site (`npm run build`, URL da API em `VITE_API_URL`)
-- Banco: Supabase (PostgreSQL gerenciado, Session pooler com SSL)
+```text
+Even3 (API V2 e webhook) → Laravel (Even3Provider / sincronização) → PostgreSQL → Vue
+```
 
-Docker é o ambiente de desenvolvimento e testes, não a produção. Detalhes, riscos e pendências em [`hacklab_docs/docs/infraestrutura.md`](hacklab_docs/docs/infraestrutura.md).
+- O Vue nunca chama a Even3. O token (`EVEN3_API_TOKEN`, um por deployment) e o segredo do webhook ficam só nas variáveis do backend.
+- A tela **Inscrições e Presença** reúne:
+  - status da integração e entradas;
+  - mapeamento de categorias;
+  - sincronização com histórico de execuções;
+  - inscrições e criação explícita de participantes a partir delas;
+  - presença.
+- Sincronizar é repetível e não duplica dados. O webhook (`POST /api/v1/webhooks/even3`) é idempotente.
+- Mapear uma entrada não concede perfil e não cria jurado, empresa ou usuário.
+- Comandos: `php artisan even3:test-connection` e `php artisan even3:sync`.
+- O teste do webhook público real fica para a Fase 12.
+
+Detalhes em [`integracao-even3.md`](hacklab_docs/docs/integracao-even3.md).
+
+## Votação e resultados
+
+- **Avaliação técnica** (jurados) e **Escolha do Público** (votação) são classificações independentes. Não existe nota combinada.
+- Voto:
+  - um voto por usuário em cada sessão, e ele é definitivo;
+  - repetir o mesmo voto devolve sucesso; tentar trocar é recusado.
+- Nenhuma tela, endpoint ou relatório mostra em qual equipe cada pessoa votou. A contagem por equipe só existe com a sessão encerrada.
+- O **resultado oficial** é um snapshot imutável e versionado. Corrigir significa revogar (com motivo) e publicar a próxima versão.
+
+## Auditoria
+
+- Gerada no backend e somente acrescentada (append-only). Só o Administrador consulta.
+- Cada registro guarda:
+  - ação, módulo, evento e entidade;
+  - estado antes e depois, com as mudanças;
+  - retrato de quem agiu (nome, perfil e setor naquele momento);
+  - IP e User-Agent.
+- Nunca registra senhas, tokens, segredos, o voto individual ou notas e comentários de jurados.
+
+## Relatórios
+
+| Relatório | Endpoint |
+|---|---|
+| Relatório Geral do Hackathon | `GET /api/v1/events/{event}/reports/general` |
+| Participantes e Presença | `GET /api/v1/events/{event}/reports/participants-presence` |
+| Gestão e Operação | `GET /api/v1/events/{event}/reports/operations` |
+| Encerramento e Resultados | `GET /api/v1/events/{event}/reports/closing-results` |
+
+- Acesso para Administrador e Consultor (permissão `reports.view`).
+- Fluxo: PostgreSQL → endpoint agregado no Laravel (um por relatório) → Vue → PDF.
+- O PDF é montado no navegador a partir do payload da API, com pdfmake carregado só na hora de gerar. Nada é guardado.
+- Presença aparece como "Presente" ou "Sem registro"; a falta de check-in não é tratada como ausência.
+- O resultado oficial vem do snapshot publicado.
+- Não há relatório financeiro porque o HackLab não tem domínio financeiro.
+
+## Produção (planejada — Fase 12)
+
+- Frontend: Static Site (`npm run build`, com `VITE_API_URL` apontando para a API).
+- API: Laravel no Render (Web Service, Docker).
+- Banco: Supabase, só como PostgreSQL gerenciado (Session pooler, SSL obrigatório, `search_path=hacklab`).
+
+A Fase 12 fará o deploy (variáveis, cookies e Sanctum entre domínios, migrations, HTTPS e webhook real da Even3). A Fase 13 fará o teste de carga. Riscos e pendências estão em [`infraestrutura.md`](hacklab_docs/docs/infraestrutura.md).
+
+## Documentação
+
+| Documento | Conteúdo |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | Regras do projeto e decisões obrigatórias para quem trabalha no código |
+| [`arquitetura.md`](hacklab_docs/docs/arquitetura.md) | Camadas, domínios, autorização, frontend, auditoria e relatórios |
+| [`plano-implementacao.md`](hacklab_docs/docs/plano-implementacao.md) | Fases, endpoints de cada fase e pendências conhecidas |
+| [`regras-de-negocio.md`](hacklab_docs/docs/regras-de-negocio.md) | Regras do domínio (equipes, demandas, avaliação, votação, presença, relatórios) |
+| [`banco-de-dados.md`](hacklab_docs/docs/banco-de-dados.md) | Tabelas, restrições e matriz de permissões por perfil |
+| [`infraestrutura.md`](hacklab_docs/docs/infraestrutura.md) | Ambientes, Docker, Render, Supabase e riscos de produção |
+| [`integracao-even3.md`](hacklab_docs/docs/integracao-even3.md) | Integração Even3: API V2, sincronização, webhook e estado dos testes reais |
