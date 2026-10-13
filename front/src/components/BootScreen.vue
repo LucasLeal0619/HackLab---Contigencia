@@ -1,5 +1,5 @@
 <script setup>
-import Logo from './Logo.vue'
+import logoWhite from '@/assets/senac-logo-white.png'
 import { logout } from '@/js/stores/auth'
 
 defineProps({
@@ -14,7 +14,10 @@ const emit = defineEmits(['retry'])
 <template>
   <div class="boot">
     <div class="boot-card" :role="error || denied ? 'alert' : 'status'" aria-live="polite">
-      <Logo />
+      <div class="boot-brand">
+        <img class="boot-mark" :src="logoWhite" alt="Senac" />
+        <span class="boot-name"><span class="hack">Hack</span><span class="lab">Lab</span></span>
+      </div>
       <template v-if="error">
         <h2>{{ title }}</h2>
         <p>{{ message }}</p>
