@@ -27,6 +27,7 @@ export const ROUTES = {
   painel: ['results.view_published'],
   apresentacao: ['results.view_published'],
   auditoria: ['audit_logs.view'],
+  relatorios: ['reports.view'],
   'area-jurado': ['evaluations.own'],
   avaliar: ['evaluations.own'],
   votacao: ['votes.cast'],
@@ -89,6 +90,7 @@ const NAV = [
       },
     ],
   },
+  { group: 'Análise', items: [{ id: 'relatorios', label: 'Relatórios', icon: 'chart' }] },
   {
     group: 'Administração',
     items: [

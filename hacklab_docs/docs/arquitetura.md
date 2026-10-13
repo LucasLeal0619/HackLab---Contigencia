@@ -440,13 +440,14 @@ Principais grupos (fonte da verdade: `back/routes/api.php`):
 /events/{event}/my-voting-sessions, /voting-sessions/{s}/ballot, /vote, /my-vote
 /events/{event}/results (/preview, /publications, /publish, /revoke, /published)
 /audit-logs (+ /meta, /{id})
+/events/{event}/reports (/general, /participants-presence, /operations, /closing-results)
 /events/{event}/integrations/even3 (/status, /tickets, /sync, /sync-runs), /external-ticket-types/{t}/mapping, /integration-sync-runs/{run}
 /events/{event}/event-registrations (+ /materialize-participants), /event-registrations/{r}
 /events/{event}/attendance
 /webhooks/even3
 ```
 
-Não existem endpoints de documentos, atas/decisões de reunião, premiações, relatórios ou finanças.
+Não existem endpoints de documentos, atas/decisões de reunião, premiações ou finanças.
 
 ## 10. Respostas e erros
 
@@ -542,7 +543,7 @@ O frontend é uma SPA Vue 3 (JavaScript, sem TypeScript, sem Pinia, sem Vue Rout
 ```text
 front/src/
 ├── js/api/
-│   ├── client.js        único cliente HTTP (axios): base VITE_API_URL, cookies, XSRF, timeout, erros
+│   ├── client.js        único cliente HTTP (fetch): base VITE_API_URL, cookies, XSRF, timeout, erros
 │   ├── errors.js        ApiError normalizado (status, kind, message, fieldErrors)
 │   └── pagination.js    leitura de data/meta/links do Laravel
 ├── js/stores/
@@ -556,7 +557,7 @@ front/src/
 └── js/utils/format.js   datas/horas pt-BR no fuso do evento
 ```
 
-Componentes e páginas não chamam `fetch`/axios: chamam services. Services não guardam estado: devolvem dados da API.
+Componentes e páginas não chamam `fetch`: chamam services. Services não guardam estado: devolvem dados da API.
 
 ### 13.2 Autenticação (Sanctum SPA)
 
@@ -567,7 +568,7 @@ GET  /api/v1/auth/me           usuário, Person, role.code/name, setor, permissi
 POST /api/v1/auth/logout
 ```
 
-- Cliente com `withCredentials` e `withXSRFToken`: o navegador envia o cookie de sessão e o axios copia `XSRF-TOKEN` para o header `X-XSRF-TOKEN`. O front nunca lê o cookie de sessão nem guarda token, senha ou sessão no navegador.
+- Cliente `fetch` com `credentials: 'include'`: o navegador envia o cookie de sessão e o client copia o cookie `XSRF-TOKEN` para o header `X-XSRF-TOKEN` nas requisições que alteram dados (sem Axios). O front nunca lê o cookie de sessão nem guarda token, senha ou sessão no navegador.
 - Ao abrir o app: tela de carregamento → `/auth/me` → `AUTHENTICATED` ou `GUEST`. Não existe flash de tela autenticada antes da resposta.
 - Tratamento central: 401 limpa a sessão e leva ao login; 403 não desloga (mostra "sem permissão"); 419 renova o CSRF e repete a requisição uma única vez; 422 vira erro por campo; 429 vira mensagem amigável; rede/5xx mostram erro com "tentar novamente". Nenhuma repetição infinita.
 - Em desenvolvimento o front (`localhost:5174`) e a API (`localhost:8000`) estão no mesmo host, então o cookie `XSRF-TOKEN` é legível pelo front. Em produção, com domínios diferentes, ver o risco de cookie entre domínios em `infraestrutura.md`.
@@ -610,3 +611,26 @@ O protótipo guardava tudo em `localStorage` e simulava login, perfis, auditoria
 4. foram removidos: modo demonstração, contas demonstrativas, troca de perfil, setor demonstrativo, perfil Validador, cadastro público, convites de jurado, scanner/QR/credenciais locais, auditoria local e voto local.
 
 A matriz tela a tela (REAL_API / UI_HELPER_WITH_REAL_API / DEFERRED / REMOVE_PROTOTYPE) está em `plano-implementacao.md`, Fase 10.
+
+## 15. Relatórios (Fase 11)
+
+Relatórios são **derivados**: não há tabela, snapshot, arquivo nem histórico de relatório. Cada requisição lê o estado atual do PostgreSQL.
+
+```text
+PostgreSQL → Laravel (ReportController → App\Domain\Reports\*ReportBuilder) → 1 endpoint agregado por relatório
+          → Vue (services/reports.js) → visualização e PDF (services/reports/*, pdfmake carregado sob demanda)
+```
+
+| Relatório | Endpoint |
+|---|---|
+| Relatório Geral do Hackathon | `GET /api/v1/events/{event}/reports/general` |
+| Participantes e Presença | `GET /api/v1/events/{event}/reports/participants-presence` |
+| Gestão e Operação | `GET /api/v1/events/{event}/reports/operations` |
+| Encerramento e Resultados | `GET /api/v1/events/{event}/reports/closing-results` |
+
+- Permissão única `reports.view` (Administrador e Consultor). Exportar PDF é outra forma de ver a mesma consulta: não existe `reports.export`/`reports.manage`.
+- Controller fino; contagens e listas nos builders, com agregação no SQL (`count`, `groupBy`, `withCount`) e presença resolvida em lote (sem consulta por participante/dia). Regras de domínio são reutilizadas: progresso das avaliações (`EvaluationScoring::progress`), participação na votação (`VotingAggregates::turnout`), vencida (mesma regra de `Task::isOverdue`).
+- Metadados comuns: `type`, `title`, `generated_at` (relógio do backend), `generated_by` (usuário autenticado: id, nome, perfil) e o evento com seus `EventDay` reais.
+- O PDF é montado no navegador **só a partir do payload do endpoint** (nunca DOM, localStorage ou consultas paralelas). Os templates de PDF são funções puras.
+- Ler/gerar/baixar relatório não gera auditoria (é leitura).
+- Não existe relatório financeiro: não há domínio financeiro no backend.

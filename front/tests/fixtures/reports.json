@@ -1,0 +1,1060 @@
+{
+    "general": {
+        "type": "general",
+        "title": "Relatório Geral do Hackathon",
+        "generated_at": "2026-10-12T23:17:10+00:00",
+        "generated_by": {
+            "id": 1,
+            "name": "Administrador de Desenvolvimento",
+            "role": {
+                "code": "ADMINISTRATOR",
+                "name": "Administrador"
+            }
+        },
+        "event": {
+            "id": 1,
+            "name": "HackLab Exemplo (dev)",
+            "description": "Evento fictício para desenvolvimento.",
+            "location": "Local de exemplo",
+            "timezone": "America\/Sao_Paulo",
+            "start_date": "2026-11-11",
+            "end_date": "2026-11-13",
+            "status": "PLANNED",
+            "days": [
+                {
+                    "id": 1,
+                    "day_number": 1,
+                    "date": "2026-11-11",
+                    "label": "Dia 1",
+                    "start_time": null,
+                    "end_time": null
+                },
+                {
+                    "id": 2,
+                    "day_number": 2,
+                    "date": "2026-11-12",
+                    "label": "Dia 2",
+                    "start_time": null,
+                    "end_time": null
+                },
+                {
+                    "id": 3,
+                    "day_number": 3,
+                    "date": "2026-11-13",
+                    "label": "Dia 3",
+                    "start_time": null,
+                    "end_time": null
+                }
+            ]
+        },
+        "summary": {
+            "participants": {
+                "total": 12,
+                "by_status": {
+                    "AVAILABLE": 12,
+                    "UNAVAILABLE": 0,
+                    "WITHDRAWN": 0
+                },
+                "with_team": 8,
+                "without_team": 4
+            },
+            "classes": {
+                "total": 3,
+                "active": 3
+            },
+            "teams": {
+                "total": 2,
+                "by_status": {
+                    "ACTIVE": 2,
+                    "INACTIVE": 0
+                }
+            },
+            "companies": {
+                "total": 3,
+                "by_status": {
+                    "DRAFT": 1,
+                    "CONFIRMED": 2,
+                    "INACTIVE": 0
+                }
+            },
+            "challenges": {
+                "total": 5,
+                "by_status": {
+                    "DRAFT": 1,
+                    "RECEIVED": 0,
+                    "UNDER_REVIEW": 1,
+                    "APPROVED": 2,
+                    "DISTRIBUTED": 1,
+                    "IN_DEVELOPMENT": 0,
+                    "FINISHED": 0
+                },
+                "with_team": 1
+            },
+            "sectors": {
+                "total": 3,
+                "active": 3
+            },
+            "meetings": {
+                "total": 1,
+                "by_status": {
+                    "SCHEDULED": 1,
+                    "DONE": 0,
+                    "CANCELLED": 0
+                }
+            },
+            "tasks": {
+                "total": 5,
+                "by_status": {
+                    "PENDING": 4,
+                    "IN_PROGRESS": 0,
+                    "COMPLETED": 1
+                },
+                "open": 4,
+                "overdue": 0
+            },
+            "occurrences": {
+                "total": 4,
+                "by_status": {
+                    "OPEN": 2,
+                    "IN_PROGRESS": 1,
+                    "RESOLVED": 1
+                },
+                "open": 3
+            },
+            "registrations": {
+                "total": 0,
+                "by_status": {
+                    "PENDING": 0,
+                    "CONFIRMED": 0,
+                    "CANCELLED": 0,
+                    "UNKNOWN": 0
+                }
+            },
+            "attendance": {
+                "people_with_presence": 0,
+                "check_ins": 0,
+                "by_day": [
+                    {
+                        "event_day_id": 1,
+                        "people_present": 0,
+                        "check_ins": 0
+                    },
+                    {
+                        "event_day_id": 2,
+                        "people_present": 0,
+                        "check_ins": 0
+                    },
+                    {
+                        "event_day_id": 3,
+                        "people_present": 0,
+                        "check_ins": 0
+                    }
+                ]
+            },
+            "evaluations": {
+                "expected": 4,
+                "submitted": 1,
+                "pending": 3,
+                "completion_percent": 25
+            },
+            "voting": {
+                "sessions": 2,
+                "by_status": {
+                    "DRAFT": 1,
+                    "OPEN": 0,
+                    "CLOSED": 1,
+                    "CANCELLED": 0
+                }
+            },
+            "official_result": {
+                "published": false,
+                "version": null,
+                "published_at": null
+            }
+        }
+    },
+    "participants-presence": {
+        "type": "participants-presence",
+        "title": "Participantes e Presença",
+        "generated_at": "2026-10-12T23:17:11+00:00",
+        "generated_by": {
+            "id": 1,
+            "name": "Administrador de Desenvolvimento",
+            "role": {
+                "code": "ADMINISTRATOR",
+                "name": "Administrador"
+            }
+        },
+        "event": {
+            "id": 1,
+            "name": "HackLab Exemplo (dev)",
+            "description": "Evento fictício para desenvolvimento.",
+            "location": "Local de exemplo",
+            "timezone": "America\/Sao_Paulo",
+            "start_date": "2026-11-11",
+            "end_date": "2026-11-13",
+            "status": "PLANNED",
+            "days": [
+                {
+                    "id": 1,
+                    "day_number": 1,
+                    "date": "2026-11-11",
+                    "label": "Dia 1",
+                    "start_time": null,
+                    "end_time": null
+                },
+                {
+                    "id": 2,
+                    "day_number": 2,
+                    "date": "2026-11-12",
+                    "label": "Dia 2",
+                    "start_time": null,
+                    "end_time": null
+                },
+                {
+                    "id": 3,
+                    "day_number": 3,
+                    "date": "2026-11-13",
+                    "label": "Dia 3",
+                    "start_time": null,
+                    "end_time": null
+                }
+            ]
+        },
+        "summary": {
+            "total": 12,
+            "by_status": {
+                "AVAILABLE": 12,
+                "UNAVAILABLE": 0,
+                "WITHDRAWN": 0
+            },
+            "with_team": 8,
+            "without_team": 4,
+            "by_class": [
+                {
+                    "class": {
+                        "id": 1,
+                        "name": "Turma Exemplo 1"
+                    },
+                    "total": 4
+                },
+                {
+                    "class": {
+                        "id": 2,
+                        "name": "Turma Exemplo 2"
+                    },
+                    "total": 4
+                },
+                {
+                    "class": {
+                        "id": 3,
+                        "name": "Turma Exemplo 3"
+                    },
+                    "total": 4
+                }
+            ],
+            "presence_by_day": [
+                {
+                    "event_day_id": 1,
+                    "participants_present": 0
+                },
+                {
+                    "event_day_id": 2,
+                    "participants_present": 0
+                },
+                {
+                    "event_day_id": 3,
+                    "participants_present": 0
+                }
+            ],
+            "with_any_presence": 0
+        },
+        "participants": [
+            {
+                "id": 1,
+                "name": "Participante Exemplo 01",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 1,
+                    "name": "Turma Exemplo 1"
+                },
+                "team": {
+                    "id": 1,
+                    "name": "Equipe Exemplo 1"
+                },
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 2,
+                "name": "Participante Exemplo 02",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 2,
+                    "name": "Turma Exemplo 2"
+                },
+                "team": {
+                    "id": 2,
+                    "name": "Equipe Exemplo 2"
+                },
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 3,
+                "name": "Participante Exemplo 03",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 3,
+                    "name": "Turma Exemplo 3"
+                },
+                "team": {
+                    "id": 1,
+                    "name": "Equipe Exemplo 1"
+                },
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 4,
+                "name": "Participante Exemplo 04",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 1,
+                    "name": "Turma Exemplo 1"
+                },
+                "team": {
+                    "id": 2,
+                    "name": "Equipe Exemplo 2"
+                },
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 5,
+                "name": "Participante Exemplo 05",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 2,
+                    "name": "Turma Exemplo 2"
+                },
+                "team": {
+                    "id": 1,
+                    "name": "Equipe Exemplo 1"
+                },
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 6,
+                "name": "Participante Exemplo 06",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 3,
+                    "name": "Turma Exemplo 3"
+                },
+                "team": {
+                    "id": 2,
+                    "name": "Equipe Exemplo 2"
+                },
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 7,
+                "name": "Participante Exemplo 07",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 1,
+                    "name": "Turma Exemplo 1"
+                },
+                "team": {
+                    "id": 1,
+                    "name": "Equipe Exemplo 1"
+                },
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 8,
+                "name": "Participante Exemplo 08",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 2,
+                    "name": "Turma Exemplo 2"
+                },
+                "team": {
+                    "id": 2,
+                    "name": "Equipe Exemplo 2"
+                },
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 9,
+                "name": "Participante Exemplo 09",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 3,
+                    "name": "Turma Exemplo 3"
+                },
+                "team": null,
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 10,
+                "name": "Participante Exemplo 10",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 1,
+                    "name": "Turma Exemplo 1"
+                },
+                "team": null,
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 11,
+                "name": "Participante Exemplo 11",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 2,
+                    "name": "Turma Exemplo 2"
+                },
+                "team": null,
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            },
+            {
+                "id": 12,
+                "name": "Participante Exemplo 12",
+                "status": "AVAILABLE",
+                "class": {
+                    "id": 3,
+                    "name": "Turma Exemplo 3"
+                },
+                "team": null,
+                "presence": {
+                    "1": "NO_RECORD",
+                    "2": "NO_RECORD",
+                    "3": "NO_RECORD"
+                }
+            }
+        ]
+    },
+    "operations": {
+        "type": "operations",
+        "title": "Gestão e Operação",
+        "generated_at": "2026-10-12T23:17:11+00:00",
+        "generated_by": {
+            "id": 1,
+            "name": "Administrador de Desenvolvimento",
+            "role": {
+                "code": "ADMINISTRATOR",
+                "name": "Administrador"
+            }
+        },
+        "event": {
+            "id": 1,
+            "name": "HackLab Exemplo (dev)",
+            "description": "Evento fictício para desenvolvimento.",
+            "location": "Local de exemplo",
+            "timezone": "America\/Sao_Paulo",
+            "start_date": "2026-11-11",
+            "end_date": "2026-11-13",
+            "status": "PLANNED",
+            "days": [
+                {
+                    "id": 1,
+                    "day_number": 1,
+                    "date": "2026-11-11",
+                    "label": "Dia 1",
+                    "start_time": null,
+                    "end_time": null
+                },
+                {
+                    "id": 2,
+                    "day_number": 2,
+                    "date": "2026-11-12",
+                    "label": "Dia 2",
+                    "start_time": null,
+                    "end_time": null
+                },
+                {
+                    "id": 3,
+                    "day_number": 3,
+                    "date": "2026-11-13",
+                    "label": "Dia 3",
+                    "start_time": null,
+                    "end_time": null
+                }
+            ]
+        },
+        "sectors": {
+            "summary": {
+                "total": 3,
+                "active": 3,
+                "inactive": 0
+            },
+            "items": [
+                {
+                    "id": 1,
+                    "name": "Setor Exemplo A",
+                    "active": true
+                },
+                {
+                    "id": 2,
+                    "name": "Setor Exemplo B",
+                    "active": true
+                },
+                {
+                    "id": 3,
+                    "name": "Setor Exemplo C",
+                    "active": true
+                }
+            ]
+        },
+        "meetings": {
+            "summary": {
+                "total": 1,
+                "general": 1,
+                "sector": 0,
+                "by_status": {
+                    "SCHEDULED": 1,
+                    "DONE": 0,
+                    "CANCELLED": 0
+                }
+            },
+            "items": [
+                {
+                    "id": 1,
+                    "title": "Reunião geral de alinhamento",
+                    "scope": "GENERAL",
+                    "sector": null,
+                    "scheduled_at": "2026-11-04T14:00:00+00:00",
+                    "location": null,
+                    "status": "SCHEDULED"
+                }
+            ]
+        },
+        "companies": {
+            "summary": {
+                "total": 3,
+                "by_status": {
+                    "DRAFT": 1,
+                    "CONFIRMED": 2,
+                    "INACTIVE": 0
+                }
+            },
+            "items": [
+                {
+                    "id": 1,
+                    "name": "Alfa Tecnologia (exemplo)",
+                    "type": "PARTICIPANT",
+                    "status": "CONFIRMED",
+                    "challenges_count": 2
+                },
+                {
+                    "id": 2,
+                    "name": "Beta Parcerias (exemplo)",
+                    "type": "PARTNER",
+                    "status": "CONFIRMED",
+                    "challenges_count": 1
+                },
+                {
+                    "id": 3,
+                    "name": "Gama Patrocínios (exemplo)",
+                    "type": "SPONSOR",
+                    "status": "DRAFT",
+                    "challenges_count": 1
+                }
+            ]
+        },
+        "challenges": {
+            "summary": {
+                "total": 5,
+                "with_team": 1,
+                "by_status": {
+                    "DRAFT": 1,
+                    "RECEIVED": 0,
+                    "UNDER_REVIEW": 1,
+                    "APPROVED": 2,
+                    "DISTRIBUTED": 1,
+                    "IN_DEVELOPMENT": 0,
+                    "FINISHED": 0
+                }
+            },
+            "items": [
+                {
+                    "id": 2,
+                    "title": "Desafio Exemplo: Atendimento",
+                    "company": {
+                        "id": 1,
+                        "name": "Alfa Tecnologia (exemplo)"
+                    },
+                    "status": "APPROVED",
+                    "team": null
+                },
+                {
+                    "id": 1,
+                    "title": "Desafio Exemplo: Logística",
+                    "company": {
+                        "id": 1,
+                        "name": "Alfa Tecnologia (exemplo)"
+                    },
+                    "status": "DISTRIBUTED",
+                    "team": {
+                        "id": 1,
+                        "name": "Equipe Exemplo 1"
+                    }
+                },
+                {
+                    "id": 5,
+                    "title": "Desafio Exemplo: Rascunho",
+                    "company": {
+                        "id": 3,
+                        "name": "Gama Patrocínios (exemplo)"
+                    },
+                    "status": "DRAFT",
+                    "team": null
+                },
+                {
+                    "id": 3,
+                    "title": "Desafio Exemplo: Sustentabilidade",
+                    "company": {
+                        "id": 2,
+                        "name": "Beta Parcerias (exemplo)"
+                    },
+                    "status": "UNDER_REVIEW",
+                    "team": null
+                },
+                {
+                    "id": 4,
+                    "title": "Desafio Institucional Exemplo",
+                    "company": null,
+                    "status": "APPROVED",
+                    "team": null
+                }
+            ]
+        },
+        "teams": {
+            "summary": {
+                "total": 2,
+                "with_challenge": 1,
+                "by_status": {
+                    "ACTIVE": 2,
+                    "INACTIVE": 0
+                }
+            },
+            "items": [
+                {
+                    "id": 1,
+                    "name": "Equipe Exemplo 1",
+                    "code": "EX1",
+                    "status": "ACTIVE",
+                    "members_count": 4,
+                    "challenge": {
+                        "id": 1,
+                        "title": "Desafio Exemplo: Logística"
+                    }
+                },
+                {
+                    "id": 2,
+                    "name": "Equipe Exemplo 2",
+                    "code": "EX2",
+                    "status": "ACTIVE",
+                    "members_count": 4,
+                    "challenge": null
+                }
+            ]
+        },
+        "tasks": {
+            "summary": {
+                "total": 5,
+                "open": 4,
+                "overdue": 0,
+                "by_status": {
+                    "PENDING": 4,
+                    "IN_PROGRESS": 0,
+                    "COMPLETED": 1
+                },
+                "by_priority": {
+                    "LOW": 0,
+                    "MEDIUM": 4,
+                    "HIGH": 1,
+                    "URGENT": 0
+                },
+                "by_responsible_sector": [
+                    {
+                        "sector": {
+                            "id": 1,
+                            "name": "Setor Exemplo A"
+                        },
+                        "total": 3,
+                        "open": 2
+                    },
+                    {
+                        "sector": {
+                            "id": 2,
+                            "name": "Setor Exemplo B"
+                        },
+                        "total": 2,
+                        "open": 2
+                    }
+                ]
+            },
+            "items": [
+                {
+                    "id": 1,
+                    "reference": "PEN-0001",
+                    "title": "Pendência Exemplo: conferir crachás",
+                    "origin_sector": {
+                        "id": 1,
+                        "name": "Setor Exemplo A"
+                    },
+                    "responsible_sector": {
+                        "id": 1,
+                        "name": "Setor Exemplo A"
+                    },
+                    "priority": "HIGH",
+                    "status": "PENDING",
+                    "due_at": null,
+                    "overdue": false
+                },
+                {
+                    "id": 2,
+                    "reference": "PEN-0002",
+                    "title": "Pendência Exemplo: instalação elétrica",
+                    "origin_sector": {
+                        "id": 3,
+                        "name": "Setor Exemplo C"
+                    },
+                    "responsible_sector": {
+                        "id": 2,
+                        "name": "Setor Exemplo B"
+                    },
+                    "priority": "MEDIUM",
+                    "status": "PENDING",
+                    "due_at": null,
+                    "overdue": false
+                },
+                {
+                    "id": 3,
+                    "reference": "PEN-0003",
+                    "title": "Pendência Exemplo: logística do coffee break",
+                    "origin_sector": {
+                        "id": 2,
+                        "name": "Setor Exemplo B"
+                    },
+                    "responsible_sector": {
+                        "id": 2,
+                        "name": "Setor Exemplo B"
+                    },
+                    "priority": "MEDIUM",
+                    "status": "PENDING",
+                    "due_at": "2026-11-11T09:00:00+00:00",
+                    "overdue": false
+                },
+                {
+                    "id": 4,
+                    "reference": "PEN-0004",
+                    "title": "Pendência Exemplo: lista de presença impressa",
+                    "origin_sector": {
+                        "id": 1,
+                        "name": "Setor Exemplo A"
+                    },
+                    "responsible_sector": {
+                        "id": 1,
+                        "name": "Setor Exemplo A"
+                    },
+                    "priority": "MEDIUM",
+                    "status": "COMPLETED",
+                    "due_at": null,
+                    "overdue": false
+                },
+                {
+                    "id": 5,
+                    "reference": "PEN-0005",
+                    "title": "Pendência Exemplo: repor cadeiras",
+                    "origin_sector": {
+                        "id": 3,
+                        "name": "Setor Exemplo C"
+                    },
+                    "responsible_sector": {
+                        "id": 1,
+                        "name": "Setor Exemplo A"
+                    },
+                    "priority": "MEDIUM",
+                    "status": "PENDING",
+                    "due_at": null,
+                    "overdue": false
+                }
+            ]
+        },
+        "occurrences": {
+            "summary": {
+                "total": 4,
+                "by_status": {
+                    "OPEN": 2,
+                    "IN_PROGRESS": 1,
+                    "RESOLVED": 1
+                },
+                "by_category": {
+                    "TECHNOLOGY": 1,
+                    "INFRASTRUCTURE": 1,
+                    "PRODUCTION": 1,
+                    "PARTICIPANT": 0,
+                    "TEAM": 1,
+                    "COMPANY": 0,
+                    "ORGANIZATION": 0,
+                    "OTHER": 0
+                },
+                "by_priority": {
+                    "LOW": 0,
+                    "MEDIUM": 3,
+                    "HIGH": 0,
+                    "URGENT": 1
+                }
+            },
+            "items": [
+                {
+                    "id": 1,
+                    "reference": "OCO-0001",
+                    "title": "Ocorrência Exemplo: projetor com defeito",
+                    "category": "TECHNOLOGY",
+                    "responsible_sector": {
+                        "id": 1,
+                        "name": "Setor Exemplo A"
+                    },
+                    "priority": "MEDIUM",
+                    "status": "OPEN",
+                    "event_day": {
+                        "id": 1,
+                        "day_number": 1,
+                        "date": "2026-11-11",
+                        "label": "Dia 1"
+                    },
+                    "occurred_at": null,
+                    "team": null,
+                    "resolution": null
+                },
+                {
+                    "id": 2,
+                    "reference": "OCO-0002",
+                    "title": "Ocorrência Exemplo: rede instável",
+                    "category": "INFRASTRUCTURE",
+                    "responsible_sector": {
+                        "id": 2,
+                        "name": "Setor Exemplo B"
+                    },
+                    "priority": "URGENT",
+                    "status": "IN_PROGRESS",
+                    "event_day": {
+                        "id": 1,
+                        "day_number": 1,
+                        "date": "2026-11-11",
+                        "label": "Dia 1"
+                    },
+                    "occurred_at": null,
+                    "team": null,
+                    "resolution": null
+                },
+                {
+                    "id": 3,
+                    "reference": "OCO-0003",
+                    "title": "Ocorrência Exemplo: equipe sem mesa",
+                    "category": "TEAM",
+                    "responsible_sector": {
+                        "id": 2,
+                        "name": "Setor Exemplo B"
+                    },
+                    "priority": "MEDIUM",
+                    "status": "RESOLVED",
+                    "event_day": null,
+                    "occurred_at": null,
+                    "team": {
+                        "id": 1,
+                        "name": "Equipe Exemplo 1"
+                    },
+                    "resolution": "Mesa extra trazida do depósito."
+                },
+                {
+                    "id": 4,
+                    "reference": "OCO-0004",
+                    "title": "Ocorrência Exemplo: falta de cadeiras",
+                    "category": "PRODUCTION",
+                    "responsible_sector": {
+                        "id": 3,
+                        "name": "Setor Exemplo C"
+                    },
+                    "priority": "MEDIUM",
+                    "status": "OPEN",
+                    "event_day": null,
+                    "occurred_at": null,
+                    "team": null,
+                    "resolution": null
+                }
+            ]
+        }
+    },
+    "closing-results": {
+        "type": "closing-results",
+        "title": "Encerramento e Resultados",
+        "generated_at": "2026-10-12T23:17:11+00:00",
+        "generated_by": {
+            "id": 1,
+            "name": "Administrador de Desenvolvimento",
+            "role": {
+                "code": "ADMINISTRATOR",
+                "name": "Administrador"
+            }
+        },
+        "event": {
+            "id": 1,
+            "name": "HackLab Exemplo (dev)",
+            "description": "Evento fictício para desenvolvimento.",
+            "location": "Local de exemplo",
+            "timezone": "America\/Sao_Paulo",
+            "start_date": "2026-11-11",
+            "end_date": "2026-11-13",
+            "status": "PLANNED",
+            "days": [
+                {
+                    "id": 1,
+                    "day_number": 1,
+                    "date": "2026-11-11",
+                    "label": "Dia 1",
+                    "start_time": null,
+                    "end_time": null
+                },
+                {
+                    "id": 2,
+                    "day_number": 2,
+                    "date": "2026-11-12",
+                    "label": "Dia 2",
+                    "start_time": null,
+                    "end_time": null
+                },
+                {
+                    "id": 3,
+                    "day_number": 3,
+                    "date": "2026-11-13",
+                    "label": "Dia 3",
+                    "start_time": null,
+                    "end_time": null
+                }
+            ]
+        },
+        "evaluations": {
+            "summary": {
+                "expected": 4,
+                "submitted": 1,
+                "draft": 1,
+                "revision_requested": 0,
+                "not_started": 2,
+                "pending": 3,
+                "completion_percent": 25
+            },
+            "teams": [
+                {
+                    "team": {
+                        "id": 1,
+                        "name": "Equipe Exemplo 1"
+                    },
+                    "assigned_jurors": 2,
+                    "submitted": 1,
+                    "draft": 0,
+                    "revision_requested": 0,
+                    "not_started": 1,
+                    "completion_percent": 50
+                },
+                {
+                    "team": {
+                        "id": 2,
+                        "name": "Equipe Exemplo 2"
+                    },
+                    "assigned_jurors": 2,
+                    "submitted": 0,
+                    "draft": 1,
+                    "revision_requested": 0,
+                    "not_started": 1,
+                    "completion_percent": 0
+                }
+            ]
+        },
+        "jurors": {
+            "total": 3,
+            "by_status": {
+                "ACTIVE": 3,
+                "INACTIVE": 0
+            },
+            "active_assignments": 4
+        },
+        "voting": [
+            {
+                "id": 1,
+                "name": "Votação de teste (exemplo)",
+                "status": "CLOSED",
+                "opened_at": "2026-10-12T22:46:49+00:00",
+                "closed_at": "2026-10-12T22:46:49+00:00",
+                "cancelled_at": null,
+                "candidates": 2,
+                "eligible_voters": 5,
+                "votes_cast": 4,
+                "pending_voters": 1,
+                "turnout_percent": 80
+            },
+            {
+                "id": 2,
+                "name": "Escolha do Público (exemplo)",
+                "status": "DRAFT",
+                "opened_at": null,
+                "closed_at": null,
+                "cancelled_at": null,
+                "candidates": 2,
+                "eligible_voters": 5,
+                "votes_cast": 0,
+                "pending_voters": 5,
+                "turnout_percent": 0
+            }
+        ],
+        "official_result": {
+            "published": false,
+            "message": "Resultado oficial ainda não publicado."
+        }
+    }
+}

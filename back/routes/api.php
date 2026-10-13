@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\MyEvaluationController;
 use App\Http\Controllers\Api\V1\OccurrenceController;
 use App\Http\Controllers\Api\V1\ParticipantController;
 use App\Http\Controllers\Api\V1\PersonController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ResultController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SectorController;
@@ -197,6 +198,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
         Route::get('/audit-logs/meta', [AuditLogController::class, 'meta'])->name('audit-logs.meta');
         Route::get('/audit-logs/{auditLog}', [AuditLogController::class, 'show'])->whereNumber('auditLog')->name('audit-logs.show');
+
+        // Relatórios consolidados (reports.view): derivados, somente leitura, sem auditoria.
+        Route::get('/events/{event}/reports/general', [ReportController::class, 'general'])->name('events.reports.general');
+        Route::get('/events/{event}/reports/participants-presence', [ReportController::class, 'participantsPresence'])->name('events.reports.participants-presence');
+        Route::get('/events/{event}/reports/operations', [ReportController::class, 'operations'])->name('events.reports.operations');
+        Route::get('/events/{event}/reports/closing-results', [ReportController::class, 'closingResults'])->name('events.reports.closing-results');
 
         // Integração Even3 (Even3 → HackLab). O frontend nunca chama a Even3.
         Route::get('/events/{event}/integrations/even3/status', [Even3IntegrationController::class, 'status'])->name('events.integrations.even3.status');

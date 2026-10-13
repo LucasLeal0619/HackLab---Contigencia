@@ -21,6 +21,14 @@ class EventPolicy
         return $actor->hasPermission(PermissionCode::EventsView);
     }
 
+    /**
+     * Relatórios consolidados do evento (Fase 11): reports.view e alcance global (sem recorte setorial).
+     */
+    public function viewReports(User $actor, Event $event): bool
+    {
+        return $actor->reachesAllSectors() && $actor->hasPermission(PermissionCode::ReportsView);
+    }
+
     public function create(User $actor): bool
     {
         return $actor->reachesAllSectors() && $actor->hasPermission(PermissionCode::EventsManage);

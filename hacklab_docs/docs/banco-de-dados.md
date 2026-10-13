@@ -255,6 +255,7 @@ Permissões iniciais (Fase 1), definidas em `App\Domain\Users\Enums\PermissionCo
 | `integrations.view` | ✓ | | | ✓ | | |
 | `integrations.manage` / `integrations.sync` | ✓ | | | | | |
 | `event_registrations.view` / `attendance.view` | ✓ | | | ✓ | | |
+| `reports.view` (Fase 11) | ✓ | | | ✓ | | |
 
 Materializar participantes a partir das inscrições exige `integrations.manage` **e** `participants.manage`.
 

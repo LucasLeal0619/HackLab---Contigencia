@@ -51,7 +51,7 @@ describe('navegação por permissão', () => {
   })
 
   it('rotas removidas do protótipo não existem', () => {
-    for (const route of ['cadastro', 'documentos', 'relatorios', 'premiacao', 'roletas', 'manifestacao']) {
+    for (const route of ['cadastro', 'documentos', 'premiacao', 'roletas', 'manifestacao', 'financeiro']) {
       expect(canAccess(ADMIN, route)).toBe(false)
     }
   })

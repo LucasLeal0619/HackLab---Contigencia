@@ -64,6 +64,7 @@ enum PermissionCode: string
     case IntegrationsSync = 'integrations.sync';
     case EventRegistrationsView = 'event_registrations.view';
     case AttendanceView = 'attendance.view';
+    case ReportsView = 'reports.view';
 
     public function label(): string
     {
@@ -121,6 +122,7 @@ enum PermissionCode: string
             self::IntegrationsSync => 'Disparar sincronização com a Even3',
             self::EventRegistrationsView => 'Consultar inscrições externas',
             self::AttendanceView => 'Consultar presença (check-ins)',
+            self::ReportsView => 'Consultar e exportar os relatórios consolidados do evento',
         };
     }
 
@@ -162,6 +164,7 @@ enum PermissionCode: string
                 self::EvaluationsProgressView,
                 self::ResultsViewPublished,
                 self::IntegrationsView, self::EventRegistrationsView, self::AttendanceView,
+                self::ReportsView,
             ],
             RoleCode::Juror->value => [self::EventsView, self::EvaluationCriteriaView, self::EvaluationsOwn, self::ResultsViewPublished],
             RoleCode::Voter->value => [self::EventsView, self::VotesCast, self::ResultsViewPublished],

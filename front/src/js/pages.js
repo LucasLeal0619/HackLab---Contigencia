@@ -29,6 +29,7 @@ export const PAGES = {
   resultados: { component: lazy(() => import('@/pages/ResultsAdmin.vue')) },
   painel: { component: lazy(() => import('@/pages/Results.vue')) },
   auditoria: { component: lazy(() => import('@/pages/Audit.vue')) },
+  relatorios: { component: lazy(() => import('@/pages/Reports.vue')) },
   'area-jurado': { component: lazy(() => import('@/pages/JudgeArea.vue')) },
   avaliar: { component: lazy(() => import('@/pages/Evaluate.vue')), key: (params) => params.id || '' },
   votacao: { component: lazy(() => import('@/pages/PublicVote.vue')) },

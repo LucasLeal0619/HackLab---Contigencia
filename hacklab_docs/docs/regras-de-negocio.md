@@ -479,6 +479,17 @@ Relatórios devem usar dados do banco, não DOM do frontend.
 
 Jurados e voto público devem permanecer distinguíveis.
 
+Regras da Fase 11:
+
+- Quem vê: `reports.view` (Administrador e Consultor). Gestor, Editor, Jurado e Votante não veem relatórios consolidados nesta versão.
+- Representam o estado atual do banco no momento da consulta (`generated_at` do backend); não são guardados.
+- Presença: existe check-in no dia → "Presente"; não existe → "Sem registro". Nunca "Ausente" (ausência de check-in não prova ausência). Presença do participante é ligada pela Person: qualquer inscrição da mesma Person no mesmo evento com check-in naquele dia conta; vários check-ins no mesmo dia são uma presença diária. Participante sem inscrição externa é permitido e aparece como "Sem registro".
+- Avaliações: só progresso (atribuições esperadas, enviadas, pendentes). Nada de nota individual, comentário de jurado ou contato de jurado.
+- Votação: participação por sessão (elegíveis, votos, %). Contagem por equipe só aparece pelo resultado oficial publicado; nunca durante a sessão aberta. Nunca eleitor → equipe, id ou e-mail de votante.
+- Resultado oficial: vem do snapshot da publicação `PUBLISHED` atual (versão e data), sem recalcular; técnico e popular em seções separadas, sem nota combinada. Sem publicação: "Resultado oficial ainda não publicado." Ranking técnico não publicado não aparece no relatório.
+- Nunca entram em relatório: senha, documento pessoal, código de check-in, token/segredo da Even3, cookies, auditoria (before/after).
+- Não há relatório financeiro (não existe domínio financeiro).
+
 ## 21. Regra de consistência
 
 Sempre preferir:

@@ -420,14 +420,25 @@ Os pontos abaixo ficam para decisão:
 
 ## Fase 11 — Relatórios
 
-- [ ] endpoints agregados;
-- [ ] relatório geral;
-- [ ] participantes/presença;
-- [ ] gestão/operação;
-- [ ] encerramento/resultados;
-- [ ] financeiro se houver dados.
+Quatro relatórios com dados reais do backend (desenho em `arquitetura.md` §15, regras em `regras-de-negocio.md` §20):
 
-Relatório deve ser gerado com dados reais do backend.
+| Relatório | Endpoint | Conteúdo |
+|---|---|---|
+| Relatório Geral do Hackathon | `GET /events/{e}/reports/general` | evento e dias; contagens de participantes, turmas, equipes, empresas, desafios, setores, reuniões, pendências, ocorrências, inscrições externas, presença por dia, progresso das avaliações, sessões de votação e se há resultado oficial publicado |
+| Participantes e Presença | `GET /events/{e}/reports/participants-presence` | resumo (status, equipe, turma, presença por dia) e lista: participante, turma, status, equipe atual e presença por dia (`PRESENT` / `NO_RECORD`) |
+| Gestão e Operação | `GET /events/{e}/reports/operations` | setores, reuniões, empresas, desafios, equipes, pendências (status, prioridade, setor, vencidas) e ocorrências (status, categoria, prioridade, solução) |
+| Encerramento e Resultados | `GET /events/{e}/reports/closing-results` | progresso das avaliações (sem notas), jurados (só contagens), sessões de votação com participação, e o resultado oficial a partir do snapshot publicado |
+
+- [x] permissão `reports.view` (Administrador e Consultor);
+- [x] endpoints agregados (1 relatório = 1 requisição);
+- [x] relatório geral;
+- [x] participantes/presença;
+- [x] gestão/operação;
+- [x] encerramento/resultados;
+- [x] Central de Relatórios no Vue com visualização e PDF (pdfmake sob demanda);
+- [x] financeiro: **não entregue** — não existe domínio financeiro real no backend; nada é inventado ou zerado.
+
+Sem migration nova: relatório não é persistido (sem tabela, sem PDF guardado, sem histórico).
 
 ## Fase 12 — Implantação (Render + Supabase)
 
