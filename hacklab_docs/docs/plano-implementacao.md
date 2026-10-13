@@ -488,7 +488,7 @@ Fora deste complemento: login social, magic link no lugar de senha, MFA, SSO, SM
 
 Antes de considerar backend pronto:
 
-- [ ] banco sobe do zero (`migrate:fresh --seed`);
+- [ ] banco sobe do zero (`migrate:fresh --seed` no `hacklab_test`, ou no dev só com `HACKLAB_ALLOW_DESTRUCTIVE_DB=true`);
 - [ ] ambiente de dev/testes sobe do zero com `docker compose up`;
 - [ ] produção conecta no Supabase só pelo Session pooler, com SSL;
 - [ ] seed funciona;

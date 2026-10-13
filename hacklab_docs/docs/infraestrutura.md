@@ -44,6 +44,16 @@ front/        Vue com Vite, fora do Docker → http://localhost:5174
 
 Passo a passo no [README da raiz](../../README.md).
 
+### 2.0 Banco de desenvolvimento x banco de testes
+
+- `hacklab_dev`: desenvolvimento. Guarda o que o seed não recria: a configuração da integração Even3 do evento (`event_integrations`) e os dados sincronizados (entradas, inscrições, presença, execuções de sync). `migrate:fresh` nele apaga tudo isso.
+- `hacklab_test`: o único banco onde se apaga e recria schema. A suíte usa `APP_ENV=testing`, `DB_DATABASE=hacklab_test`, `DB_SEARCH_PATH=hacklab` (`phpunit.xml` + `.env.testing`) e o `DatabaseEnvironmentGuard` recusa qualquer outro banco.
+- `DestructiveCommandGuard` (`back/app/Support/Database`): `migrate:fresh`, `migrate:refresh`, `migrate:reset`, `migrate:rollback` e `db:wipe` saem com erro em banco que não termine em `_test` (bloqueio nativo do Laravel, antes de abrir a conexão). `migrate`, `migrate --seed` e `db:seed` seguem normais. Liberação intencional, só naquele comando: `docker compose exec -e HACKLAB_ALLOW_DESTRUCTIVE_DB=true app php artisan migrate:fresh --seed`. Em production a liberação é ignorada.
+
+### 2.0.1 Rede com inspeção HTTPS
+
+Redes corporativas com inspeção TLS (ex.: FortiGate) reassinam os certificados com uma CA própria. Nelas, a chamada à Even3 falha com `SSL certificate problem: unable to get local issuer certificate` (no Windows: `SEC_E_UNTRUSTED_ROOT`) — no container e no host. Não é defeito da integração e **não se desliga a verificação TLS**. Alternativas: outra rede sem inspeção (ex.: roteador do celular), exceção de inspeção para `api.even3.com` pela TI, ou instalar a CA corporativa no container de dev, só com autorização.
+
 ### 2.1 Desempenho do ambiente de desenvolvimento
 
 Diagnóstico de 13/10/2026 (Docker Desktop no Windows, código montado por 9p):
@@ -56,7 +66,7 @@ Diagnóstico de 13/10/2026 (Docker Desktop no Windows, código montado por 9p):
 | Todo GET levava preflight `OPTIONS` (cabeçalho `X-Requested-With`; `max_age` 0) | o dobro de requisições no servidor | GET só com `Accept`; `CORS_MAX_AGE` (padrão 7200) |
 | Dashboard com ~11 contagens em sequência | ~3,4 s para montar o painel | `GET /events/{e}/dashboard` (1 requisição) |
 
-Ainda esperado em dev: a cada `PHP_OPCACHE_REVALIDATE_FREQ` segundos uma requisição paga a revalidação (~2–5 s). Para eliminar isso seria preciso tirar o `vendor/` da montagem do Windows (volume do Docker), o que muda o fluxo do `composer`; não foi feito. Nada disso vale para produção (Render usa a própria imagem, sem montagem).
+Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s para aparecer no navegador. Ainda esperado em dev: a cada `PHP_OPCACHE_REVALIDATE_FREQ` segundos uma requisição paga a revalidação (~2–5 s). Para eliminar isso seria preciso tirar o `vendor/` da montagem do Windows (volume do Docker), o que muda o fluxo do `composer`; não foi feito. Nada disso vale para produção (Render usa a própria imagem, sem montagem).
 
 ## 3. Produção
 

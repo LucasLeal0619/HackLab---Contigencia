@@ -135,6 +135,10 @@ return [
         'update_date_on_publish' => true,
     ],
 
+    // migrate:fresh/refresh/reset/rollback e db:wipe só rodam em banco "_test" (App\Support\Database\DestructiveCommandGuard).
+    // true libera no hacklab_dev para UM comando intencional; nunca em production.
+    'allow_destructive_commands' => (bool) env('HACKLAB_ALLOW_DESTRUCTIVE_DB', false),
+
     /*
     |--------------------------------------------------------------------------
     | Redis Databases

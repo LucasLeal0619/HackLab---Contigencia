@@ -310,7 +310,8 @@ Toda feature backend relevante deve possuir:
 
 Testes:
 - rodam em PostgreSQL, no banco exclusivo `hacklab_test` do Docker (configurado em `back/.env.testing` e `phpunit.xml`). Não usar SQLite;
-- nenhum teste usa `hacklab_dev` nem o Supabase. No ambiente `testing`, o backend recusa qualquer banco que não termine em `_test` e qualquer host do Supabase.
+- nenhum teste usa `hacklab_dev` nem o Supabase. No ambiente `testing`, o backend recusa qualquer banco que não termine em `_test` e qualquer host do Supabase;
+- comandos destrutivos (`migrate:fresh`, `migrate:refresh`, `migrate:reset`, `migrate:rollback`, `db:wipe`) são bloqueados em qualquer banco que não termine em `_test` (`DestructiveCommandGuard`). Testes destrutivos e diagnósticos rodam só no `hacklab_test`. O `hacklab_dev` guarda configuração de integração e dados sincronizados da Even3 que o seed não recria. Não usar `HACKLAB_ALLOW_DESTRUCTIVE_DB=true` sem pedido explícito do usuário.
 
 Antes de concluir uma feature:
 - executar testes;
@@ -328,6 +329,8 @@ Antes de concluir uma feature:
 - Não usar o Transaction Pooler do Supabase (6543) como conexão principal do Laravel.
 - Não aceitar conexão sem SSL com o banco de produção.
 - Não conectar desenvolvimento ou testes no Supabase.
+- Não apagar nem recriar o `hacklab_dev` (`migrate:fresh`, `db:wipe` etc.) sem pedido explícito do usuário.
+- Não desligar a verificação TLS (`verify=false`, `CURLOPT_SSL_VERIFYPEER=false`, `curl -k`) para contornar inspeção HTTPS de rede.
 - Não criar mecanismo artificial para manter o Render acordado.
 - Não acoplar o código a recursos proprietários do host (SDKs de Render, Supabase, Oracle etc.).
 - Não guardar arquivos enviados no disco do container (o Render apaga a cada deploy/sleep).

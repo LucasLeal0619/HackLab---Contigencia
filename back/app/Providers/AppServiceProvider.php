@@ -6,7 +6,9 @@ use App\Integrations\Even3\Even3Client;
 use App\Integrations\Even3\Even3Provider;
 use App\Integrations\EventPlatform\EventPlatformProvider;
 use App\Support\Database\DatabaseEnvironmentGuard;
+use App\Support\Database\DestructiveCommandGuard;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -25,6 +27,12 @@ class AppServiceProvider extends ServiceProvider
             environment: $app->environment(),
         ));
 
+        $this->app->singleton(DestructiveCommandGuard::class, fn ($app) => new DestructiveCommandGuard(
+            environment: $app->environment(),
+            database: (string) $app['config']->get('database.connections.'.$app['config']->get('database.default').'.database'),
+            override: (bool) $app['config']->get('database.allow_destructive_commands'),
+        ));
+
         // Integração de inscrições: Even3 (V2). Lido da config a cada resolução (nunca guarda token em outro lugar).
         $this->app->bind(Even3Client::class, fn () => Even3Client::fromConfig());
         $this->app->bind(EventPlatformProvider::class, Even3Provider::class);
@@ -37,6 +45,15 @@ class AppServiceProvider extends ServiceProvider
     {
         Event::listen(function (ConnectionEstablished $event): void {
             $this->app->make(DatabaseEnvironmentGuard::class)->check($event->connection);
+        });
+
+        // Comandos que apagam o banco só em banco de testes ("_test"): protege o hacklab_dev e a produção.
+        $this->app->make(DestructiveCommandGuard::class)->apply();
+        Event::listen(function (CommandStarting $event): void {
+            $destructive = $this->app->make(DestructiveCommandGuard::class);
+            if (in_array($event->command, DestructiveCommandGuard::COMMANDS, true) && ! $destructive->allowsDestructiveCommands()) {
+                $event->output->writeln("<error>{$destructive->explanation()}</error>");
+            }
         });
 
         RateLimiter::for('api', function (Request $request) {

@@ -244,6 +244,14 @@ O seed também cria um evento fictício com:
 
 O seed pode ser executado mais de uma vez sem duplicar dados.
 
+`migrate`, `migrate --seed` e `db:seed` são seguros no `hacklab_dev`. Os comandos que apagam o banco (`migrate:fresh`, `migrate:refresh`, `migrate:reset`, `migrate:rollback`, `db:wipe`) ficam **bloqueados** em qualquer banco que não termine em `_test`: eles apagariam a configuração da integração Even3 e os dados sincronizados (inscrições, entradas, presença), que o seed não recria. Para recriar o banco de dev de propósito, libere só aquele comando:
+
+```bash
+docker compose exec -e HACKLAB_ALLOW_DESTRUCTIVE_DB=true app php artisan migrate:fresh --seed
+```
+
+Depois disso, a integração Even3 precisa ser configurada e sincronizada de novo pela tela Inscrições e Presença. Não coloque `HACKLAB_ALLOW_DESTRUCTIVE_DB` no `.env`.
+
 Em produção, o primeiro Administrador é criado pelo terminal:
 
 ```bash
