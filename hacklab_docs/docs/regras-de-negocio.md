@@ -473,6 +473,34 @@ Pessoa pode não possuir conta.
 
 Conta deve ser criada somente quando houver necessidade de acesso ao HackLab.
 
+### 19.1 Primeiro acesso (Complemento 11.1)
+
+Contas administrativas (Administrador, Gestor, Editor, Consultor) são criadas pelo Administrador. **Votantes elegíveis e Jurados internos ativam o próprio acesso por e-mail.** Ninguém escolhe o próprio perfil e não existe cadastro público.
+
+- **Mesmo conhecer um e-mail cadastrado não concede acesso. O link enviado ao próprio endereço prova posse da caixa postal.**
+- **A Even3 fornece identidade/inscrição; o HackLab decide autoridade.**
+- O e-mail informado é normalizado (trim + minúsculas) e precisa ser o e-mail da Person.
+- Exatamente uma Person com esse e-mail; se houver mais de uma (ambiguidade), nada é criado nem enviado.
+- Se já existe User com esse e-mail ligado a outra Person, nada acontece (sem merge, sem reatribuir).
+- Person que já tem User: o primeiro acesso não cria outro, não troca perfil nem setor (quem esqueceu a senha usa a recuperação).
+- Perfil, nesta ordem:
+  1. Person com `Juror` interno `ACTIVE` em evento planejado ou em andamento → `JUROR`. A entrada externa "Jurado" sozinha **não** concede nada.
+  2. Senão, inscrição `CONFIRMED`, sem `identity_mismatch`, em entrada mapeada (`external_ticket_id`) como `internal_category = PUBLIC`, em evento planejado ou em andamento, com e-mail de origem igual ao da Person (quando informado) → `VOTER`. Nunca por texto do nome da entrada.
+  3. Senão: sem primeiro acesso.
+- Inscrições `PENDING`, `CANCELLED`, sem mapeamento, de outra categoria (inclusive `PARTICIPANT`) ou com `identity_mismatch` não dão acesso. Participant não vira User nem Votante.
+- Várias inscrições da mesma Person continuam sendo uma identidade: um token, um User.
+- Conta criada: `ACTIVE`, `email_verified_at` = momento da ativação (o link provou a posse do e-mail).
+- Ser `VOTER` não dá direito a votar: continua exigindo `VotingEligibility` explícita na sessão. O primeiro acesso não cria elegibilidade, Juror nem atribuição.
+- **Preparação da votação:** com a sessão em rascunho, o Administrador usa "Adicionar votantes ativados": entram como elegíveis as contas `VOTER` `ACTIVE` cuja Person tem inscrição `CONFIRMED`, sem `identity_mismatch`, em entrada mapeada como `PUBLIC` **no evento da sessão**. A ação só adiciona (elegíveis manuais são preservados) e repetir não duplica.
+- **Os Votantes precisam ativar o acesso antes da abertura.** Ao abrir, candidatas e elegíveis ficam congelados (regra da Fase 7): quem ativar a conta depois não entra naquela sessão. Antes de abrir, a gestão mostra quantos inscritos do público ainda não ativaram o acesso; é um aviso, não um bloqueio.
+- A resposta pública do pedido é sempre a mesma (não revela se o e-mail existe, se é elegível ou se já tem conta).
+
+### 19.2 Recuperação de senha
+
+- Para quem já tem conta (`ACTIVE`). Resposta pública sempre genérica.
+- Link de uso único, válido por 60 minutos. A nova senha segue a mesma política (mínimo 8, letras e números).
+- Ao redefinir, todas as sessões abertas da conta são encerradas; o usuário entra de novo com a nova senha.
+
 ## 20. Relatórios
 
 Relatórios devem usar dados do banco, não DOM do frontend.

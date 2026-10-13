@@ -54,6 +54,9 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // Base dos links enviados por e-mail (primeiro acesso, redefinição de senha). Só por configuração.
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5174'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

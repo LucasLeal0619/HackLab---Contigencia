@@ -25,6 +25,12 @@ final class AuditAction
 
     public const LOGOUT = 'LOGOUT';
 
+    /** Primeiro acesso concluído pela própria pessoa (Complemento 11.1). Sem senha nem token. */
+    public const USER_SELF_ACTIVATED = 'USER_SELF_ACTIVATED';
+
+    /** Senha redefinida pelo link enviado ao e-mail (Complemento 11.1). Sem senha nem token. */
+    public const PASSWORD_RESET_COMPLETED = 'PASSWORD_RESET_COMPLETED';
+
     public const USER_CREATED = 'USER_CREATED';
 
     public const USER_UPDATED = 'USER_UPDATED';

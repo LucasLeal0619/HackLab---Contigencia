@@ -11,6 +11,7 @@
  * Saída: uma linha JSON {"ok": bool, "status": int, ...}.
  */
 
+use App\Domain\Auth\AccountActivationService;
 use App\Domain\Evaluations\EvaluationService;
 use App\Domain\Integrations\Enums\SyncScope;
 use App\Domain\Integrations\Enums\SyncTrigger;
@@ -18,6 +19,7 @@ use App\Domain\Integrations\Even3WebhookService;
 use App\Domain\Integrations\IntegrationSyncService;
 use App\Domain\Integrations\ParticipantMaterializer;
 use App\Domain\Results\ResultPublicationService;
+use App\Domain\Voting\PublicVoterEnrollment;
 use App\Domain\Voting\PublicVoteService;
 use App\Domain\Voting\VotingSessionService;
 use App\Models\Evaluation;
@@ -99,6 +101,8 @@ try {
             return ['http' => $status, 'receipt_status' => $receipt->status->value];
         })(),
         'materialize' => app(ParticipantMaterializer::class)->materialize(Event::query()->findOrFail($args['event_id']), $actor),
+        'add_public_voters' => app(PublicVoterEnrollment::class)->addActivatedPublicVoters(VotingSession::query()->findOrFail($args['session_id']), $actor),
+        'activation_complete' => ['user_id' => app(AccountActivationService::class)->complete($args['token'], $args['password'])->id],
         default => throw new InvalidArgumentException("Operação desconhecida: {$operation}"),
     };
 

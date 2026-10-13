@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Voting\PublicVoterEnrollment;
 use App\Domain\Voting\VotingAggregates;
 use App\Domain\Voting\VotingSessionService;
 use App\Http\Controllers\Controller;
@@ -101,6 +102,26 @@ class VotingSessionController extends Controller
             ->paginate(min((int) $request->query('per_page', 50), 200));
 
         return VotingEligibilityResource::collection($eligibilities);
+    }
+
+    /**
+     * Prontidão dos Votantes do público para a sessão (contagens por Person; sem dados pessoais).
+     */
+    public function publicVoterReadiness(VotingSession $session, PublicVoterEnrollment $enrollment): JsonResponse
+    {
+        Gate::authorize('view', $session);
+
+        return response()->json(['data' => $enrollment->readiness($session)]);
+    }
+
+    /**
+     * Adiciona à sessão (DRAFT) as contas Votante já ativadas pelos inscritos do público. Só adiciona.
+     */
+    public function addPublicVoters(Request $request, VotingSession $session, PublicVoterEnrollment $enrollment): JsonResponse
+    {
+        Gate::authorize('manageEligibility', $session);
+
+        return response()->json(['data' => $enrollment->addActivatedPublicVoters($session, $request->user())]);
     }
 
     public function syncEligibilities(SyncEligibilitiesRequest $request, VotingSession $session): VotingSessionResource

@@ -85,6 +85,28 @@ Consequências para o HackLab:
 - sessão, cache e fila ficam no PostgreSQL (drivers `database`), não em arquivo;
 - **não** criar mecanismo artificial para manter o serviço acordado. Antes de momentos críticos, chamar o endpoint de readiness (seção 5).
 
+### 3.2.1 E-mail (primeiro acesso e recuperação de senha)
+
+O backend envia e-mails por Laravel Mail/Notifications, sem SDK de provedor:
+
+- desenvolvimento: `MAIL_MAILER=log` (o e-mail, com o link, vai para `storage/logs`; só em desenvolvimento);
+- produção (Fase 12): SMTP configurado só nas variáveis do Render, nunca no Git:
+
+```text
+MAIL_MAILER=smtp
+MAIL_HOST=
+MAIL_PORT=
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_SCHEME=
+MAIL_FROM_ADDRESS=
+MAIL_FROM_NAME=HackLab
+FRONTEND_URL=https://…        (base dos links de ativação e redefinição)
+```
+
+- a escolha do provedor SMTP fica para a Fase 12;
+- `php artisan hacklab:prune-auth-tokens` limpa tokens vencidos; em produção, rodar periodicamente (ou no start do container) — definir na Fase 12.
+
 ### 3.3 Frontend (Static Site)
 
 - Em produção: `npm run build`, e o `dist/` publicado como Static Site (Render Static Site é grátis);

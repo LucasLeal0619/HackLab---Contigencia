@@ -53,8 +53,17 @@ export function useVotingAdmin() {
     return { ...(payload?.data || {}), note: payload?.meta?.note || '' }
   }, { immediate: false })
 
+  // Prontidão dos Votantes do público (só faz sentido em rascunho): contagens por Person, sem dados pessoais.
+  const readiness = useRequest(({ signal }) => (selectedId.value && isDraft.value ? votingApi.publicVoterReadiness(selectedId.value, { signal }) : null), { immediate: false })
+
+  const addPublic = useAction(async () => {
+    const result = await votingApi.addPublicVoters(selectedId.value)
+    await Promise.all([detail.load(), voters.load(), readiness.load(), list.load()])
+    return result
+  }, { success: (result) => (result?.added ? `${result.added} votante(s) adicionado(s) à sessão.` : 'Nenhum votante novo para adicionar.') })
+
   function loadTab(id = tab.value) {
-    if (id === 'elegiveis') voters.load()
+    if (id === 'elegiveis') { voters.load(); readiness.load() }
     if (id === 'participacao') turnout.load()
     if (id === 'contagem') counting.load()
   }
@@ -212,6 +221,7 @@ export function useVotingAdmin() {
     reason.value = ''
     transition.clear()
     confirm.value = kind
+    if (kind === 'open') readiness.load()
   }
 
   const transition = useAction(async (kind) => {
@@ -233,8 +243,8 @@ export function useVotingAdmin() {
     if (confirm.value === 'open') {
       return {
         title: 'Abrir votação?',
-        subtitle: 'Depois de aberta, candidatas e eleitores ficam travados. Só uma votação pode estar aberta por evento.',
-        body: `${s.candidates_count ?? 0} equipe(s) candidata(s) e ${s.eligible_voters_count ?? 0} eleitor(es) elegível(is).`,
+        subtitle: 'Depois da abertura, candidatas e elegíveis ficam congelados. Só uma votação pode estar aberta por evento.',
+        body: '',
         button: 'Abrir votação',
         danger: false,
       }
@@ -306,6 +316,8 @@ export function useVotingAdmin() {
     loadingCurrent,
     editEligibles,
     saveEligibles,
+    readiness,
+    addPublic,
     confirm,
     reason,
     reasonRequired,

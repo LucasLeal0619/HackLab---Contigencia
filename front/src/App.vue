@@ -7,6 +7,10 @@ import FocusShell from './components/FocusShell.vue'
 import Icon from './components/Icon.vue'
 import Shell from './components/Shell.vue'
 import Login from './pages/Login.vue'
+import ActivateAccount from './pages/ActivateAccount.vue'
+import FirstAccess from './pages/FirstAccess.vue'
+import ForgotPassword from './pages/ForgotPassword.vue'
+import ResetPassword from './pages/ResetPassword.vue'
 import { useApp } from '@/js/components/app'
 import { FRAMES, PAGES } from '@/js/pages'
 
@@ -14,10 +18,12 @@ const { path, params, phase, layout, focus, needsEvent, ui, eventContext, retryB
 const entry = computed(() => PAGES[path.value] || null)
 const pageKey = computed(() => `${path.value}:${entry.value?.key ? entry.value.key(params.value) : ''}:${eventContext.version}`)
 const frame = computed(() => FRAMES[path.value] || null)
+const PUBLIC_PAGES = { 'primeiro-acesso': FirstAccess, 'ativar-conta': ActivateAccount, 'esqueci-senha': ForgotPassword, 'redefinir-senha': ResetPassword }
 </script>
 
 <template>
-  <BootScreen v-if="phase === 'boot'" />
+  <component :is="PUBLIC_PAGES[path]" v-if="phase === 'public'" :params="params" />
+  <BootScreen v-else-if="phase === 'boot'" />
   <BootScreen v-else-if="phase === 'boot-error'" error title="Não foi possível conectar ao HackLab" @retry="retryBoot" />
   <BootScreen v-else-if="phase === 'event-error'" error title="Não foi possível carregar os eventos" :message="eventContext.error?.message" @retry="retryBoot" />
   <BootScreen v-else-if="phase === 'no-access'" denied />

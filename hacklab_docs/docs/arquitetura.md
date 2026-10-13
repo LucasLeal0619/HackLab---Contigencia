@@ -131,6 +131,8 @@ Um usuário:
 - pode possuir setor;
 - possui status ativo/inativo.
 
+Origem da conta: criada pelo Administrador (`/users`) ou pelo **primeiro acesso** (Complemento 11.1), em que a própria pessoa comprova a posse do e-mail. Ver §16.
+
 ### Events
 
 Mantém configuração do Hackathon:
@@ -418,7 +420,7 @@ Principais grupos (fonte da verdade: `back/routes/api.php`):
 
 ```text
 /health
-/auth (login, logout, me)
+/auth (login, logout, me, activation/request, activation/complete, password/forgot, password/reset)
 /roles
 /people
 /users (+ /role, /status, /sector)
@@ -566,6 +568,11 @@ GET  /sanctum/csrf-cookie      cookie XSRF-TOKEN
 POST /api/v1/auth/login        cookie de sessão HttpOnly
 GET  /api/v1/auth/me           usuário, Person, role.code/name, setor, permissions[]
 POST /api/v1/auth/logout
+
+POST /api/v1/auth/activation/request    primeiro acesso: pede o link (resposta sempre genérica)
+POST /api/v1/auth/activation/complete   primeiro acesso: token + senha → cria o User
+POST /api/v1/auth/password/forgot       pede link de redefinição (resposta sempre genérica)
+POST /api/v1/auth/password/reset        token + e-mail + nova senha
 ```
 
 - Cliente `fetch` com `credentials: 'include'`: o navegador envia o cookie de sessão e o client copia o cookie `XSRF-TOKEN` para o header `X-XSRF-TOKEN` nas requisições que alteram dados (sem Axios). O front nunca lê o cookie de sessão nem guarda token, senha ou sessão no navegador.
@@ -634,3 +641,28 @@ PostgreSQL → Laravel (ReportController → App\Domain\Reports\*ReportBuilder) 
 - O PDF é montado no navegador **só a partir do payload do endpoint** (nunca DOM, localStorage ou consultas paralelas). Os templates de PDF são funções puras.
 - Ler/gerar/baixar relatório não gera auditoria (é leitura).
 - Não existe relatório financeiro: não há domínio financeiro no backend.
+
+## 16. Primeiro acesso e recuperação de senha (Complemento 11.1)
+
+O Administrador não precisa criar centenas de contas. A Even3 fornece identidade e inscrição; **o HackLab decide a autoridade**.
+
+```text
+Even3 → sync → Person + EventRegistration           (o sync nunca cria User)
+pessoa informa o e-mail → POST /auth/activation/request
+  ↓ elegível? (regras abaixo) → token aleatório; só o HMAC fica no banco; link por e-mail
+pessoa abre o link → POST /auth/activation/complete (token + senha)
+  ↓ transação + lock: revalida elegibilidade → cria User (ACTIVE, email_verified_at = agora) → consome o token
+login normal
+```
+
+- `App\Domain\Auth\AccountActivationService`: elegibilidade, pedido e conclusão. `AccountActivationEligibility` decide o perfil a partir de dados internos confiáveis. Antes da conclusão **não existe User** (sem status "pendente").
+- Perfil: Person com `Juror` interno `ACTIVE` → `JUROR`; senão, inscrição `CONFIRMED` em entrada mapeada como `PUBLIC` → `VOTER`. Person que já tem User nunca recebe outro nem muda de perfil.
+- Token de primeiro acesso: tabela `account_activation_tokens` (um por Person; novo pedido substitui o anterior), `HMAC-SHA256(token, APP_KEY)`, uso único, 60 minutos.
+- Redefinição de senha: Password Broker oficial do Laravel (`password_reset_tokens`, token com hash, 60 minutos). Ao redefinir: nova senha, novo `remember_token` e todas as sessões da conta são apagadas.
+- Links apontam para o frontend: `{FRONTEND_URL}/#/ativar-conta?token=…` e `{FRONTEND_URL}/#/redefinir-senha?token=…&email=…`. A URL nunca vem do pedido (sem open redirect).
+- Pedidos (`activation/request`, `password/forgot`) respondem sempre `202` com a mesma mensagem, exista ou não o e-mail; limite próprio (`auth-recovery`: 5/min por e-mail+IP e 20/h por IP). Conclusões têm limite por IP (`auth-recovery-complete`).
+- E-mail por Laravel Notifications (mailer `log` em desenvolvimento; SMTP por variáveis em produção).
+- Auditoria só das conclusões: `USER_SELF_ACTIVATED` e `PASSWORD_RESET_COMPLETED`, sem senha nem token. Pedidos não geram log.
+- Limpeza: `php artisan hacklab:prune-auth-tokens` remove tokens vencidos das duas tabelas.
+- Autenticação e votação continuam desacopladas: o primeiro acesso nunca cria `VotingEligibility`. Para preparar uma sessão em rascunho, o Administrador adiciona em lote os Votantes já ativados (`POST /voting-sessions/{s}/eligibilities/public-voters`, `voting_eligibility.manage`) e consulta a prontidão (`GET /voting-sessions/{s}/public-voters/readiness`): inscritos públicos confirmados, contas Votante ativadas, já elegíveis e inscritos ainda sem conta, contados por Person. Depois da abertura, a lista fica congelada.
+- Telas públicas no Vue: `#/primeiro-acesso`, `#/ativar-conta`, `#/esqueci-senha`, `#/redefinir-senha` (além de `#/login`). Nenhum token vai para o armazenamento do navegador.

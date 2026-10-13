@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AccountRecoveryController;
 use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -46,6 +47,20 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:login')
         ->name('auth.login');
+
+    // Primeiro acesso e recuperação de senha (públicos). Pedidos respondem sempre 202 genérico.
+    Route::post('/auth/activation/request', [AccountRecoveryController::class, 'requestActivation'])
+        ->middleware('throttle:auth-recovery')
+        ->name('auth.activation.request');
+    Route::post('/auth/activation/complete', [AccountRecoveryController::class, 'completeActivation'])
+        ->middleware('throttle:auth-recovery-complete')
+        ->name('auth.activation.complete');
+    Route::post('/auth/password/forgot', [AccountRecoveryController::class, 'forgotPassword'])
+        ->middleware('throttle:auth-recovery')
+        ->name('auth.password.forgot');
+    Route::post('/auth/password/reset', [AccountRecoveryController::class, 'resetPassword'])
+        ->middleware('throttle:auth-recovery-complete')
+        ->name('auth.password.reset');
 
     Route::middleware(['auth:sanctum', EnsureUserIsActive::class])->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
@@ -175,6 +190,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::put('/voting-sessions/{session}/teams', [VotingSessionController::class, 'syncTeams'])->name('voting-sessions.teams.sync');
         Route::get('/voting-sessions/{session}/eligibilities', [VotingSessionController::class, 'eligibilities'])->name('voting-sessions.eligibilities.index');
         Route::put('/voting-sessions/{session}/eligibilities', [VotingSessionController::class, 'syncEligibilities'])->name('voting-sessions.eligibilities.sync');
+        // Preparação: Votantes do público já ativados (primeiro acesso) → elegíveis, só em DRAFT e só adicionando.
+        Route::get('/voting-sessions/{session}/public-voters/readiness', [VotingSessionController::class, 'publicVoterReadiness'])->name('voting-sessions.public-voters.readiness');
+        Route::post('/voting-sessions/{session}/eligibilities/public-voters', [VotingSessionController::class, 'addPublicVoters'])->name('voting-sessions.eligibilities.public-voters');
         Route::post('/voting-sessions/{session}/open', [VotingSessionController::class, 'open'])->name('voting-sessions.open');
         Route::post('/voting-sessions/{session}/close', [VotingSessionController::class, 'close'])->name('voting-sessions.close');
         Route::post('/voting-sessions/{session}/cancel', [VotingSessionController::class, 'cancel'])->name('voting-sessions.cancel');

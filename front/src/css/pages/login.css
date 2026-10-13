@@ -44,6 +44,9 @@
 }
 .login-card .btn.full { margin-top: 4px; }
 .login-note { text-align: center; margin-top: 16px; }
+.login-links { display: grid; gap: 6px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); text-align: center; font-size: var(--text-md); color: var(--muted); }
+.login-links p { margin: 0; }
+.login-card .banner { margin-bottom: 14px; }
 @media (max-width: 767px) {
   .login-copy h1 { font-size: 24px; }
   .login-copy p, .login-foot { display: none; }

@@ -1,6 +1,6 @@
 // Lógica do componente App.vue: sessão, evento ativo e qual layout/página mostrar.
 import { computed, watch } from 'vue'
-import { BARE_ROUTES, canAccess, focusFor, homeFor, legacyTarget } from '@/js/config/access'
+import { BARE_ROUTES, PUBLIC_ROUTES, canAccess, focusFor, homeFor, legacyTarget } from '@/js/config/access'
 import { replace, useRoute } from '@/js/router'
 import { AUTH, auth, bootstrap } from '@/js/stores/auth'
 import { eventContext, loadEvents } from '@/js/stores/event-context'
@@ -20,6 +20,8 @@ export function useApp() {
   const home = computed(() => homeFor(user.value))
 
   const phase = computed(() => {
+    // Primeiro acesso e recuperação de senha: abertos com ou sem sessão, sem esperar /auth/me.
+    if (PUBLIC_ROUTES.has(path.value)) return 'public'
     if (auth.status === AUTH.UNKNOWN) return auth.bootError ? 'boot-error' : 'boot'
     if (auth.status === AUTH.GUEST) return 'login'
     if (eventContext.status === 'idle' || eventContext.status === 'loading') return 'boot'
@@ -43,7 +45,7 @@ export function useApp() {
   }, { immediate: true })
 
   watch([path, params, () => auth.status, home, () => eventContext.status], () => {
-    if (auth.status === AUTH.UNKNOWN) return
+    if (PUBLIC_ROUTES.has(path.value) || auth.status === AUTH.UNKNOWN) return
     if (auth.status === AUTH.GUEST) {
       if (path.value && path.value !== 'login') intended = window.location.hash.replace(/^#\/?/, '')
       if (path.value !== 'login') replace('login')

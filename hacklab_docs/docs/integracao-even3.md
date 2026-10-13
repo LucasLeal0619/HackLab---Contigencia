@@ -210,6 +210,12 @@ Substitui a antiga tela "Credenciais e Presença" do protótipo. Não existe sca
 - A tela nunca mostra nem recebe `EVEN3_API_TOKEN`, `EVEN3_WEBHOOK_SECRET` ou o header do webhook; o status só informa se o token está configurado.
 - Mapear uma entrada não concede perfil, não cria Jurado, Empresa nem Usuário.
 
+## 9.2 Inscrições e contas (Complemento 11.1)
+
+- A sincronização cria/atualiza só Person e EventRegistration. **Nunca cria User**, Juror, VotingEligibility ou Participant (este só pela materialização explícita).
+- Uma inscrição `CONFIRMED` em entrada mapeada como `PUBLIC` permite que a própria pessoa faça o **primeiro acesso** e vire `VOTER` depois de provar a posse do e-mail. A entrada externa "Jurado" não concede nada: Jurado só com `Juror` interno `ACTIVE`.
+- O primeiro acesso lê apenas o que já está no PostgreSQL; não chama a Even3.
+
 ## 10. Erros e timeouts
 
 `Even3Client` centraliza Bearer, base URL, timeouts (conexão 5 s, requisição 15 s), retry só de GET (timeout, rede, 429, 5xx; poucas tentativas com espera crescente) e erros tipados: `BAD_REQUEST` (400), `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `RATE_LIMITED` (429), `SERVER_ERROR` (5xx), `TIMEOUT`, `NETWORK_ERROR`, `INVALID_JSON`.

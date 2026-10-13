@@ -48,6 +48,19 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by(mb_strtolower((string) $request->input('email')).'|'.$request->ip());
         });
 
+        // Primeiro acesso e esqueci a senha (públicos): 5/min por e-mail + IP e 20/h por IP.
+        RateLimiter::for('auth-recovery', function (Request $request) {
+            return [
+                Limit::perMinute(5)->by('recovery|'.mb_strtolower(trim((string) $request->input('email'))).'|'.$request->ip()),
+                Limit::perHour(20)->by('recovery-ip|'.$request->ip()),
+            ];
+        });
+
+        // Conclusão de primeiro acesso e redefinição (token do link): 10/min por IP.
+        RateLimiter::for('auth-recovery-complete', function (Request $request) {
+            return Limit::perMinute(10)->by('recovery-complete|'.$request->ip());
+        });
+
         // Webhook da Even3 (sem usuário autenticado): limite por IP.
         RateLimiter::for('webhooks', function (Request $request) {
             return Limit::perMinute(600)->by($request->ip());

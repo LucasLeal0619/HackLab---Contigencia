@@ -33,6 +33,9 @@ export const ROUTES = {
   votacao: ['votes.cast'],
 }
 
+// Telas públicas de acesso (sem sessão): primeiro acesso e recuperação de senha. O login é tratado à parte.
+export const PUBLIC_ROUTES = new Set(['primeiro-acesso', 'ativar-conta', 'esqueci-senha', 'redefinir-senha'])
+
 // Páginas abertas sem o Shell administrativo (tela cheia ou focada).
 export const BARE_ROUTES = new Set(['area-jurado', 'avaliar', 'votacao', 'apresentacao'])
 

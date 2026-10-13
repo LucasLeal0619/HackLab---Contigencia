@@ -35,3 +35,11 @@
 .vote-session-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; font-size: 16px; }
 .vote-pick { max-height: 50vh; overflow: auto; margin: 8px 0; }
 .vote-pick .check { padding: 6px 0; color: inherit; flex-wrap: wrap; }
+
+/* Preparação dos Votantes do público (sessão em rascunho) e resumo da abertura. */
+.vote-readiness { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
+.vote-readiness h3 { margin: 0; }
+.vote-readiness-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); margin: var(--space-2) 0; }
+.vote-readiness-grid div { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--space-3); background: var(--surface); }
+.vote-readiness-grid dt { color: var(--muted); font-size: var(--text-sm); }
+.vote-readiness-grid dd { margin: 4px 0 0; font-size: 22px; font-weight: 650; color: var(--text); }

@@ -17,7 +17,7 @@ const {
   voters, turnout, counting, openSession, closeDrawer, refreshSession, modal, form, startCreate, startRename, save,
   editing, choice, teams, teamOptions, toggle, selectAll, clearChoice, editCandidates, saveCandidates,
   voterAccounts, voterSearch, voterOptions, loadingCurrent, editEligibles, saveEligibles,
-  confirm, reason, reasonRequired, ask, transition, confirmText, percent, label, tone, options, formatDateTime,
+  confirm, reason, reasonRequired, ask, transition, confirmText, percent, label, tone, options, formatDateTime, readiness, addPublic,
 } = useVotingAdmin()
 const { filters, page, items, meta, loading, error, loaded } = list
 </script>
@@ -153,6 +153,23 @@ const { filters, page, items, meta, loading, error, loaded } = list
             </div>
           </template>
           <template v-else>
+            <section v-if="isDraft" class="card vote-readiness" aria-labelledby="vote-readiness-title">
+              <div class="row-between">
+                <h3 id="vote-readiness-title">Votantes do público</h3>
+                <button v-if="canEligibility" class="btn small" type="button" :disabled="addPublic.pending.value" @click="addPublic.run()">{{ addPublic.pending.value ? 'Adicionando…' : 'Adicionar votantes ativados' }}</button>
+              </div>
+              <p class="stat-hint">Adiciona à sessão as contas Votante já ativadas por inscritos da categoria Público. Não remove ninguém da lista e usa os dados já sincronizados no HackLab.</p>
+              <LoadState :loading="readiness.loading.value" :loaded="readiness.loaded.value" :error="readiness.error.value" :empty="!readiness.data.value" @retry="readiness.load()">
+                <dl v-if="readiness.data.value" class="vote-readiness-grid">
+                  <div><dt>Inscritos do público confirmados</dt><dd>{{ readiness.data.value.public_confirmed_people }}</dd></div>
+                  <div><dt>Contas Votante já ativadas</dt><dd>{{ readiness.data.value.activated_voter_accounts }}</dd></div>
+                  <div><dt>Já elegíveis nesta sessão</dt><dd>{{ readiness.data.value.already_eligible }}</dd></div>
+                  <div><dt>Ainda sem conta ativada</dt><dd>{{ readiness.data.value.public_without_account }}</dd></div>
+                </dl>
+                <p v-if="readiness.data.value?.public_with_other_account" class="stat-hint">{{ readiness.data.value.public_with_other_account }} inscrito(s) do público têm conta inativa ou com outro perfil e não entram automaticamente.</p>
+              </LoadState>
+              <p class="stat-hint">Os votantes precisam ativar o acesso antes da abertura: depois de aberta, a lista de elegíveis fica congelada.</p>
+            </section>
             <div class="row-between">
               <p class="stat-hint">Mostra só se cada eleitor já votou, nunca em quem.</p>
               <button v-if="canEligibility && isDraft && canUsers" class="btn small" type="button" @click="editEligibles">Definir eleitores</button>
@@ -242,6 +259,18 @@ const { filters, page, items, meta, loading, error, loaded } = list
     <Modal v-if="confirm && session" :title="confirmText.title" :subtitle="confirmText.subtitle" @close="confirm = null">
       <p><b>{{ session.name }}</b></p>
       <p v-if="confirmText.body">{{ confirmText.body }}</p>
+      <template v-if="confirm === 'open'">
+        <dl class="vote-readiness-grid">
+          <div><dt>Candidatas</dt><dd>{{ session.candidates_count ?? 0 }}</dd></div>
+          <div><dt>Eleitores elegíveis</dt><dd>{{ session.eligible_voters_count ?? 0 }}</dd></div>
+          <div><dt>Inscritos do público sem acesso ativado</dt><dd>{{ readiness.loading.value && !readiness.data.value ? '…' : (readiness.data.value?.public_without_account ?? '—') }}</dd></div>
+        </dl>
+        <p v-if="readiness.data.value?.public_without_account" class="banner warn" role="alert">
+          Existem {{ readiness.data.value.public_without_account }} inscritos do público que ainda não ativaram o acesso.
+          Após abrir a votação, novos eleitores não poderão ser incluídos nesta sessão.
+        </p>
+        <p class="stat-hint">Depois da abertura, candidatas e elegíveis ficam congelados.</p>
+      </template>
       <Field v-if="confirm === 'cancel'" label="Motivo" :required="reasonRequired" :hint="reasonRequired ? '' : 'Opcional.'" :error="transition.fieldErrors.value.reason">
         <textarea v-model="reason" class="input" rows="3" maxlength="2000" />
       </Field>

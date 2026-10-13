@@ -440,6 +440,32 @@ Quatro relatórios com dados reais do backend (desenho em `arquitetura.md` §15,
 
 Sem migration nova: relatório não é persistido (sem tabela, sem PDF guardado, sem histórico).
 
+## Complemento 11.1 — Primeiro acesso e recuperação de senha
+
+Antes da Fase 12. Desenho em `arquitetura.md` §16 e regras em `regras-de-negocio.md` §19.
+
+| Método | Endpoint | Observação |
+|---|---|---|
+| POST | `/auth/activation/request` | público; sempre `202` genérico; limite `auth-recovery` |
+| POST | `/auth/activation/complete` | público; token + senha → cria User `JUROR`/`VOTER` |
+| POST | `/auth/password/forgot` | público; sempre `202` genérico; limite `auth-recovery` |
+| POST | `/auth/password/reset` | público; Password Broker; encerra as sessões da conta |
+| GET | `/voting-sessions/{s}/public-voters/readiness` | `voting_sessions.view`; prontidão dos votantes do público (por Person) |
+| POST | `/voting-sessions/{s}/eligibilities/public-voters` | `voting_eligibility.manage`; só DRAFT; adiciona os Votantes ativados (não remove ninguém) |
+
+- [x] tabela `account_activation_tokens` (migration 32);
+- [x] elegibilidade: Juror interno `ACTIVE` → JUROR; inscrição `CONFIRMED` + entrada `PUBLIC` → VOTER; conta existente nunca muda;
+- [x] anti-enumeração, rate limit, token com HMAC, uso único, 60 minutos;
+- [x] e-mails por Notifications (log em desenvolvimento, SMTP em produção);
+- [x] auditoria `USER_SELF_ACTIVATED` e `PASSWORD_RESET_COMPLETED`;
+- [x] `php artisan hacklab:prune-auth-tokens`;
+- [x] telas públicas `#/primeiro-acesso`, `#/ativar-conta`, `#/esqueci-senha`, `#/redefinir-senha`;
+- [x] preparação da votação: "Adicionar votantes ativados" (só adiciona, idempotente, auditado como `VOTING_ELIGIBILITY_CHANGED`), resumo de prontidão e aviso antes de abrir.
+
+Regra operacional: os Votantes ativam o acesso **antes** da abertura da sessão; depois de aberta, candidatas e elegíveis ficam congelados e quem ativar depois não entra naquela sessão.
+
+Fora deste complemento: login social, magic link no lugar de senha, MFA, SSO, SMS/WhatsApp, elegibilidade automática para votação, Juror automático pela categoria externa, conta automática de participante, múltiplos perfis por evento.
+
 ## Fase 12 — Implantação (Render + Supabase)
 
 - [ ] projeto Supabase de produção, schema `hacklab` criado (SQL em `infraestrutura.md` §3.1);

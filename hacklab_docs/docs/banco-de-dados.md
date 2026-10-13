@@ -167,6 +167,26 @@ Implementado na Fase 1 sem `sector_id`: a coluna e a FK chegam na migration da F
 
 Usuário não é apagado: é inativado (`status = INACTIVE`), o que encerra as sessões abertas e bloqueia o acesso na próxima requisição. O sistema recusa inativar ou rebaixar o último Administrador ativo.
 
+`email_verified_at`: preenchido quando a conta nasce pelo primeiro acesso (o link enviado ao e-mail provou a posse da caixa postal). Contas criadas pelo Administrador podem ficar sem ele.
+
+### account_activation_tokens (Complemento 11.1)
+
+```text
+id
+person_id FK unique          (um pedido vigente por Person; novo pedido substitui)
+requested_email              (minúsculo; check no banco)
+intended_role                (JUROR | VOTER; check no banco; revalidado na conclusão)
+token_hash unique            (HMAC-SHA256 do token com APP_KEY; o token em si nunca é gravado)
+expires_at                   (60 minutos)
+created_at
+```
+
+Não existe User antes da conclusão. O token é apagado ao concluir. Vencidos são removidos por `php artisan hacklab:prune-auth-tokens` (que também limpa `password_reset_tokens`).
+
+### password_reset_tokens
+
+Tabela padrão do Laravel (Password Broker): `email`, `token` (hash), `created_at`. Validade de 60 minutos.
+
 ### roles
 
 Seed inicial:

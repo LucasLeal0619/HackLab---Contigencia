@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Domain\Users\Enums\PermissionCode;
 use App\Domain\Users\Enums\RoleCode;
 use App\Domain\Users\Enums\UserStatus;
+use App\Notifications\ResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -45,6 +46,14 @@ class User extends Authenticatable
             'status' => UserStatus::class,
             'sector_id' => 'integer',
         ];
+    }
+
+    /**
+     * Link de redefinição aponta para o frontend (FRONTEND_URL), não para uma rota do Laravel.
+     */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
     }
 
     public function person(): BelongsTo

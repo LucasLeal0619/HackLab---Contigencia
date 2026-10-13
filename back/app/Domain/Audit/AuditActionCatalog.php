@@ -39,6 +39,8 @@ final class AuditActionCatalog
         AuditAction::LOGIN_FAILED => ['auth', 'Tentativa de login recusada'],
         AuditAction::LOGIN_BLOCKED_INACTIVE => ['auth', 'Login bloqueado (conta inativa)'],
         AuditAction::LOGOUT => ['auth', 'Logout realizado'],
+        AuditAction::USER_SELF_ACTIVATED => ['auth', 'Primeiro acesso concluído'],
+        AuditAction::PASSWORD_RESET_COMPLETED => ['auth', 'Senha redefinida por e-mail'],
 
         AuditAction::USER_CREATED => ['users', 'Usuário criado'],
         AuditAction::USER_UPDATED => ['users', 'Usuário alterado'],

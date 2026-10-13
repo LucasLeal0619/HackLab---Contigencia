@@ -37,6 +37,7 @@ As inscrições e o credenciamento acontecem na plataforma externa **Even3**. O 
 | 9 | Integração Even3 | concluída |
 | 10 | Frontend integrado ao backend real | concluída |
 | 11 | Relatórios reais e PDF | concluída |
+| 11.1 | Primeiro acesso, recuperação de senha e autocadastro seguro de Votantes | concluído |
 | 12 | Implantação (Render + Supabase + Static Site) | pendente |
 | 13 | Teste de carga | pendente |
 
@@ -45,7 +46,7 @@ O detalhe de cada fase está em [`plano-implementacao.md`](hacklab_docs/docs/pla
 ## Funcionalidades
 
 - **Autenticação e autorização**: login por sessão (Sanctum SPA); permissões por perfil, verificadas no Laravel.
-- **Pessoas e usuários**: uma pessoa pode existir sem login; contas são criadas pelo Administrador e sempre ligadas a uma pessoa.
+- **Pessoas e usuários**: uma pessoa pode existir sem login; toda conta é ligada a uma pessoa. Contas administrativas são criadas pelo Administrador; Votantes elegíveis e Jurados internos ativam o próprio acesso por e-mail (primeiro acesso).
 - **Eventos e dias**: evento com datas, local, fuso horário e dias reais (`EventDay`).
 - **Setores e reuniões**: reuniões gerais ou setoriais.
 - **Participantes e turmas**: status Disponível, Indisponível ou Desistente; não há exclusão.
@@ -73,7 +74,7 @@ O detalhe de cada fase está em [`plano-implementacao.md`](hacklab_docs/docs/pla
 
 O que o HackLab **não** tem nesta versão:
 - financeiro, premiações, documentos e atas separadas;
-- cadastro público e convite de jurado;
+- cadastro público (ninguém escolhe o próprio perfil) e convite de jurado;
 - QR, scanner ou check-in próprio (o credenciamento é feito na Even3);
 - votação anônima e nota combinada entre jurados e público;
 - Supabase Auth ou qualquer recurso do Supabase além do PostgreSQL.
@@ -104,6 +105,26 @@ POST /api/v1/auth/logout
 - Não há bearer token guardado no navegador.
 - Não há login simulado nem troca de perfil para demonstração.
 - O login tem limite de tentativas.
+
+### Primeiro acesso e recuperação de senha
+
+```text
+POST /api/v1/auth/activation/request    primeiro acesso: pede o link por e-mail
+POST /api/v1/auth/activation/complete   token do link + senha → cria a conta
+POST /api/v1/auth/password/forgot       pede o link de redefinição
+POST /api/v1/auth/password/reset        token do link + nova senha
+```
+
+- **Primeiro acesso** (`#/primeiro-acesso`): a pessoa informa o mesmo e-mail da inscrição. Se o acesso estiver habilitado, recebe um link; ao abrir e criar a senha, a conta nasce `ACTIVE` e com e-mail verificado.
+  - Vira **Jurado** quem tem cadastro interno de jurado ativo; vira **Votante** quem tem inscrição confirmada numa entrada mapeada como Público.
+  - A sincronização da Even3 nunca cria contas, e conta existente nunca muda de perfil.
+  - Ser Votante não dá direito a votar: a elegibilidade em cada sessão continua explícita. Antes de abrir a sessão, o Administrador usa **"Adicionar votantes ativados"** na gestão da votação para incluir de uma vez as contas já ativadas pelos inscritos do público.
+  - Os Votantes precisam ativar o acesso **antes da abertura**: depois de aberta, a lista de elegíveis fica congelada.
+- **Esqueci minha senha** (`#/esqueci-senha`): link por e-mail; ao redefinir, as sessões abertas da conta são encerradas.
+- Mesmo conhecer um e-mail cadastrado não concede acesso: o link enviado ao próprio endereço prova a posse da caixa postal. A Even3 fornece identidade e inscrição; o HackLab decide a autoridade.
+- As respostas dos pedidos são sempre iguais (não revelam se o e-mail existe), com limite de tentativas. Links valem 60 minutos e são de uso único; só o hash do token fica no banco.
+- Os links usam `FRONTEND_URL`. Em desenvolvimento o e-mail vai para o log (`MAIL_MAILER=log`, em `back/storage/logs`); em produção, SMTP configurado nas variáveis (Fase 12).
+- `php artisan hacklab:prune-auth-tokens` remove tokens vencidos.
 
 ## Frontend (`front/`)
 
@@ -140,7 +161,7 @@ O contrato completo da API está em [`back/routes/api.php`](back/routes/api.php)
 - PostgreSQL 17, com todas as tabelas no schema `hacklab` (nunca `public`).
 - Bancos: `hacklab_dev` (desenvolvimento) e `hacklab_test` (testes automatizados, recriado a cada execução).
 - Porta na máquina local: `127.0.0.1:5442`, usuário e senha `hacklab`/`hacklab` (só desenvolvimento).
-- A estrutura vem só das migrations do Laravel (31 hoje). Não crie tabelas à mão nem pelo painel do Supabase.
+- A estrutura vem só das migrations do Laravel (32 hoje). Não crie tabelas à mão nem pelo painel do Supabase.
 - No ambiente de testes, o backend recusa qualquer banco cujo nome não termine em `_test` e qualquer host do Supabase.
 
 ## Desenvolvimento local
@@ -243,7 +264,7 @@ npm run test
 npm run build
 ```
 
-Na validação da Fase 11 eram 525 testes no backend e 82 no frontend, todos passando.
+Na validação do Complemento 11.1 eram 549 testes no backend e 93 no frontend, todos passando.
 
 ## Integração Even3
 

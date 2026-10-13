@@ -10,6 +10,9 @@ export const updateSession = async (id, body) => unwrap(await api.patch(`/api/v1
 export const syncCandidates = async (id, teamIds) => unwrap(await api.put(`/api/v1/voting-sessions/${id}/teams`, { team_ids: teamIds }))
 export const listEligibilities = (id, query, options) => api.get(`/api/v1/voting-sessions/${id}/eligibilities`, { query, ...options })
 export const syncEligibilities = async (id, userIds) => unwrap(await api.put(`/api/v1/voting-sessions/${id}/eligibilities`, { user_ids: userIds }))
+// Preparação dos Votantes do público (contas já ativadas pelo primeiro acesso). Usa o banco local, não a Even3.
+export const publicVoterReadiness = async (id, options) => unwrap(await api.get(`/api/v1/voting-sessions/${id}/public-voters/readiness`, options))
+export const addPublicVoters = async (id) => unwrap(await api.post(`/api/v1/voting-sessions/${id}/eligibilities/public-voters`))
 export const openSession = async (id) => unwrap(await api.post(`/api/v1/voting-sessions/${id}/open`))
 export const closeSession = async (id) => unwrap(await api.post(`/api/v1/voting-sessions/${id}/close`))
 export const cancelSession = async (id, reason) => unwrap(await api.post(`/api/v1/voting-sessions/${id}/cancel`, { reason: reason || null }))
