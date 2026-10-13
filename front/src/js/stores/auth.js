@@ -14,6 +14,9 @@ export const auth = reactive({
 })
 
 const listeners = new Set()
+// Cada mudança de sessão (bootstrap, login, logout) ganha um número: a resposta atrasada de um /auth/me
+// antigo não desfaz um login feito enquanto ele estava em andamento.
+let generation = 0
 
 // Quem guarda dados em memória (contexto de evento, caches) limpa tudo quando a sessão termina.
 export function onSessionEnd(fn) {
@@ -42,11 +45,14 @@ onUnauthorized(() => {
 })
 
 export async function bootstrap() {
+  const mine = ++generation
   auth.status = AUTH.UNKNOWN
   auth.bootError = null
   try {
-    setUser(await authService.me())
+    const user = await authService.me()
+    if (mine === generation) setUser(user)
   } catch (error) {
+    if (mine !== generation) return
     if (error.kind === 'unauthorized') {
       clearSession()
       return
@@ -57,12 +63,14 @@ export async function bootstrap() {
 
 export async function login(email, password) {
   const user = await authService.login(email.trim().toLowerCase(), password)
+  generation++
   // /auth/login já devolve o mesmo contrato de /auth/me (usuário, Person, perfil, setor e permissões).
   setUser(user)
   return user
 }
 
 export async function logout() {
+  generation++
   try {
     await authService.logout()
   } finally {

@@ -1,28 +1,24 @@
-// Lógica do Dashboard: painel mínimo com contagens reais (meta.total das listagens) dos módulos permitidos.
-// Nenhum número inventado: o que o perfil não pode consultar não aparece.
-import { computed, ref } from 'vue'
+// Lógica do Dashboard: painel mínimo com contagens reais dos módulos permitidos.
+// Uma requisição só (GET /events/{id}/dashboard): o backend aplica as mesmas Policies e o mesmo recorte
+// setorial das listagens e devolve null no bloco que o perfil não pode consultar. Nenhum número inventado.
+import { computed } from 'vue'
 import { useRequest } from '@/js/composables/async'
-import { auth, hasPermission } from '@/js/stores/auth'
+import { auth } from '@/js/stores/auth'
 import { activeDays, activeEvent, eventContext } from '@/js/stores/event-context'
-import { listChallenges } from '@/js/services/challenges'
-import { listCompanies } from '@/js/services/companies'
-import { listOccurrences } from '@/js/services/occurrences'
-import { listParticipants } from '@/js/services/participants'
-import { listTasks } from '@/js/services/tasks'
-import { listTeams } from '@/js/services/teams'
+import { getDashboard } from '@/js/services/events'
 import { dayLabel, formatDate } from '@/js/utils/format'
 import { label, tone } from '@/js/labels'
 
-// Cada linha: permissão, rótulo, rota de destino e a consulta de contagem (per_page=1 → só meta.total).
+// Cada linha: chave do payload ([bloco, contagem]), rótulo e rota de destino (a listagem que mostra o mesmo número).
 const DOMAINS = [
   {
     title: 'Participantes e equipes',
     to: 'participantes',
     action: 'Ver participantes',
     lines: [
-      { permission: 'participants.view', label: 'Participantes', to: 'participantes', count: (id, signal) => listParticipants(id, { per_page: 1 }, { signal }) },
-      { permission: 'participants.view', label: 'Sem equipe', to: 'participantes', count: (id, signal) => listParticipants(id, { per_page: 1, has_team: 'false', status: 'AVAILABLE' }, { signal }) },
-      { permission: 'teams.view', label: 'Equipes', to: 'equipes', count: (id, signal) => listTeams(id, { per_page: 1 }, { signal }) },
+      { key: ['participants', 'total'], label: 'Participantes', to: 'participantes' },
+      { key: ['participants', 'without_team'], label: 'Sem equipe', to: 'participantes' },
+      { key: ['teams', 'total'], label: 'Equipes', to: 'equipes' },
     ],
   },
   {
@@ -30,8 +26,8 @@ const DOMAINS = [
     to: 'desafios',
     action: 'Ver desafios',
     lines: [
-      { permission: 'companies.view', label: 'Empresas', to: 'empresas', count: (id, signal) => listCompanies(id, { per_page: 1 }, { signal }) },
-      { permission: 'challenges.view', label: 'Desafios', to: 'desafios', count: (id, signal) => listChallenges(id, { per_page: 1 }, { signal }) },
+      { key: ['companies', 'total'], label: 'Empresas', to: 'empresas' },
+      { key: ['challenges', 'total'], label: 'Desafios', to: 'desafios' },
     ],
   },
   {
@@ -39,9 +35,9 @@ const DOMAINS = [
     to: 'pendencias',
     action: 'Ver pendências',
     lines: [
-      { permission: 'tasks.view', label: 'Pendentes', to: 'pendencias', count: (id, signal) => listTasks(id, { per_page: 1, status: 'PENDING' }, { signal }) },
-      { permission: 'tasks.view', label: 'Em andamento', to: 'pendencias', count: (id, signal) => listTasks(id, { per_page: 1, status: 'IN_PROGRESS' }, { signal }) },
-      { permission: 'tasks.view', label: 'Atrasadas', to: 'pendencias', count: (id, signal) => listTasks(id, { per_page: 1, overdue: 1 }, { signal }) },
+      { key: ['tasks', 'pending'], label: 'Pendentes', to: 'pendencias' },
+      { key: ['tasks', 'in_progress'], label: 'Em andamento', to: 'pendencias' },
+      { key: ['tasks', 'overdue'], label: 'Atrasadas', to: 'pendencias' },
     ],
   },
   {
@@ -49,40 +45,37 @@ const DOMAINS = [
     to: 'ocorrencias',
     action: 'Ver ocorrências',
     lines: [
-      { permission: 'occurrences.view', label: 'Abertas', to: 'ocorrencias', count: (id, signal) => listOccurrences(id, { per_page: 1, status: 'OPEN' }, { signal }) },
-      { permission: 'occurrences.view', label: 'Em andamento', to: 'ocorrencias', count: (id, signal) => listOccurrences(id, { per_page: 1, status: 'IN_PROGRESS' }, { signal }) },
-      { permission: 'occurrences.view', label: 'Urgentes abertas', to: 'ocorrencias', count: (id, signal) => listOccurrences(id, { per_page: 1, status: 'OPEN', priority: 'URGENT' }, { signal }) },
+      { key: ['occurrences', 'open'], label: 'Abertas', to: 'ocorrencias' },
+      { key: ['occurrences', 'in_progress'], label: 'Em andamento', to: 'ocorrencias' },
+      { key: ['occurrences', 'urgent_open'], label: 'Urgentes abertas', to: 'ocorrencias' },
     ],
   },
 ]
 
+// Payload → blocos da tela. Bloco null (sem permissão) some; domínio sem linha nenhuma também.
+export function toBlocks(summary) {
+  if (!summary) return []
+  return DOMAINS
+    .map((domain) => ({
+      title: domain.title,
+      to: domain.to,
+      action: domain.action,
+      items: domain.lines
+        .filter(({ key: [block] }) => summary[block])
+        .map(({ key: [block, count], label: text, to }) => ({ label: text, to, value: Number(summary[block][count] ?? 0) })),
+    }))
+    .filter((domain) => domain.items.length)
+}
+
 export function useDashboard() {
-  const progress = ref([])
-  const visible = computed(() => DOMAINS
-    .map((domain) => ({ ...domain, lines: domain.lines.filter((line) => hasPermission(line.permission)) }))
-    .filter((domain) => domain.lines.length))
-
-  // Em sequência (não em paralelo): cada contagem é uma consulta leve e o servidor não fica com fila longa.
-  // Os blocos aparecem conforme chegam.
-  const counts = useRequest(async ({ signal }) => {
+  // Troca de evento recarrega; sair da tela cancela a requisição (useRequest aborta no unmount).
+  const summary = useRequest(({ signal }) => {
     const eventId = eventContext.activeEventId
-    if (!eventId) return []
-    const blocks = []
-    for (const domain of visible.value) {
-      const items = []
-      for (const line of domain.lines) {
-        // Saiu da tela: para o laço (as consultas restantes não ocupam o servidor).
-        if (signal.aborted) return blocks
-        const payload = await line.count(eventId, signal)
-        items.push({ label: line.label, to: line.to, value: payload?.meta?.total ?? payload?.data?.length ?? 0 })
-      }
-      blocks.push({ title: domain.title, to: domain.to, action: domain.action, items })
-      progress.value = [...blocks]
-    }
-    return blocks
-  }, { initial: [], watchSources: () => eventContext.activeEventId })
+    return eventId ? getDashboard(eventId, { signal }) : null
+  }, { watchSources: () => eventContext.activeEventId })
 
+  const blocks = computed(() => toBlocks(summary.data.value))
   const greeting = computed(() => auth.user?.person?.full_name?.split(' ')[0] || '')
 
-  return { counts, progress, greeting, activeEvent, activeDays, sector: computed(() => auth.user?.sector?.name || ''), dayLabel, formatDate, label, tone }
+  return { summary, blocks, greeting, activeEvent, activeDays, sector: computed(() => auth.user?.sector?.name || ''), dayLabel, formatDate, label, tone }
 }

@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\EvaluationCriterionController;
 use App\Http\Controllers\Api\V1\Even3IntegrationController;
 use App\Http\Controllers\Api\V1\Even3WebhookController;
 use App\Http\Controllers\Api\V1\EventController;
+use App\Http\Controllers\Api\V1\EventDashboardController;
 use App\Http\Controllers\Api\V1\EventDayController;
 use App\Http\Controllers\Api\V1\EventRegistrationController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -76,6 +77,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::patch('/users/{user}/sector', [UserController::class, 'updateSector'])->name('users.sector');
 
         Route::apiResource('events', EventController::class)->except('destroy');
+        // Resumo do Dashboard (contagens dos módulos permitidos numa requisição só).
+        Route::get('/events/{event}/dashboard', EventDashboardController::class)->name('events.dashboard');
         Route::scopeBindings()->group(function () {
             Route::get('/events/{event}/days', [EventDayController::class, 'index'])->name('events.days.index');
             Route::post('/events/{event}/days', [EventDayController::class, 'store'])->name('events.days.store');

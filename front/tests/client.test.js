@@ -27,6 +27,16 @@ describe('client HTTP', () => {
     expect(init.headers['X-XSRF-TOKEN']).toBeUndefined()
   })
 
+  it('GET só com cabeçalhos simples (sem preflight OPTIONS); escrita mantém X-Requested-With', async () => {
+    document.cookie = 'XSRF-TOKEN=t; path=/'
+    const fetch = fakeFetch(response(200, { data: [] }))
+    configureClient({ fetch })
+    await api.get('/api/v1/events/1/teams', { query: { per_page: 1 } })
+    expect(Object.keys(fetch.mock.calls[0][1].headers)).toEqual(['Accept'])
+    await api.post('/api/v1/teams', { name: 'X' })
+    expect(fetch.mock.calls[1][1].headers['X-Requested-With']).toBe('XMLHttpRequest')
+  })
+
   it('mutation sem XSRF-TOKEN busca /sanctum/csrf-cookie antes e envia o header', async () => {
     const fetch = fakeFetch(
       (url) => {

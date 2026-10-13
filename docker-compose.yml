@@ -16,10 +16,19 @@ services:
       context: ./back
       target: dev
     ports:
+      # IPv4 e IPv6 locais: no Windows "localhost" tenta ::1 primeiro; só com 127.0.0.1 cada conexão
+      # nova esperava ~2 s antes de cair para IPv4.
       - "127.0.0.1:8000:8000"
+      - "[::1]:8000:8000"
     volumes:
       - ./back:/var/www/html
+      # opcache de dev: revalida arquivos a cada PHP_OPCACHE_REVALIDATE_FREQ s (ver docker/php/dev.ini).
+      - ./docker/php/dev.ini:/usr/local/etc/php/conf.d/zz-hacklab-dev.ini:ro
     environment:
+      PHP_OPCACHE_REVALIDATE_FREQ: ${PHP_OPCACHE_REVALIDATE_FREQ:-30}
+      # O servidor embutido do PHP atende 1 requisição por vez; com workers, as requisições paralelas de
+      # uma tela não fazem fila. Só desenvolvimento.
+      PHP_CLI_SERVER_WORKERS: ${PHP_CLI_SERVER_WORKERS:-4}
       # Dentro da rede do Docker o PostgreSQL é o serviço "postgres" na porta 5432.
       DB_HOST: postgres
       DB_PORT: "5432"

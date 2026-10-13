@@ -51,6 +51,14 @@ describe('App', () => {
     expect(wrapper.text()).not.toMatch(/demonstra|Criar cadastro|qualquer senha/i)
   })
 
+  it('#/login mostra o formulário na hora, sem esperar /auth/me', async () => {
+    const { wrapper, bootstrap } = await mountApp(vi.fn(() => new Promise(() => {})), '#/login')
+    bootstrap()
+    await flushPromises()
+    expect(wrapper.find('form.login-card').exists()).toBe(true)
+    expect(wrapper.find('.boot').exists()).toBe(false)
+  })
+
   it('sessão válida → carrega eventos e abre o Shell na rota pedida', async () => {
     const fetch = fakeFetch((url) => {
       if (url.includes('/auth/me')) return response(200, { data: ADMIN })

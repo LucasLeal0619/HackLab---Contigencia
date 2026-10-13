@@ -37,11 +37,26 @@ docker-compose.yml (raiz)
 front/        Vue com Vite, fora do Docker → http://localhost:5174
 ```
 
-- O código de `back/` é montado no container (`./back:/var/www/html`), então a edição é imediata.
+- O código de `back/` é montado no container (`./back:/var/www/html`). Uma edição em PHP vale em até `PHP_OPCACHE_REVALIDATE_FREQ` segundos (padrão 30; ver abaixo).
+- A API é publicada em `127.0.0.1:8000` **e** `[::1]:8000`. No Windows, `localhost` tenta IPv6 primeiro; publicada só em IPv4, cada conexão nova esperava ~2 s antes de cair para `127.0.0.1`. O front continua usando `VITE_API_URL=http://localhost:8000` (mesmo host do Vite, para cookie/CORS/Sanctum).
 - Os dados ficam no volume `postgres-data`. `docker compose down -v` apaga tudo.
 - O Laravel local nunca conecta no Supabase. A conexão Supabase existe só no ambiente do Render.
 
 Passo a passo no [README da raiz](../../README.md).
+
+### 2.1 Desempenho do ambiente de desenvolvimento
+
+Diagnóstico de 13/10/2026 (Docker Desktop no Windows, código montado por 9p):
+
+| Causa | Efeito medido | Ajuste (só desenvolvimento) |
+|---|---|---|
+| Porta publicada só em IPv4; `localhost` resolve `::1` primeiro | ~2–3 s por conexão a `localhost:8000` | `docker-compose.yml` publica também `[::1]:8000` |
+| opcache revalidando ~574 arquivos (550 do vendor) a cada 2 s pela montagem lenta | ~2 s na primeira requisição depois de 2 s parado | `docker/php/dev.ini`: `opcache.revalidate_freq=${PHP_OPCACHE_REVALIDATE_FREQ}` (padrão 30) |
+| Servidor embutido do PHP atende 1 requisição por vez | requisições paralelas de uma tela faziam fila | `PHP_CLI_SERVER_WORKERS` (padrão 4) |
+| Todo GET levava preflight `OPTIONS` (cabeçalho `X-Requested-With`; `max_age` 0) | o dobro de requisições no servidor | GET só com `Accept`; `CORS_MAX_AGE` (padrão 7200) |
+| Dashboard com ~11 contagens em sequência | ~3,4 s para montar o painel | `GET /events/{e}/dashboard` (1 requisição) |
+
+Ainda esperado em dev: a cada `PHP_OPCACHE_REVALIDATE_FREQ` segundos uma requisição paga a revalidação (~2–5 s). Para eliminar isso seria preciso tirar o `vendor/` da montagem do Windows (volume do Docker), o que muda o fluxo do `composer`; não foi feito. Nada disso vale para produção (Render usa a própria imagem, sem montagem).
 
 ## 3. Produção
 

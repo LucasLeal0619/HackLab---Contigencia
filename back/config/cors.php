@@ -31,7 +31,8 @@ return [
 
     'exposed_headers' => [],
 
-    'max_age' => 0,
+    // Cache do preflight no navegador (segundos). Sem isso, toda escrita pagava um OPTIONS extra.
+    'max_age' => (int) env('CORS_MAX_AGE', 7200),
 
     // Sanctum SPA: cookie de sessão + XSRF-TOKEN.
     'supports_credentials' => true,

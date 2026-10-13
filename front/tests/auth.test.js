@@ -37,6 +37,23 @@ describe('store de autenticação', () => {
     expect(auth.bootError).toBeNull()
   })
 
+  it('/auth/me atrasado (401) não desfaz um login feito enquanto ele estava em andamento', async () => {
+    let answerMe
+    const fetch = vi.fn((url) => {
+      if (url.endsWith('/auth/me')) return new Promise((resolve) => { answerMe = resolve })
+      if (url.endsWith('/sanctum/csrf-cookie')) { document.cookie = 'XSRF-TOKEN=t; path=/'; return Promise.resolve(response(204)) }
+      return Promise.resolve(response(200, { data: ADMIN }))
+    })
+    const { auth, bootstrap, login, AUTH } = await load(fetch)
+    const booting = bootstrap()
+    await login('admin@hacklab.local', 'x')
+    expect(auth.status).toBe(AUTH.AUTHENTICATED)
+    answerMe(response(401, { message: 'Não autenticado.' }))
+    await booting
+    expect(auth.status).toBe(AUTH.AUTHENTICATED)
+    expect(auth.user.email).toBe('admin@hacklab.local')
+  })
+
   it('backend fora do ar não vira login falso nem admin falso', async () => {
     const { auth, bootstrap, AUTH } = await load(fakeFetch(new TypeError('Failed to fetch')))
     await bootstrap()

@@ -6,7 +6,7 @@ import LoadState from '../components/LoadState.vue'
 import Page from '../components/Page.vue'
 import { useDashboard } from '@/js/pages/dashboard'
 
-const { counts, progress, greeting, activeEvent, activeDays, sector, dayLabel, formatDate, label, tone } = useDashboard()
+const { summary, blocks, greeting, activeEvent, activeDays, sector, dayLabel, formatDate, label, tone } = useDashboard()
 </script>
 
 <template>
@@ -24,9 +24,9 @@ const { counts, progress, greeting, activeEvent, activeDays, sector, dayLabel, f
         </ul>
         <p v-else class="dash-empty">Nenhum dia cadastrado para o evento.</p>
       </section>
-      <LoadState :loading="counts.loading.value" :loaded="counts.loaded.value || progress.length > 0" :error="counts.error.value" :empty="!counts.loading.value && progress.length === 0" empty-title="Nada para resumir" empty-text="Seu perfil não consulta os módulos resumidos aqui." @retry="counts.load()">
+      <LoadState :loading="summary.loading.value" :loaded="summary.loaded.value" :error="summary.error.value" :empty="blocks.length === 0" loading-text="Carregando resumo…" empty-title="Nada para resumir" empty-text="Seu perfil não consulta os módulos resumidos aqui." @retry="summary.load()">
         <div class="editor-grid">
-          <DashboardDomain v-for="item in progress" :key="item.title" v-bind="item" />
+          <DashboardDomain v-for="item in blocks" :key="item.title" v-bind="item" />
         </div>
       </LoadState>
     </div>

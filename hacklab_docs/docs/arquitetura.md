@@ -424,7 +424,7 @@ Principais grupos (fonte da verdade: `back/routes/api.php`):
 /roles
 /people
 /users (+ /role, /status, /sector)
-/events (+ /days)
+/events (+ /days, /dashboard)
 /events/{event}/sectors, /sectors
 /events/{event}/meetings, /meetings
 /events/{event}/classes, /classes
@@ -576,7 +576,8 @@ POST /api/v1/auth/password/reset        token + e-mail + nova senha
 ```
 
 - Cliente `fetch` com `credentials: 'include'`: o navegador envia o cookie de sessão e o client copia o cookie `XSRF-TOKEN` para o header `X-XSRF-TOKEN` nas requisições que alteram dados (sem Axios). O front nunca lê o cookie de sessão nem guarda token, senha ou sessão no navegador.
-- Ao abrir o app: tela de carregamento → `/auth/me` → `AUTHENTICATED` ou `GUEST`. Não existe flash de tela autenticada antes da resposta.
+- Ao abrir o app: tela de carregamento → `/auth/me` → `AUTHENTICATED` ou `GUEST`. Não existe flash de tela autenticada antes da resposta. Exceções: as telas públicas (primeiro acesso, ativar conta, esqueci/redefinir senha) e `#/login` aparecem na hora; no login o `/auth/me` segue em segundo plano e, se já houver sessão, leva para a página inicial. Uma resposta atrasada de `/auth/me` nunca desfaz um login feito enquanto ela estava em andamento.
+- Leituras (GET) saem só com `Accept: application/json` (cabeçalho simples de CORS): o navegador não manda preflight `OPTIONS` antes de cada GET. Escritas mantêm `X-Requested-With` e `X-XSRF-TOKEN`; o preflight delas fica em cache no navegador (`CORS_MAX_AGE`, padrão 7200 s).
 - Tratamento central: 401 limpa a sessão e leva ao login; 403 não desloga (mostra "sem permissão"); 419 renova o CSRF e repete a requisição uma única vez; 422 vira erro por campo; 429 vira mensagem amigável; rede/5xx mostram erro com "tentar novamente". Nenhuma repetição infinita.
 - Em desenvolvimento o front (`localhost:5174`) e a API (`localhost:8000`) estão no mesmo host, então o cookie `XSRF-TOKEN` é legível pelo front. Em produção, com domínios diferentes, ver o risco de cookie entre domínios em `infraestrutura.md`.
 
@@ -666,3 +667,24 @@ login normal
 - Limpeza: `php artisan hacklab:prune-auth-tokens` remove tokens vencidos das duas tabelas.
 - Autenticação e votação continuam desacopladas: o primeiro acesso nunca cria `VotingEligibility`. Para preparar uma sessão em rascunho, o Administrador adiciona em lote os Votantes já ativados (`POST /voting-sessions/{s}/eligibilities/public-voters`, `voting_eligibility.manage`) e consulta a prontidão (`GET /voting-sessions/{s}/public-voters/readiness`): inscritos públicos confirmados, contas Votante ativadas, já elegíveis e inscritos ainda sem conta, contados por Person. Depois da abertura, a lista fica congelada.
 - Telas públicas no Vue: `#/primeiro-acesso`, `#/ativar-conta`, `#/esqueci-senha`, `#/redefinir-senha` (além de `#/login`). Nenhum token vai para o armazenamento do navegador.
+
+## 17. Resumo do Dashboard
+
+O Dashboard faz **uma** requisição: `GET /api/v1/events/{event}/dashboard` (`EventDashboardController` → `App\Domain\Events\EventDashboard`). Antes eram ~11 listagens com `per_page=1`, em sequência.
+
+```json
+{ "data": {
+  "event_id": 1,
+  "participants": { "total": 12, "without_team": 4 },
+  "teams": { "total": 2 },
+  "companies": { "total": 3 },
+  "challenges": { "total": 5 },
+  "tasks": { "pending": 4, "in_progress": 1, "overdue": 0 },
+  "occurrences": { "open": 2, "in_progress": 1, "urgent_open": 0 },
+  "generated_at": "2026-10-13T12:00:00-03:00"
+} }
+```
+
+- Autorização: `events.view` no evento (`EventPolicy::view`); cada bloco usa a Policy `viewAny` do módulo (`participants.view`, `teams.view`, `companies.view`, `challenges.view`, `tasks.view`, `occurrences.view`). Bloco sem permissão vem `null` e o front não o mostra.
+- Pendências e ocorrências usam o mesmo `visibleTo` (recorte setorial) das listagens. Cada número é o mesmo `meta.total` da listagem que o card abre, com os mesmos filtros (`Sem equipe` = `has_team=false&status=AVAILABLE`; `Atrasadas` = regra de `OverdueTasks`).
+- Só contagens (`count`, `groupBy status`): nenhum registro, nome ou e-mail. Número fixo de consultas, independente do volume. Somente leitura, sem auditoria.

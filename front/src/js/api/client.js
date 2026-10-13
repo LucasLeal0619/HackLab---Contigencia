@@ -53,9 +53,12 @@ async function parse(response) {
 }
 
 async function send(method, path, { query, body, timeout = DEFAULT_TIMEOUT, signal } = {}) {
-  const headers = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+  // Leituras só com cabeçalhos "simples" (Accept): o navegador não manda preflight OPTIONS antes de cada GET.
+  // A API já responde JSON em /api/* (bootstrap/app.php). Escritas sempre têm preflight (JSON + XSRF).
+  const headers = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (MUTATING.has(method)) {
+    headers['X-Requested-With'] = 'XMLHttpRequest'
     const token = readCookie('XSRF-TOKEN')
     if (token) headers['X-XSRF-TOKEN'] = token
   }

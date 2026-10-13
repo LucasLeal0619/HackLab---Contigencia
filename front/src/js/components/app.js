@@ -22,6 +22,9 @@ export function useApp() {
   const phase = computed(() => {
     // Primeiro acesso e recuperação de senha: abertos com ou sem sessão, sem esperar /auth/me.
     if (PUBLIC_ROUTES.has(path.value)) return 'public'
+    // Na tela de login o formulário aparece na hora; /auth/me segue em segundo plano e, se já houver
+    // sessão, o watch abaixo leva para a página inicial.
+    if (auth.status === AUTH.UNKNOWN && path.value === 'login') return 'login'
     if (auth.status === AUTH.UNKNOWN) return auth.bootError ? 'boot-error' : 'boot'
     if (auth.status === AUTH.GUEST) return 'login'
     if (eventContext.status === 'idle' || eventContext.status === 'loading') return 'boot'

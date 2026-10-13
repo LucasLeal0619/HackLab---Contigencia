@@ -358,7 +358,7 @@ O Vue deixa de ser protótipo: todos os dados vêm da API (`/api/v1`), login é 
 |---|---|---|---|
 | `login` | Login | REAL_API | `/sanctum/csrf-cookie`, `/auth/login`, `/auth/me` |
 | `cadastro` | Register | REMOVE_PROTOTYPE | cadastro público fake (Votante/Jurado com convite) |
-| `dashboard` | Dashboard | UI_HELPER_WITH_REAL_API | painel mínimo com contagens reais das listas permitidas |
+| `dashboard` | Dashboard | UI_HELPER_WITH_REAL_API | painel mínimo com contagens reais dos módulos permitidos (`GET /events/{e}/dashboard`, 1 requisição) |
 | `config` | Config (evento) | REAL_API | `/events`, `/events/{e}/days` |
 | `usuarios` | Usuários | REAL_API | `/users`, `/people`, `/roles`, `/users/{u}/role|status|sector`, setores do evento |
 | `participantes` | Participantes e turmas | REAL_API | `/events/{e}/participants`, `/participants/{p}(/team)`, `/events/{e}/classes`, `/classes/{c}(/status)` |
@@ -404,9 +404,9 @@ Os pontos abaixo ficam para decisão:
 - `GET /events/{e}/jurors` não devolve `active_assignments_count`: o `select('jurors.*')` depois do `withCount` descarta a contagem. A tela mostra "Ver equipes" até a correção.
 - Datas com offset diferente de UTC (ex.: `occurred_at`/`due_at` com `-03:00`) são gravadas sem converter o offset. O front envia sempre UTC (`Z`) e não é afetado, mas o backend deveria normalizar.
 - Mensagens genéricas de validação do Laravel saem em inglês (`APP_LOCALE=en`, sem `lang/pt_BR`). Mensagens de regra de negócio já estão em português.
-- Sem filtros de status/busca/período em `GET /events/{e}/meetings` e sem endpoints de contagem agregada (Dashboard e resumo do setor contam pelas listagens).
+- Sem filtros de status/busca/período em `GET /events/{e}/meetings`. O Dashboard ganhou o resumo agregado `GET /events/{e}/dashboard` no diagnóstico de desempenho (13/10/2026); o resumo do setor ainda conta pelas listagens.
 - `ParticipantResource.person` não traz `document`; a listagem de empresas não traz o representante principal.
-- Ambiente de desenvolvimento: `php -S` atende uma requisição por vez (~3 s cada no Docker do Windows). Telas evitam muitas requisições paralelas; o timeout do client é 30 s.
+- Ambiente de desenvolvimento: resolvido no diagnóstico de 13/10/2026 (IPv6 em `localhost`, opcache, workers do `php -S`, preflight CORS). Ver `infraestrutura.md` §2.1. O timeout do client continua 30 s.
 
 ### Checklist
 
