@@ -61,6 +61,9 @@ return [
     // Render: "*" (o TLS termina no proxy dele; sem isso todo usuário teria o IP do proxy nos rate limits).
     'trusted_proxies' => env('TRUSTED_PROXIES'),
 
+    // TEMPORÁRIO (SPEC HACKLAB-IP-001): liga GET /api/v1/system/request-diagnostics. Vazio = desligado (404).
+    'request_diagnostics_token' => env('HACKLAB_REQUEST_DIAGNOSTICS_TOKEN'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
