@@ -9,7 +9,7 @@ Sistema interno de organização e gestão de Hackathon do Senac.
 - Banco: PostgreSQL (Docker em dev/testes; Supabase em produção)
 - Autenticação: Laravel Sanctum
 - Desenvolvimento: Docker / Docker Compose
-- Produção: API no Render, frontend como Static Site, banco no Supabase
+- Produção: API no Render, frontend no Netlify, banco no Supabase
 - Integração externa atual: Even3
 - API: REST `/api/v1`
 

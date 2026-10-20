@@ -10,6 +10,7 @@ use App\Support\Database\DestructiveCommandGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Database\Events\ConnectionEstablished;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
@@ -55,6 +56,12 @@ class AppServiceProvider extends ServiceProvider
                 $event->output->writeln("<error>{$destructive->explanation()}</error>");
             }
         });
+
+        // Atrás do proxy do Render: IP do cliente e HTTPS vêm dos X-Forwarded-* (lido da config, que pode estar em cache).
+        $proxies = trim((string) config('app.trusted_proxies'));
+        if ($proxies !== '') {
+            TrustProxies::at($proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
 
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());

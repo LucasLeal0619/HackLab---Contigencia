@@ -488,13 +488,36 @@ Fora do escopo: atividades/programação da Even3.
 
 ## Fase 12 — Implantação (Render + Supabase)
 
+**Etapa 1 — backend pronto para o Render (código, sem conta configurada).** Detalhes em `infraestrutura.md` §3.2:
+
+- [x] alvo `prod` no `back/Dockerfile`:
+  - FrankenPHP 1.13.1 / PHP 8.3, modo clássico, porta `PORT`;
+  - SIGTERM gracioso, logs em stderr;
+  - `www-data`, sem `.env` nem segredos;
+- [x] caches do Laravel (`optimize`) no start, não no build;
+- [x] `docker/prod/release.sh` (`migrate --force` + `RolePermissionSeeder`): Pre-Deploy no plano pago, `HACKLAB_MIGRATE_ON_START=true` no Free;
+- [x] `TRUSTED_PROXIES` (IP real do cliente nos rate limits atrás do proxy do Render);
+- [x] health check: `GET /api/v1/health` (Laravel + consulta ao banco). Um endpoint `readiness` separado não é necessário;
+- [x] scheduler documentado: Render Cron Job opcional com `even3:sync` a cada 10 min. Fila: nenhum fluxo usa, sem worker;
+- [x] imagem `prod` testada localmente:
+  - health 200 com PostgreSQL via SSL (TLSv1.3), migrations e perfis no start;
+  - release repetível;
+  - `migrate:fresh`/`db:wipe` bloqueados;
+  - recusa de `sslmode=disable`;
+  - SIGTERM com exit 0.
+
+**Próximas etapas:**
+
 - [ ] projeto Supabase de produção, schema `hacklab` criado (SQL em `infraestrutura.md` §3.1);
-- [ ] alvo de produção no `back/Dockerfile` (PHP-FPM + servidor HTTP, porta `PORT` do Render);
-- [ ] Web Service no Render com variáveis de ambiente (Session pooler, `sslmode=require`);
-- [ ] `migrate --force` no start/pre-deploy;
-- [ ] Static Site do Vue com `VITE_API_URL` e rewrite `/* → /index.html`;
-- [ ] **PoC do cookie de sessão** (rewrite `/api` no Static Site ou domínio próprio; ver `infraestrutura.md` §3.4);
-- [ ] `GET /api/v1/system/readiness` (Laravel + conexão + consulta ao banco);
+- [ ] Web Service no Render com as variáveis de `infraestrutura.md` §3.2.3 (Session pooler, `sslmode=require`);
+- [ ] primeiro Administrador em produção (`hacklab:create-admin`; forma de execução sem shell em `infraestrutura.md` §3.2.4);
+- [ ] primeiro deploy no Render Free com `HACKLAB_MIGRATE_ON_START=true`. Depois de confirmar as migrations e os perfis, voltar para `false` e redeployar;
+- [ ] front no **Netlify** com `VITE_API_URL` e rewrite `/* → /index.html`;
+- [ ] **PoC do cookie de sessão** (proxy `/api` no Netlify ou domínio próprio; ver `infraestrutura.md` §3.4);
+- [ ] SMTP compatível com o Render Free (portas 25/465/587 bloqueadas: porta alternativa ou provedor por HTTPS);
+- [ ] plano do Render para o evento: pago básico no mínimo, decidido após a Fase 13;
+- [ ] PoC do `X-Forwarded-For` atrás do proxy do Render (`infraestrutura.md` §3.2.1);
+- [ ] Even3 real e webhook público; Cron Job só se houver orçamento (não é necessário para subir);
 - [ ] `pg_dump` periódico para armazenamento fora do Supabase + teste de restauração.
 
 ## Fase 13 — Teste de carga do dia 3

@@ -8,5 +8,10 @@ storage/logs/*
 storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*
+storage/framework/testing/*
+storage/app/*
+# Caches do ambiente local (config cacheada com credenciais de dev nunca entra na imagem de produção).
+bootstrap/cache/*.php
+tests
 .phpunit.cache
 .phpunit.result.cache

@@ -13,7 +13,7 @@ PostgreSQL 17 (schema hacklab)
 | Ambiente | Frontend | API | Banco |
 |---|---|---|---|
 | Desenvolvimento | Vue/Vite em `http://localhost:5174` | Laravel em Docker, `http://localhost:8000` | PostgreSQL 17 em Docker, `127.0.0.1:5442` |
-| Produção (planejada) | Static Site | Laravel no Render (Web Service) | PostgreSQL gerenciado no Supabase |
+| Produção (planejada) | Netlify | Laravel no Render (Web Service) | PostgreSQL gerenciado no Supabase |
 
 A implantação em produção é a **Fase 12** e ainda não foi feita.
 
@@ -39,7 +39,7 @@ As inscrições e o credenciamento acontecem na plataforma externa **Even3**. O 
 | 11 | Relatórios reais e PDF | concluída |
 | 11.1 | Primeiro acesso, recuperação de senha e autocadastro seguro de Votantes | concluído |
 | 11.2 | Centro Even3 e Presença (simplificado antes do deploy) | em revisão |
-| 12 | Implantação (Render + Supabase + Static Site) | pendente |
+| 12 | Implantação (Render + Supabase + Netlify) | em andamento (etapa 1: backend pronto para o Render) |
 | 13 | Teste de carga | pendente |
 
 O detalhe de cada fase está em [`plano-implementacao.md`](hacklab_docs/docs/plano-implementacao.md).
@@ -249,10 +249,9 @@ docker compose exec -e HACKLAB_ALLOW_DESTRUCTIVE_DB=true app php artisan migrate
 
 Depois disso, a integração Even3 precisa ser configurada e sincronizada de novo pela tela Presença (Configuração Even3). Não coloque `HACKLAB_ALLOW_DESTRUCTIVE_DB` no `.env`.
 
-Em produção, o primeiro Administrador é criado pelo terminal:
+Em produção, os perfis vêm do passo de release (`docker/prod/release.sh`, que roda o `RolePermissionSeeder`), e o primeiro Administrador é criado por terminal (forma de execução no Render em [`infraestrutura.md`](hacklab_docs/docs/infraestrutura.md) §3.2.4):
 
 ```bash
-php artisan db:seed --class=RolePermissionSeeder --force
 php artisan hacklab:create-admin   # pede nome, e-mail e senha
 ```
 
@@ -325,13 +324,38 @@ Detalhes em [`integracao-even3.md`](hacklab_docs/docs/integracao-even3.md).
 - O resultado oficial vem do snapshot publicado.
 - Não há relatório financeiro porque o HackLab não tem domínio financeiro.
 
-## Produção (planejada — Fase 12)
+## Produção (Fase 12)
 
-- Frontend: Static Site (`npm run build`, com `VITE_API_URL` apontando para a API).
-- API: Laravel no Render (Web Service, Docker).
+- Frontend: Netlify (`npm run build`, com `VITE_API_URL` apontando para a API).
+- API: Laravel no Render (Web Service, Docker), a partir do alvo **`prod`** do `back/Dockerfile`.
 - Banco: Supabase, só como PostgreSQL gerenciado (Session pooler, SSL obrigatório, `search_path=hacklab`).
 
-A Fase 12 fará o deploy (variáveis, cookies e Sanctum entre domínios, migrations, HTTPS e webhook real da Even3). A Fase 13 fará o teste de carga. Riscos e pendências estão em [`infraestrutura.md`](hacklab_docs/docs/infraestrutura.md).
+**Desenvolvimento ≠ produção.** O `docker-compose.yml` usa o alvo `dev`: código montado e servidor embutido do PHP. O Render usa o alvo `prod`:
+- código e `vendor` (sem pacotes de dev) dentro da imagem;
+- FrankenPHP na porta `PORT`;
+- logs em stderr;
+- nenhum segredo na imagem.
+
+```bash
+# Testar a imagem de produção localmente
+docker build --target prod -t hacklab-back-prod ./back
+```
+
+| No Render | Valor |
+|---|---|
+| Web Service | Docker, branch `main`, Root Directory `back`, Dockerfile `./Dockerfile` |
+| Health Check Path | `/api/v1/health` |
+| Migrations | Pre-Deploy `/app/docker/prod/release.sh` (plano pago); no Free, `HACKLAB_MIGRATE_ON_START=true` só no primeiro deploy, depois `false` |
+| Plano | Free só para validar o deploy; no evento, no mínimo o pago básico (decidido após a Fase 13). Free bloqueia SMTP nas portas 25/465/587 |
+| Sincronização agendada | Cron Job opcional, `php artisan even3:sync` a cada 10 min (o Web Service não roda o Scheduler) |
+| Fila | nenhum fluxo usa; sem worker (`QUEUE_CONNECTION=sync`) |
+
+Variáveis, segredos e decisões em [`infraestrutura.md`](hacklab_docs/docs/infraestrutura.md) §3.2. Ainda faltam:
+- o deploy de fato;
+- os cookies e o Sanctum entre domínios;
+- o SMTP e o webhook real da Even3.
+
+A Fase 13 fará o teste de carga.
 
 ## Documentação
 

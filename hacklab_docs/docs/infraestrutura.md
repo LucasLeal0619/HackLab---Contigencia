@@ -8,14 +8,14 @@ O sistema é sempre **Vue + Laravel + PostgreSQL**. Onde ele roda é escolha de 
 
 | Papel | Desenvolvimento e testes | Produção (atual) |
 |---|---|---|
-| Frontend Vue | `npm run dev` local | Static Site (Render) |
+| Frontend Vue | `npm run dev` local | Netlify (site estático) |
 | API Laravel | container Docker local | Render Web Service (Free, imagem Docker) |
 | PostgreSQL | container Docker local (`hacklab_dev`, `hacklab_test`) | Supabase (PostgreSQL gerenciado) |
 
 ```text
 DESENVOLVIMENTO                          PRODUÇÃO
 
-Vue (npm run dev, localhost:5174)        Vue — Static Site
+Vue (npm run dev, localhost:5174)        Vue — Netlify
         ↓                                        ↓
 Laravel (Docker, localhost:8000)         Laravel API — Render Web Service
         ↓                                        ↓
@@ -24,7 +24,7 @@ PostgreSQL (Docker)                      PostgreSQL — Supabase
 └── hacklab_test                         Even3 → Laravel API → PostgreSQL
 ```
 
-Função do Docker: **ambiente reproduzível de desenvolvimento e testes**. Ele não é a infraestrutura de produção atual. Se um dia o Senac pedir hospedagem própria, monta-se uma stack Docker de produção (Nginx + Laravel + PostgreSQL) sem mudar o código.
+Função do Docker: **ambiente reproduzível de desenvolvimento e testes**. Ele não é a infraestrutura de produção atual. A produção usa o alvo `prod` do mesmo `back/Dockerfile` (§3.2.1). Se um dia o Senac pedir hospedagem própria, essa mesma imagem roda ao lado de um PostgreSQL, sem mudar o código.
 
 ## 2. Desenvolvimento
 
@@ -99,18 +99,148 @@ Autorização fica só no Laravel (Policies/Gates). Não implementar regras de n
 
 Fatos da documentação do Render consultada em 09/10/2026 ([Free](https://render.com/docs/free), [Docker](https://render.com/docs/docker)):
 
-- PHP não é runtime nativo do Render: a API sobe como **serviço Docker**, a partir de um alvo de produção do `back/Dockerfile` (a criar na etapa de deploy);
+- PHP não é runtime nativo do Render: a API sobe como **serviço Docker**, a partir do alvo `prod` do `back/Dockerfile`;
 - o Free Web Service **dorme após 15 minutos sem tráfego** e leva **cerca de 1 minuto** para acordar;
 - 750 horas grátis por mês por workspace. Sem disco persistente, sem shell/SSH, sem one-off jobs, uma instância só. Arquivos locais somem a cada deploy, restart ou sleep;
 - variáveis de ambiente são configuradas no painel e também chegam ao build como build args, então segredos não podem ser usados no Dockerfile.
 
+Fatos conferidos em 20/10/2026 ([Deploys](https://render.com/docs/deploys), [Cron Jobs](https://render.com/docs/cronjobs), [Docker](https://render.com/docs/docker)):
+
+- **Pre-Deploy Command** só existe em serviços pagos. Roda depois do build e antes do deploy, numa instância separada;
+- no deploy e no desligamento, o Render manda **SIGTERM** e espera 30 s (padrão) antes do SIGKILL;
+- **Cron Job** custa no mínimo US$ 1/mês, usa cron em UTC e nunca roda duas execuções ao mesmo tempo (a seguinte espera);
+- a documentação não mostra como escolher o target de um Dockerfile multi-stage. Por isso `prod` é o **último estágio**: é o que o build gera sem `--target`.
+
+**Uso do Render Free (decisão de 20/10/2026):**
+- o Free serve para colocar o HackLab no ar e validar o deploy (smoke), **não** para o dia do Hackathon. No evento, o mínimo é o plano pago básico; o plano final é decidido depois da Fase 13 (carga);
+- `HACKLAB_MIGRATE_ON_START=true` **só** no primeiro deploy, ou quando houver migration nova. Depois de confirmar as migrations e os perfis, voltar para `false` e redeployar, para os cold starts não rodarem release à toa. No plano pago, o release vai para o Pre-Deploy Command;
+- o Free bloqueia a saída nas portas **25, 465 e 587**. Não presumir SMTP nessas portas: usar um provedor com porta alternativa (ex.: 2525) ou, depois, um provedor de e-mail por HTTPS (§3.2.7);
+- o Cron Job não é necessário para o primeiro deploy (§3.2.5).
+
 Consequências para o HackLab:
 - uploads (documentos) não podem ficar no disco do container. Quando o módulo de documentos existir, decidir o armazenamento externo por interface S3-compatível, sem SDK proprietário;
-- sem shell: `php artisan migrate --force` roda no start do container (ou no pre-deploy, se o plano permitir);
-- sessão, cache e fila ficam no PostgreSQL (drivers `database`), não em arquivo;
-- **não** criar mecanismo artificial para manter o serviço acordado. Antes de momentos críticos, chamar o endpoint de readiness (seção 5).
+- sem shell no Free: migrations rodam no Pre-Deploy (pago) ou no start do container (Free), ver §3.2.4;
+- sessão e cache ficam no PostgreSQL (drivers `database`), não em arquivo;
+- **não** criar mecanismo artificial para manter o serviço acordado. Antes de momentos críticos, chamar o health check (seção 4).
 
-### 3.2.1 E-mail (primeiro acesso e recuperação de senha)
+### 3.2.1 Desenvolvimento ≠ produção: alvos do `back/Dockerfile`
+
+| | `dev` | `prod` |
+|---|---|---|
+| Uso | `docker-compose.yml` (`target: dev`) | Render (último estágio; `docker build --target prod`) |
+| Código | montado por volume (`./back`) | copiado para a imagem (`/app`) |
+| Dependências | `composer install` local, com dev | `composer install --no-dev --prefer-dist --optimize-autoloader` no build |
+| Servidor HTTP | `php -S` (embutido, só dev) | **FrankenPHP 1.13.1** (Caddy com PHP 8.3 embutido) |
+| Porta | 8000 | `$PORT` do Render (padrão da imagem: 8080) |
+| opcache | revalida a cada 30 s | não revalida (`validate_timestamps=0`) |
+| Logs | arquivo em `storage/logs` | `stderr` (`LOG_CHANNEL=stderr`) |
+
+**Por que FrankenPHP:** um processo só, com servidor HTTP e PHP juntos. Não precisa de php-fpm, nginx nem supervisor. Escuta em todas as interfaces na porta `PORT` (`docker/prod/Caddyfile`, `:{$PORT:8080}`). No SIGTERM, termina os requests em andamento e sai com código 0 (medido: 1,5 s). Roda no **modo clássico**, sem worker/Octane: cada request começa limpo, como no PHP tradicional. `FRANKENPHP_NUM_THREADS` (padrão 4) limita os requests PHP simultâneos e, com isso, a memória.
+
+**Imagem:**
+- roda como `www-data`; só `storage/` e `bootstrap/cache/` são graváveis;
+- `.env`, `vendor` local, `tests`, logs e caches locais ficam fora (`back/.dockerignore`). O `bootstrap/cache/*.php` de dev nunca entra;
+- nenhum segredo e nenhum `ARG`. Os padrões não secretos (`APP_ENV=production`, `APP_DEBUG=false`, `LOG_CHANNEL=stderr`, `LOG_LEVEL=info`) estão no `ENV` e o Render pode sobrescrevê-los;
+- o tamanho da imagem é de cerca de 915 MB, quase todo vindo da imagem base.
+
+**Caches do Laravel no start, não no build.** As variáveis do Render só existem de verdade em runtime. Por isso o `docker/prod/entrypoint.sh` roda `php artisan optimize` (config, rotas, eventos e views) a cada start, antes do servidor, e não precisa de banco. Um `config:cache` no build congelaria a configuração sem as variáveis.
+
+**Proxy do Render:** o TLS termina no proxy do Render e o Laravel recebe HTTP. `TRUSTED_PROXIES=*` faz o Laravel usar o `X-Forwarded-For`/`-Proto`. Sem isso, todos os usuários teriam o IP do proxy e dividiriam os limites por IP (login: 5/min; primeiro acesso: 20/h). Vazio em desenvolvimento.
+
+**Pendente (PoC no deploy):** confirmar se o proxy do Render reescreve um `X-Forwarded-For` enviado pelo cliente (teste: mandar um forjado e ver o IP na auditoria). Se não reescrever, um cliente pode trocar o IP que entra no rate limit.
+
+### 3.2.2 Web Service no Render (configuração manual no painel)
+
+| Campo | Valor |
+|---|---|
+| Tipo | Web Service |
+| Runtime | Docker |
+| Branch | `main` |
+| Root Directory | `back` |
+| Dockerfile Path | `./Dockerfile` (relativo ao Root Directory) |
+| Docker build context | `.` (o próprio `back/`) |
+| Target | `prod` (último estágio, gerado por padrão) |
+| Docker Command | vazio (usa o `ENTRYPOINT` + `CMD` da imagem) |
+| Health Check Path | `/api/v1/health` |
+| Pre-Deploy Command | `/app/docker/prod/release.sh` (só em plano pago; no Free, ver §3.2.4) |
+
+**Sem `render.yaml` por enquanto.** A primeira configuração é feita e conferida no painel. Um Blueprint pode ser criado depois, com os segredos marcados `sync: false` (nunca com valor no Git).
+
+### 3.2.3 Variáveis de ambiente do Web Service
+
+Segredos (🔒) só no painel do Render, nunca no Git. URLs reais são definidas no deploy.
+
+| Variável | Valor esperado |
+|---|---|
+| `APP_KEY` 🔒 | gerar uma vez: `docker compose exec app php artisan key:generate --show` |
+| `APP_URL` | URL pública da API |
+| `FRONTEND_URL` | URL do front (CORS e links dos e-mails) |
+| `CORS_ALLOWED_ORIGINS` | URL do front |
+| `SANCTUM_STATEFUL_DOMAINS` | host do front (sem `https://`) |
+| `SESSION_DOMAIN`, `SESSION_SAME_SITE` | dependem da PoC do cookie (§3.4) |
+| `SESSION_SECURE_COOKIE` | `true` |
+| `TRUSTED_PROXIES` | `*` |
+| `DB_CONNECTION` | `pgsql` |
+| `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` | Session pooler do Supabase (porta 5432) |
+| `DB_PASSWORD` 🔒 | senha do banco |
+| `DB_SSLMODE` | `require` (ou `verify-full` + `DB_SSLROOTCERT`) |
+| `DB_SEARCH_PATH` | `hacklab` |
+| `QUEUE_CONNECTION` | `sync` (não há worker; ver §3.2.6) |
+| `MAIL_*` (`MAIL_PASSWORD` 🔒) | §3.2.7 |
+| `EVEN3_ENABLED`, `EVEN3_BASE_URL`, `EVEN3_WEBHOOK_HEADER` | configuração da Even3 |
+| `EVEN3_API_TOKEN` 🔒, `EVEN3_WEBHOOK_SECRET` 🔒 | segredos da Even3 |
+| `HACKLAB_MIGRATE_ON_START` | Free: `true` só no primeiro deploy ou com migration nova, depois `false`. Pago: `false` (usa o Pre-Deploy) |
+| `FRANKENPHP_NUM_THREADS` | opcional (padrão 4) |
+
+Proteções que valem em produção:
+- `DatabaseEnvironmentGuard`: com `sslmode` inseguro, a aplicação não inicia. Testado: o container sai com o erro no log;
+- `DestructiveCommandGuard`: `migrate:fresh` e `db:wipe` saem com erro. Testado na imagem `prod`.
+
+### 3.2.4 Migrations
+
+O passo de release é o `docker/prod/release.sh`. Ele pode ser repetido sem efeito colateral:
+
+```sh
+php artisan migrate --force
+php artisan db:seed --class=RolePermissionSeeder --force   # perfis e permissões do código (idempotente)
+```
+
+- **Plano pago:** Pre-Deploy Command `/app/docker/prod/release.sh`. Se falhar, o deploy não acontece e a versão anterior continua no ar.
+- **Free:** `HACKLAB_MIGRATE_ON_START=true` roda o mesmo script no start do container, antes de aceitar requests. Usar só no primeiro deploy (36 migrations + perfis) ou quando houver migration nova; depois de confirmar, voltar para `false` e redeployar.
+- Nunca no `docker build`. Nunca `migrate:fresh`/`db:wipe`.
+- O schema `hacklab` precisa existir antes (SQL em §3.1).
+- **Primeiro Administrador:** `php artisan hacklab:create-admin` é interativo e precisa de um terminal. O Free não tem shell, então a forma de rodar fica para a Fase 12. Uma opção: a imagem `prod` local com as variáveis de produção num arquivo fora do Git (`docker run -it --rm --env-file … hacklab-back-prod php artisan hacklab:create-admin`).
+
+### 3.2.5 Agendamentos (Scheduler)
+
+O Web Service **não** roda o Scheduler do Laravel. O `Schedule::command('even3:sync')` em `routes/console.php` só vale onde houver `schedule:run`/`schedule:work`.
+
+Solução mínima, quando houver orçamento: um **Render Cron Job**.
+
+| Campo | Valor |
+|---|---|
+| Repositório / Root Directory / Dockerfile | os mesmos do Web Service (`back`, `./Dockerfile`) |
+| Docker Command | `/bin/sh -c "php artisan even3:sync; php artisan hacklab:prune-auth-tokens"` |
+| Schedule | `*/10 * * * *` (UTC) |
+| Variáveis | as mesmas do Web Service (`APP_KEY`, `DB_*`, `EVEN3_*`), **sem** `HACKLAB_MIGRATE_ON_START` |
+
+- Uma execução por vez é garantida pelo Render; o `IntegrationSyncService` também tem lock próprio.
+- `even3:sync` sai com código 1 quando `EVEN3_ENABLED=false`.
+- Os comandos funcionam com e sem o entrypoint (com ou sem `optimize`), porque a documentação do Render não diz se o Docker Command substitui o `ENTRYPOINT`.
+- Não usar `schedule:run` a cada minuto: custa mais e não traz nada.
+
+**Sem Cron Job (Free)**, a sincronização tem três caminhos:
+1. o webhook da Even3;
+2. o botão Sincronizar;
+3. a sincronização silenciosa que o front dispara a cada 10 minutos enquanto um Administrador usa o sistema.
+
+Nesse caso, a limpeza de tokens vencidos (`hacklab:prune-auth-tokens`) fica sem execução periódica. Isso não afeta a segurança: o token vencido é recusado de qualquer forma.
+
+### 3.2.6 Fila (queue)
+
+Nenhum fluxo atual usa fila: não existe `ShouldQueue` nem `dispatch`. Os e-mails de primeiro acesso e de redefinição saem na própria requisição. **Não há worker em produção.** `QUEUE_CONNECTION=sync` garante que algo enfileirado por engano seja executado em vez de ficar parado. Se um fluxo passar a depender de fila, isso entra antes como decisão de infraestrutura.
+
+### 3.2.7 E-mail (primeiro acesso e recuperação de senha)
 
 O backend envia e-mails por Laravel Mail/Notifications, sem SDK de provedor:
 
@@ -129,22 +259,22 @@ MAIL_FROM_NAME=HackLab
 FRONTEND_URL=https://…        (base dos links de ativação e redefinição)
 ```
 
-- a escolha do provedor SMTP fica para a Fase 12;
-- `php artisan hacklab:prune-auth-tokens` limpa tokens vencidos; em produção, rodar periodicamente (ou no start do container) — definir na Fase 12.
+- a escolha do provedor SMTP fica para a Fase 12. No Render Free, as portas 25/465/587 estão bloqueadas: o provedor precisa oferecer porta alternativa (ex.: 2525) enquanto o serviço estiver no Free;
+- `php artisan hacklab:prune-auth-tokens` limpa tokens vencidos; em produção, junto do Cron Job (§3.2.5).
 
-### 3.3 Frontend (Static Site)
+### 3.3 Frontend (Netlify)
 
-- Em produção: `npm run build`, e o `dist/` publicado como Static Site (Render Static Site é grátis);
+- Em produção o front fica no **Netlify**: `npm run build` e o `dist/` publicado como site estático. Decisão da Fase 12; o Render Static Site, previsto antes, ficou só como alternativa;
 - a URL da API vem de variável de ambiente no build: `VITE_API_URL`. Nunca fixar domínio no código;
 - rewrite `/* → /index.html` para as rotas do Vue.
 
 ### 3.4 ⚠️ Cookie de sessão entre front e API (pendente de PoC)
 
-`onrender.com` está na [Public Suffix List](https://publicsuffix.org/list/public_suffix_list.dat). Para o navegador, `hacklab.onrender.com` (front) e `hacklab-api.onrender.com` (API) são **sites diferentes**. O cookie de sessão do Sanctum (SPA, HttpOnly) viraria cookie de terceiro, que Safari e Chrome restringem. Sem resolver isso, o login por cookie não funciona de forma confiável.
+`onrender.com` está na [Public Suffix List](https://publicsuffix.org/list/public_suffix_list.dat). O front no Netlify e a API no Render (`*.onrender.com`) são **sites diferentes** para o navegador. O cookie de sessão do Sanctum (SPA, HttpOnly) viraria cookie de terceiro, que Safari e Chrome restringem. Sem resolver isso, o login por cookie não funciona de forma confiável.
 
 Opções, em ordem de preferência:
 
-1. **Rewrite no Static Site:** regra `/api/*` e `/sanctum/*` → URL da API no Render. O navegador vê front e API na mesma origem: sem CORS, cookie primário. A documentação do Render diz que o destino de um rewrite pode ser "a full, publicly accessible URL", mas não detalha cookies, métodos e headers. **Precisa de PoC** (login, POST com CSRF, Set-Cookie).
+1. **Proxy no Netlify:** regra de rewrite com status 200 (proxy) de `/api/*` e `/sanctum/*` para a URL da API no Render. O navegador vê front e API na mesma origem: sem CORS e com cookie primário. **Precisa de PoC** (login, POST com CSRF, Set-Cookie, IP do cliente que chega ao Laravel).
 2. **Domínio próprio:** `app.<dominio>` (front) e `api.<dominio>` (API), mesmo site. Funciona com Sanctum SPA (`SESSION_DOMAIN=.<dominio>`). Exige um domínio.
 3. Token Bearer em vez de cookie. Último recurso, porque contraria a decisão de cookie HttpOnly (`CLAUDE.md` §8).
 
@@ -152,16 +282,18 @@ Decisão: fazer a PoC da opção 1 no primeiro deploy, antes de ligar o login do
 
 ## 4. Readiness antes de momentos críticos
 
-Endpoint previsto: `GET /api/v1/system/readiness`. Valida no mínimo:
+`GET /api/v1/health` (público, sem autenticação) já valida o mínimo:
 - Laravel respondendo;
 - conexão com o PostgreSQL;
-- o banco aceita consulta.
+- o banco aceita consulta (`select 1`).
+
+Responde 200 (`status: ok`) ou 503 (`status: degraded`), sem expor host nem erro. É o Health Check Path do Render: com o banco fora, o Render vê a instância como não saudável. Um endpoint separado `/api/v1/system/readiness` não foi criado, porque faria a mesma coisa. `/up`, do Laravel, só diz que o PHP responde e não verifica o banco.
 
 Uso: chamar manualmente, ou por um agendamento pontual, alguns minutos antes da abertura de cada dia, da votação do terceiro dia e da apuração. Absorve o cold start de cerca de 1 minuto antes do público chegar. Não é ping contínuo.
 
 ## 5. Dia 3 e capacidade do Render Free
 
-O Render Free é aceito para começar, mas **não está aprovado para o pico do terceiro dia** sem teste de carga.
+O Render Free é aceito só para validar o deploy. No evento, o mínimo é o plano pago básico, e o plano final sai do teste de carga (Fase 13).
 
 Antes do evento, testar em degraus de **50, 100, 200 e 300 usuários concorrentes**, nos fluxos:
 - login;
@@ -196,3 +328,5 @@ O código não usa nada proprietário do Render nem do Supabase. Para trocar de 
 | 08/10/2026 | PostgreSQL só no Supabase, sem Docker local | substituída |
 | 08/10/2026 | MySQL 8.4 + Docker, produção numa VM Oracle Cloud (Always Free) | substituída. Oracle fica como alternativa futura de host para uma stack Docker de produção |
 | 09/10/2026 | PostgreSQL em todos os ambientes; Docker para dev/testes; Render + Supabase em produção | **vigente** |
+| 20/10/2026 | Frontend de produção no Netlify (o Render Static Site fica como alternativa); Render Free só para validação, plano do evento decidido após a Fase 13 | **vigente** |
+| 20/10/2026 | Alvo `prod` com FrankenPHP (modo clássico), caches no start, release por Pre-Deploy ou `HACKLAB_MIGRATE_ON_START`, Cron Job opcional para o sync, sem worker de fila | **vigente** |

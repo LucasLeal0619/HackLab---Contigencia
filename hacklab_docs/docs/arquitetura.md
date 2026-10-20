@@ -28,7 +28,7 @@ O HackLab é um monólito modular com frontend Vue, backend Laravel e PostgreSQL
 
 | Parte | Dev/testes | Produção |
 |---|---|---|
-| Vue | `npm run dev` | Static Site |
+| Vue | `npm run dev` | Netlify |
 | Laravel | Docker | Render Web Service (Docker) |
 | PostgreSQL | Docker (`hacklab_dev`, `hacklab_test`) | Supabase |
 

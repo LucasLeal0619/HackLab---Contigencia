@@ -41,8 +41,9 @@ O HackLab **não deve reinventar plataforma de inscrição/ingresso/QR**. A arqu
 
 ### Infraestrutura
 - Docker / Docker Compose: ambiente de **desenvolvimento e testes**
-- Produção: API Laravel no Render (Web Service), frontend como Static Site, banco no Supabase
+- Produção: API Laravel no Render (Web Service), frontend no Netlify, banco no Supabase
 - Render e Supabase são hospedagem, não dependências do código
+- `back/Dockerfile`: alvo `dev` (compose, `php -S`, código montado) ≠ alvo `prod` (Render: FrankenPHP na porta `PORT`, sem dev deps, sem segredos, caches no start). Detalhes em `docs/infraestrutura.md` §3.2
 
 ## 3. Estrutura do repositório
 
@@ -52,7 +53,8 @@ HackLab/
 │   └── aplicação Vue
 ├── back/
 │   ├── API Laravel
-│   ├── Dockerfile
+│   ├── Dockerfile         (alvos dev e prod)
+│   ├── docker/prod/       (Caddyfile, php.ini, entrypoint e release do alvo prod)
 │   ├── .env.example
 │   └── .env.testing.example
 ├── docker/
@@ -211,7 +213,7 @@ Não criar: botão de sincronizar em Participantes, Jurados, Empresas, Usuários
 ```text
 DESENVOLVIMENTO / TESTES                 PRODUÇÃO
 
-Vue (npm run dev)                        Vue — Static Site (VITE_API_URL)
+Vue (npm run dev)                        Vue — Netlify (VITE_API_URL)
         ↓                                        ↓
 Laravel (Docker)                         Laravel API — Render Web Service (Docker)
         ↓                                        ↓
@@ -224,7 +226,9 @@ Regras:
 - configuração só por variáveis de ambiente. Nada de host, URL ou domínio fixo no código (front usa `VITE_API_URL`);
 - **Supabase é só PostgreSQL gerenciado.** Laravel é dono de autenticação (Sanctum), autorização (Policies/Gates), regras, migrations, API e integração Even3. O frontend nunca acessa o Supabase. Não implementar regras em RLS;
 - produção conecta pelo **Session pooler (5432)** do Supabase, com `sslmode=require` e `search_path=hacklab`;
-- o Render Free dorme após 15 min sem tráfego (cold start de ~1 min). Antes de momentos críticos, chamar o endpoint de readiness. O Free não está aprovado para o pico do dia 3 sem teste de carga;
+- o Render Free dorme após 15 min sem tráfego (cold start de ~1 min). Antes de momentos críticos, chamar `GET /api/v1/health` (também é o Health Check Path). O Free serve só para validar o deploy: no evento, no mínimo o plano pago básico, decidido após a Fase 13. No Free, `HACKLAB_MIGRATE_ON_START=true` só no primeiro deploy (depois `false`) e SMTP nas portas 25/465/587 não está disponível;
+- migrations em produção só por `docker/prod/release.sh` (`migrate --force` + `RolePermissionSeeder`), no Pre-Deploy ou com `HACKLAB_MIGRATE_ON_START=true`; nunca no `docker build`;
+- o Web Service não roda o Scheduler: sincronização agendada só por Render Cron Job (`even3:sync`). Não há worker de fila (nenhum fluxo usa fila);
 - trocar de hospedagem (ex.: servidor do Senac) não exige mudar código: mesma imagem Docker, `pg_dump`/`pg_restore`, novo `VITE_API_URL`.
 
 Detalhes, riscos e pendências (incluindo o cookie de sessão entre domínios `onrender.com`) em `docs/infraestrutura.md`.

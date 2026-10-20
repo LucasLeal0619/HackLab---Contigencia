@@ -1,0 +1,17 @@
+# Servidor HTTP de produção (target prod do Dockerfile). HTTPS fica no proxy do Render; aqui só HTTP.
+{
+	admin off
+	auto_https off
+
+	frankenphp {
+		# Requests PHP simultâneos. Cada thread usa memória: ajuste ao plano do Render.
+		num_threads {$FRANKENPHP_NUM_THREADS:4}
+	}
+}
+
+# Todas as interfaces (0.0.0.0 e ::), na porta que o Render define em PORT.
+:{$PORT:8080} {
+	root * /app/public
+	encode zstd gzip
+	php_server
+}
