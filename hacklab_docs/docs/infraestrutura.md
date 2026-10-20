@@ -278,7 +278,25 @@ Opções, em ordem de preferência:
 2. **Domínio próprio:** `app.<dominio>` (front) e `api.<dominio>` (API), mesmo site. Funciona com Sanctum SPA (`SESSION_DOMAIN=.<dominio>`). Exige um domínio.
 3. Token Bearer em vez de cookie. Último recurso, porque contraria a decisão de cookie HttpOnly (`CLAUDE.md` §8).
 
-Decisão: fazer a PoC da opção 1 no primeiro deploy, antes de ligar o login do front na API.
+Decisão: opção 1. A PoC do primeiro deploy confirmou o problema: chamando o Render direto, o login respondia 419, porque o `XSRF-TOKEN` era do domínio do Render e o front no Netlify não conseguia lê-lo.
+
+Implementação (`front/public/_redirects`, copiado para `dist/` pelo Vite):
+
+```text
+/api/*      https://<api>.onrender.com/api/:splat      200
+/sanctum/*  https://<api>.onrender.com/sanctum/:splat  200
+/*          /index.html                                200
+```
+
+- Primeiro os proxies, depois o fallback da SPA.
+- O domínio da API fica nesse arquivo de configuração do Netlify, nunca no JS.
+- Em produção, `VITE_API_URL` fica **vazio/ausente**: o client chama `/sanctum/csrf-cookie` e `/api/v1/...` no próprio domínio do Netlify. Nunca usar `VITE_API_URL=/api`, que duplicaria o prefixo.
+- No Render:
+  - `FRONTEND_URL` e `CORS_ALLOWED_ORIGINS` = URL do Netlify;
+  - `SANCTUM_STATEFUL_DOMAINS` = host do Netlify;
+  - `SESSION_SECURE_COOKIE=true` e `SESSION_SAME_SITE=lax`;
+  - **sem** `SESSION_DOMAIN` (cookie host-only).
+- Não usar `SameSite=None` nem Bearer.
 
 ## 4. Readiness antes de momentos críticos
 
