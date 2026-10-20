@@ -19,10 +19,7 @@ export const ROUTES = {
   reuniao: ['meetings.view'],
   pendencias: ['tasks.view'],
   ocorrencias: ['occurrences.view'],
-  // Inscrições e Presença (submenu desde o Complemento 11.2).
-  integracao: ['integrations.view'],
-  entradas: ['integrations.view'],
-  inscricoes: ['event_registrations.view'],
+  // Presença: a tela da integração Even3 (inscritos, presença, pendências, configuração).
   presenca: ['attendance.view'],
   jurados: ['jurors.view', 'evaluation_criteria.manage'],
   avaliacoes: ['evaluations.progress.view', 'evaluations.all.view'],
@@ -50,72 +47,56 @@ export const FOCUS = {
   VOTER: { home: 'votacao', title: 'Votação do Público', routes: ['votacao', 'painel'], tabs: [['votacao', 'Votação'], ['painel', 'Resultado oficial']] },
 }
 
+// Menu do Administrador (simplificação pré-deploy): seções planas. Um item com `tabs` aponta para a primeira
+// página permitida do grupo; o Shell mostra abas entre as páginas irmãs (as rotas continuam as mesmas).
 const NAV = [
   { group: 'Dashboard', items: [{ id: 'dashboard', label: 'Dashboard', icon: 'home' }] },
   {
-    group: 'Organização',
+    group: 'Preparação',
     items: [
-      {
-        id: 'preparacao',
-        label: 'Preparação',
-        icon: 'sliders',
-        children: [
-          { id: 'config', label: 'Evento' },
-          { id: 'participantes', label: 'Participantes' },
-          { id: 'equipes', label: 'Equipes' },
-          { id: 'empresas', label: 'Empresas' },
-          { id: 'desafios', label: 'Desafios' },
-        ],
-      },
-      {
-        id: 'gestao',
-        label: 'Gestão',
-        icon: 'grid',
-        children: [
-          { id: 'setores', label: 'Setores' },
-          { id: 'reunioes', label: 'Reuniões' },
-          { id: 'pendencias', label: 'Pendências' },
-          { id: 'ocorrencias', label: 'Ocorrências' },
-        ],
-      },
+      { id: 'config', label: 'Evento', icon: 'sliders' },
+      { id: 'pessoas', label: 'Pessoas e Equipes', icon: 'team', tabs: ['participantes', 'equipes'] },
+      { id: 'empresas-desafios', label: 'Empresas e Desafios', icon: 'building', tabs: ['empresas', 'desafios'] },
     ],
   },
   {
-    group: 'Evento',
+    group: 'Operação',
     items: [
-      {
-        id: 'inscricoes-presenca',
-        label: 'Inscrições e Presença',
-        icon: 'ticket',
-        children: [
-          { id: 'integracao', label: 'Integração' },
-          { id: 'entradas', label: 'Entradas' },
-          { id: 'inscricoes', label: 'Inscrições' },
-          { id: 'presenca', label: 'Presença' },
-        ],
-      },
-      {
-        id: 'encerramento',
-        label: 'Encerramento',
-        icon: 'star',
-        children: [
-          { id: 'jurados', label: 'Jurados' },
-          { id: 'avaliacoes', label: 'Avaliações' },
-          { id: 'votacao-gestao', label: 'Votação' },
-          { id: 'resultados', label: 'Resultados' },
-        ],
-      },
+      { id: 'setores', label: 'Setores', icon: 'grid' },
+      { id: 'reunioes', label: 'Reuniões', icon: 'calendar' },
+      { id: 'pendencias', label: 'Pendências', icon: 'check' },
+      { id: 'ocorrencias', label: 'Ocorrências', icon: 'alert' },
     ],
   },
-  { group: 'Análise', items: [{ id: 'relatorios', label: 'Relatórios', icon: 'chart' }] },
   {
-    group: 'Administração',
+    group: 'Hackathon',
     items: [
-      { id: 'usuarios', label: 'Usuários e Permissões', icon: 'users' },
+      { id: 'presenca', label: 'Presença', icon: 'ticket' },
+      { id: 'julgamento', label: 'Julgamento', icon: 'star', tabs: ['jurados', 'avaliacoes'] },
+      { id: 'votacao-resultados', label: 'Votação e Resultados', icon: 'trophy', tabs: ['votacao-gestao', 'resultados'] },
+    ],
+  },
+  {
+    group: 'Gestão',
+    items: [
+      { id: 'usuarios', label: 'Usuários', icon: 'users' },
+      { id: 'relatorios', label: 'Relatórios', icon: 'chart' },
       { id: 'auditoria', label: 'Auditoria', icon: 'eye' },
     ],
   },
 ]
+
+// Rótulos das abas entre páginas irmãs.
+export const TAB_LABELS = {
+  participantes: 'Participantes',
+  equipes: 'Equipes',
+  empresas: 'Empresas',
+  desafios: 'Desafios',
+  jurados: 'Jurados',
+  avaliacoes: 'Avaliações',
+  'votacao-gestao': 'Votação',
+  resultados: 'Resultados',
+}
 
 // Páginas de detalhe que acendem o item de navegação correspondente.
 const LEAF = {
@@ -149,11 +130,10 @@ export function legacyTarget(path, params = {}) {
   }
   if (path === 'empresas' && params.aba === 'desafios') return 'desafios'
   if (['evento', 'ingresso', 'validar'].includes(path)) return 'presenca'
-  // Abas antigas de "Inscrições e Presença" (antes do submenu do Complemento 11.2).
-  if (path === 'presenca' && params.aba && params.aba !== 'presenca') {
-    if (params.aba === 'reconciliacao') return { jurados: 'jurados', organizacao: 'usuarios', empresas: 'empresas', evento: 'config' }[params.fila] || 'integracao'
-    return { integracao: 'integracao', entradas: 'entradas', inscricoes: 'inscricoes', sincronizacao: 'integracao' }[params.aba] || 'integracao'
-  }
+  // Endereços antigos de "Inscrições e Presença": tudo vira a tela Presença (configuração no painel discreto).
+  if (path === 'integracao' || path === 'entradas') return 'presenca?config=1'
+  if (path === 'inscricoes') return 'presenca'
+  if (path === 'presenca' && params.aba) return ['integracao', 'entradas', 'sincronizacao'].includes(params.aba) ? 'presenca?config=1' : 'presenca'
   if (path === 'sala') return 'setores'
   return ''
 }
@@ -182,11 +162,13 @@ export function navFor(user) {
   return NAV.map((group) => ({
     group: group.group,
     items: group.items.map((item) => {
-      if (!item.children) return canAccess(user, item.id) ? item : null
-      const children = item.children
-        .filter((child) => canAccess(user, child.id))
-        .map((child) => (child.id === 'setores' && sectorScoped ? { ...child, label: 'Meu setor' } : child))
-      return children.length ? { ...item, children } : null
+      if (item.tabs) {
+        // Grupo de páginas irmãs: aparece se o perfil acessa alguma; o item leva à primeira permitida.
+        const tabs = item.tabs.filter((route) => canAccess(user, route))
+        return tabs.length ? { ...item, id: tabs[0], key: item.id, tabs } : null
+      }
+      if (!canAccess(user, item.id)) return null
+      return item.id === 'setores' && sectorScoped ? { ...item, label: 'Meu setor' } : item
     }).filter(Boolean),
   })).filter((group) => group.items.length)
 }
@@ -213,10 +195,20 @@ export function navActive(id, path) {
 export function navState(path, user) {
   for (const group of navFor(user)) {
     for (const item of group.items) {
-      const child = item.children?.find((entry) => navActive(entry.id, path))
-      if (child) return { item: child.id, group: item.id }
-      if (!item.children && navActive(item.id, path)) return { item: item.id, group: '' }
+      if (item.tabs?.some((route) => navActive(route, path)) || navActive(item.id, path)) return { item: item.id, group: '' }
     }
   }
   return { item: '', group: '' }
+}
+
+// Abas entre páginas irmãs para a rota atual (vazio quando a página não faz parte de um grupo ou só uma é permitida).
+export function sectionTabsFor(path, user) {
+  for (const group of navFor(user)) {
+    for (const item of group.items) {
+      if (item.tabs?.length > 1 && item.tabs.some((route) => navActive(route, path))) {
+        return item.tabs.map((route) => ({ id: route, label: TAB_LABELS[route] || route, active: navActive(route, path) }))
+      }
+    }
+  }
+  return []
 }

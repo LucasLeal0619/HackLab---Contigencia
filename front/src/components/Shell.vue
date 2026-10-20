@@ -3,6 +3,7 @@ import Even3Center from './Even3Center.vue'
 import Field from './Field.vue'
 import Icon from './Icon.vue'
 import Logo from './Logo.vue'
+import SectionTabs from './SectionTabs.vue'
 import ProfileMenu from './ProfileMenu.vue'
 import { useShell } from '@/js/components/shell'
 
@@ -126,7 +127,7 @@ const { ui, open, panel, nav, isOpen, toggleGroup, togglePanel, current, alerts,
           <ProfileMenu />
         </div>
       </header>
-      <main id="conteudo" class="content"><slot /></main>
+      <main id="conteudo" class="content"><SectionTabs :path="path" /><slot /></main>
     </div>
   </div>
 </template>

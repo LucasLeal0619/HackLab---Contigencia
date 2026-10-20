@@ -186,27 +186,25 @@ Módulos internos
 
 No futuro deve ser possível criar outro provider, por exemplo Sympla, sem reescrever Participantes, Jurados, Presença etc.
 
-### 5.5 Uma sincronização central
+### 5.5 Uma sincronização central; o seguro é automático
 
-A sincronização da Even3 é **única e central por evento**. Sincroniza uma vez; reconcilia em vários módulos.
+Premissa do evento real: **participantes, equipes, organização interna (Gestores, Editores, Consultores), setores, empresas e desafios são cadastrados no HackLab antes do evento.** A Even3 não monta o HackLab: ela valida inscrições e traz jurados externos, convidados de empresas, o público e a presença.
 
-A interface pode expor um componente global **Centro Even3** em qualquer tela administrativa. Todo disparo usa o mesmo endpoint (`POST /events/{event}/integrations/even3/sync`), o mesmo `IntegrationSyncService`, o mesmo lock e o mesmo histórico (`integration_sync_runs`).
+A sincronização da Even3 é **única e central por evento**: o mesmo endpoint (`POST /events/{event}/integrations/even3/sync`), o mesmo `IntegrationSyncService`, o mesmo lock e o mesmo histórico (`integration_sync_runs`). Sincronizar é idempotente, auditado e protegido por lock: **não pede confirmação**.
 
-Páginas de domínio (Participantes, Jurados, Empresas, Usuários, Evento, Votação) **nunca** fazem sincronizações próprias e nunca chamam a Even3. Elas podem apenas:
-- exibir pendências derivadas dos dados já sincronizados;
-- mostrar a própria fila de revisão (candidatos a Jurado em Jurados, Organização em Usuários, Empresa/Convidado em Empresas, divergências em Evento);
-- executar ações internas do HackLab sobre esses dados.
+**Tudo que é seguro é automático. Só ambiguidades viram pendência ("Precisa de atenção").**
 
-Ao sincronizar, o HackLab aplica sozinho (decisão do usuário, 20/10/2026 — um evento só, operação interna):
-- inscritos confirmados em entrada `PARTICIPANT` → `Participant` (idempotente, disponível, sem turma, nunca altera quem já existe);
-- inscritos confirmados em entrada `JUROR` → `Juror` ativo do evento (sem conta e sem equipes: a conta vem do primeiro acesso, as equipes são atribuídas pelo Administrador; quem foi ignorado ou já é jurado não muda);
-- nome e datas do evento na Even3 → evento do HackLab (datas que deixariam dias cadastrados fora do período não são aplicadas e viram aviso).
+```text
+Sincronizar → atualiza inscrições/entradas → é seguro aplicar?
+                                              ├── sim → aplica (Jurado confiável → Juror)
+                                              └── não → "Precisa de atenção" para o Administrador
+```
 
-A sincronização roda sozinha a cada 10 minutos enquanto um Administrador usa o sistema (e pelo Scheduler do Laravel, `even3:sync`, onde houver), sempre pelo mesmo `IntegrationSyncService`. O botão do topo avisa o que chegou de novo. Só Empresa/Convidado continua pedindo decisão (a Even3 não informa a empresa).
+Precisa de atenção (lista única, na tela Presença): participante não localizado no HackLab, inscrição com identidade divergente, representante de empresa sem empresa identificada, entrada externa sem mapeamento. Inscrição nova não é pendência.
 
-Não criar: botão "Sincronizar Even3" dentro de Participantes, Jurados, Empresas, Usuários ou Votação; um segundo mecanismo de sync; vários syncs concorrentes.
+Interface: **Presença** é a tela da integração (indicadores, lista de inscritos com presença, "Precisa de atenção", botão Sincronizar). Mapeamento de entradas, histórico e divergências do evento ficam em **Configuração Even3** (discreta). O cabeçalho mostra o estado compacto ("Even3 · Atualizado há 3 min ↻"). A sincronização também roda sozinha, em silêncio, como reserva (a cada 10 min com Administrador ativo e `even3:sync` no Scheduler); o caminho principal em produção é webhook + sincronização manual.
 
-Termos: **Sincronizar** = buscar atualizações na Even3 (Even3 → banco do HackLab). **Revisar/Reconciliar** = transformar dados já sincronizados em decisões internas (banco do HackLab → decisão do Administrador). Não usar como sinônimos.
+Não criar: botão de sincronizar em Participantes, Jurados, Empresas, Usuários ou Votação; sync separado por domínio; filas de revisão por domínio; etapas "candidato → revisar → confirmar" quando não há decisão humana real.
 
 ### 5.6 Ambientes e hospedagem
 
@@ -231,19 +229,22 @@ Regras:
 
 Detalhes, riscos e pendências (incluindo o cookie de sessão entre domínios `onrender.com`) em `docs/infraestrutura.md`.
 
-### 5.7 O que a Even3 decide sozinha e o que não
+### 5.7 O que cada categoria da Even3 faz
 
-A Even3 é fonte de evento externo, entradas/categorias, inscrições e presença. Pela categoria mapeada (`internal_category` da entrada, nunca o texto do nome), só de inscrições `CONFIRMED` e sem `identity_mismatch`, contadas por Person:
+Pela categoria mapeada (`internal_category` da entrada, nunca o texto do nome), só de inscrições `CONFIRMED` e sem `identity_mismatch`, contadas por Person:
 
 ```text
-PARTICIPANT     → Participant automático ao sincronizar
-JUROR           → Juror automático ao sincronizar (nunca User nem perfil: conta só pelo primeiro acesso)
-PUBLIC          → pode fazer o primeiro acesso como Votante (elegibilidade continua explícita na votação)
-COMPANY_GUEST   → candidato: o Administrador vincula a uma empresa (a Even3 não informa a empresa)
-ORGANIZATION    → nada: a organização é interna (contas criadas pelo Administrador)
+PARTICIPANT     → valida o Participant que já existe (mesma Person no evento); não existe → "participante não localizado"
+JUROR           → Juror ativo automático ao sincronizar (nunca User: conta só pelo primeiro acesso)
+PUBLIC          → pode fazer o primeiro acesso como Votante (elegibilidade continua explícita na votação, só em DRAFT)
+COMPANY_GUEST   → já representa uma empresa do evento → nada; senão "representante sem empresa" (o Administrador escolhe a empresa)
+ORGANIZATION    → nada: a organização é interna e cadastrada antes
+identity_mismatch (qualquer categoria) → "identidade divergente"; nada é aplicado
 ```
 
-O HackLab continua autoridade sobre `User`, perfil, setor, `Company`, `CompanyRepresentative` e `VotingEligibility`. Nenhuma categoria externa cria conta, concede perfil ou cria empresa.
+A presença (check-ins) vem da Even3 e só é exibida: sem check-in é "Sem registro", nunca "Ausente".
+
+O HackLab é autoridade sobre `Participant`, `User`, perfil, setor, `Company`, `CompanyRepresentative`, `VotingEligibility` e **nome/datas do `Event`** (divergência com a Even3 só aparece como aviso na Configuração Even3). Nenhuma categoria externa cria Participant, conta, perfil ou empresa.
 
 ## 6. Regras de implementação
 
@@ -364,11 +365,13 @@ Antes de concluir uma feature:
 - Não criar QR próprio.
 - Não implementar câmera no HackLab.
 - Não criar regra automática “jurado da empresa X avalia equipes do desafio X”.
-- Não transformar categoria de ingresso em permissão interna automaticamente sem regra explícita. Dados externos podem gerar candidatos de reconciliação (§5.7), mas não concedem autoridade.
+- Não transformar categoria de ingresso em permissão interna automaticamente sem regra explícita (§5.7).
 - Não conceder perfil/conta Jurado (`User`) porque alguém possui uma entrada externa `JUROR`: o `Juror` é criado ao sincronizar, a conta só pelo primeiro acesso.
-- Não criar empresa nem representante automaticamente apenas porque alguém tem entrada `COMPANY_GUEST` ou informou nome de empresa na plataforma externa.
-- Não criar User nem conceder Gestor/Editor/Consultor por entrada `ORGANIZATION`: organização é interna. A liberação de acesso (`AccountAccessGrant`) existe no backend, mas não é usada pela interface; nunca `ADMINISTRATOR` por essa via.
-- Não mover nem apagar `EventDay` para encaixar datas vindas da Even3.
+- Não criar `Participant` pela Even3: participantes são cadastrados antes; a Even3 só valida.
+- Não criar empresa pela Even3 (nem por categoria, nem por texto de empresa); representante só com empresa inequívoca ou escolhida pelo Administrador.
+- Não criar User nem conceder Gestor/Editor/Consultor pela Even3 (`ORGANIZATION` não gera nada).
+- Não alterar nome/datas do evento com dados da Even3.
+- Não implementar atividades/programação da Even3 nesta versão.
 - Não colocar botão de sincronizar a Even3 em páginas de domínio (§5.5).
 
 ## 12. Regra para mudanças de arquitetura

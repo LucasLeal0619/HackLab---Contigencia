@@ -7,7 +7,6 @@ import { useAction, usePaged, useRequest } from '@/js/composables/async'
 import { label, options, tone } from '@/js/labels'
 import { hasPermission } from '@/js/stores/auth'
 import { eventContext } from '@/js/stores/event-context'
-import { even3Context } from '@/js/stores/even3-context'
 import { listCompanies } from '@/js/services/companies'
 import * as jurorsApi from '@/js/services/jurors'
 import { listTeams } from '@/js/services/teams'
@@ -46,8 +45,6 @@ export function useJurors() {
     immediate: canView.value,
     watchSources: () => (canView.value ? eventId() : null),
   })
-  // Jurado cadastrado pela revisão da Even3 (nesta página): recarrega a lista.
-  watch(() => even3Context.revision, () => list.load())
 
   // Empresas do evento (contexto do jurado; não define equipes). Carregadas sob demanda.
   const companies = useRequest(async ({ signal }) => {

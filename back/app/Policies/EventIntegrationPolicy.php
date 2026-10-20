@@ -9,8 +9,8 @@ use App\Models\User;
  * Integração Even3: consulta (Administrador, Consultor), configuração/mapeamento e sync (Administrador).
  * Inscrições e presença têm permissões próprias; materializar participantes exige também participants.manage.
  *
- * Reconciliação (Complemento 11.2): integrations.manage não basta — cada fila exige também a permissão real do
- * domínio (jurados, empresas, usuários, evento). O Consultor só consulta o resumo e o histórico.
+ * Vincular representante sem empresa (única pendência com ação): integrations.manage + companies.manage.
+ * O Consultor só consulta.
  */
 class EventIntegrationPolicy
 {
@@ -52,27 +52,17 @@ class EventIntegrationPolicy
         return $this->manageWith($actor, PermissionCode::ParticipantsManage);
     }
 
-    public function reconcileJurors(User $actor): bool
-    {
-        return $this->manageWith($actor, PermissionCode::JurorsManage);
-    }
-
-    public function reconcileCompanyGuests(User $actor): bool
+    public function linkCompanyGuests(User $actor): bool
     {
         return $this->manageWith($actor, PermissionCode::CompaniesManage);
     }
 
     /**
-     * Fila Organização: liberar e revogar acesso.
+     * "Precisa de atenção" lista nomes e e-mails: quem vê inscrições.
      */
-    public function grantAccess(User $actor): bool
+    public function viewAttention(User $actor): bool
     {
-        return $this->manageWith($actor, PermissionCode::UsersManage);
-    }
-
-    public function applyEventMetadata(User $actor): bool
-    {
-        return $this->manageWith($actor, PermissionCode::EventsManage);
+        return $actor->hasPermission(PermissionCode::IntegrationsView) && $actor->hasPermission(PermissionCode::EventRegistrationsView);
     }
 
     private function manageWith(User $actor, PermissionCode $domain): bool

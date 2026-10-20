@@ -426,7 +426,7 @@ Isso não deve conceder sozinho:
 
 Esses vínculos são internos. O mesmo vale para `COMPANY_GUEST` (não cria empresa nem representante) e `ORGANIZATION` (não cria perfil).
 
-A inscrição externa gera um **candidato** que o Administrador revisa (Complemento 11.2, §23): cadastrar como Jurado, vincular como representante de empresa, liberar acesso ou ignorar.
+Desde a simplificação pré-deploy (§23): inscrição confirmada como `JUROR` vira Jurado interno ativo ao sincronizar (sem conta e sem equipes). `COMPANY_GUEST` sem empresa e `ORGANIZATION` não criam nada.
 
 ## 16. Público e Votante
 
@@ -458,7 +458,7 @@ Categoria externa: Organização
 Perfil interno: Consultor
 ```
 
-Quem decide é o Administrador, por pessoa, na fila "Organização" (§23.3): ele escolhe perfil e setor e **pré-libera** o acesso; a própria pessoa cria a senha pelo primeiro acesso.
+A organização é interna e cadastrada antes do evento pelo Administrador; a entrada externa "Organização" não gera nada.
 
 ## 18. Presença
 
@@ -479,7 +479,7 @@ Conta deve ser criada somente quando houver necessidade de acesso ao HackLab.
 
 ### 19.1 Primeiro acesso (Complemento 11.1)
 
-Contas administrativas (Administrador, Gestor, Editor, Consultor) são criadas pelo Administrador **ou pré-liberadas por ele** (Gestor, Editor e Consultor, §23.3). **Votantes elegíveis, Jurados internos e pessoas com acesso pré-liberado ativam o próprio acesso por e-mail.** Ninguém escolhe o próprio perfil e não existe cadastro público.
+Contas administrativas (Administrador, Gestor, Editor, Consultor) são criadas pelo Administrador. **Votantes elegíveis e Jurados internos ativam o próprio acesso por e-mail.** Ninguém escolhe o próprio perfil e não existe cadastro público.
 
 - **Mesmo conhecer um e-mail cadastrado não concede acesso. O link enviado ao próprio endereço prova posse da caixa postal.**
 - **A Even3 fornece identidade/inscrição; o HackLab decide autoridade.**
@@ -487,13 +487,12 @@ Contas administrativas (Administrador, Gestor, Editor, Consultor) são criadas p
 - Exatamente uma Person com esse e-mail; se houver mais de uma (ambiguidade), nada é criado nem enviado.
 - Se já existe User com esse e-mail ligado a outra Person, nada acontece (sem merge, sem reatribuir).
 - Person que já tem User: o primeiro acesso não cria outro, não troca perfil nem setor (quem esqueceu a senha usa a recuperação).
-- Perfil, nesta ordem (Complemento 11.2):
+- Perfil, nesta ordem:
   1. Person que já tem User → nunca cria outro nem muda o perfil (regra acima).
-  2. Liberação de acesso (`AccountAccessGrant`) `PENDING` válida, em evento planejado ou em andamento → o perfil e o setor que o Administrador escolheu. **A liberação tem precedência sobre Jurado e Público porque é uma decisão explícita do Administrador** (ex.: alguém da Organização que também tem inscrição pública vira Gestor, não Votante).
-  3. Person com `Juror` interno `ACTIVE` em evento planejado ou em andamento → `JUROR`. A entrada externa "Jurado" sozinha **não** concede nada.
-  4. Senão, inscrição `CONFIRMED`, sem `identity_mismatch`, em entrada mapeada (`external_ticket_id`) como `internal_category = PUBLIC`, em evento planejado ou em andamento, com e-mail de origem igual ao da Person (quando informado) → `VOTER`. Nunca por texto do nome da entrada.
-  5. Senão: sem primeiro acesso.
-- O perfil é decidido no pedido e **revalidado na conclusão**: se mudou (liberação revogada, jurado inativado, inscrição cancelada), o link deixa de valer e é preciso pedir outro. Na conclusão com liberação, a conta nasce com o perfil/setor dela e a liberação passa a `CONSUMED` na mesma transação.
+  2. Person com `Juror` interno `ACTIVE` em evento planejado ou em andamento → `JUROR`. A entrada externa "Jurado" sozinha **não** concede conta: o `Juror` é criado pela sincronização e a conta só pelo primeiro acesso.
+  3. Senão, inscrição `CONFIRMED`, sem `identity_mismatch`, em entrada mapeada (`external_ticket_id`) como `internal_category = PUBLIC`, em evento planejado ou em andamento, com e-mail de origem igual ao da Person (quando informado) → `VOTER`. Nunca por texto do nome da entrada.
+  4. Senão: sem primeiro acesso.
+- O perfil é decidido no pedido e **revalidado na conclusão**: se mudou (jurado inativado, inscrição cancelada), o link deixa de valer e é preciso pedir outro.
 - Inscrições `PENDING`, `CANCELLED`, sem mapeamento, de outra categoria (inclusive `PARTICIPANT`) ou com `identity_mismatch` não dão acesso. Participant não vira User nem Votante.
 - Várias inscrições da mesma Person continuam sendo uma identidade: um token, um User.
 - Conta criada: `ACTIVE`, `email_verified_at` = momento da ativação (o link provou a posse do e-mail).
@@ -544,35 +543,22 @@ Evitar regras frágeis baseadas em texto.
 - O resultado exibido em painel/apresentação é sempre o publicado (`/results/published`); a prévia é só da gestão.
 - Atas, decisões, manifestações, documentos, premiações e finanças não têm backend e ficam fora da interface até existirem.
 
-## 23. Reconciliação dos dados da Even3 (Complemento 11.2)
+## 23. Even3: o seguro é automático, só exceções vão ao Administrador
 
-A Even3 é fonte de evento externo, entradas, inscrições e presença. O HackLab é autoridade sobre conta, perfil, setor, Jurado, Empresa, Representante, Participante e elegibilidade de voto. **Sincronizar** traz os dados; **reconciliar** é a decisão do Administrador sobre eles.
+Premissa do evento real: participantes, equipes, organização interna, setores, empresas e desafios são cadastrados **antes**. A Even3 valida inscrições e traz jurados externos, convidados de empresas, público e presença.
 
-### 23.1 Candidatos
+| Situação (inscrição confirmada, sem divergência de identidade) | Resultado |
+|---|---|
+| Participante já cadastrado no HackLab (mesma pessoa, mesmo evento) | validado, nada a fazer |
+| Participante não encontrado no HackLab | **Precisa de atenção**: "Participante não localizado" (nada é criado; pode ser cadastro faltando, e-mail/documento diferente ou inscrição errada) |
+| Jurado | vira Jurado ativo automaticamente, sem conta e sem equipes; quem já é jurado (ativo ou inativo) não muda |
+| Empresa/Convidado que já representa uma empresa do evento | nada a fazer |
+| Empresa/Convidado sem empresa | **Precisa de atenção**: "Representante sem empresa" → escolher a empresa e vincular |
+| Público | pode fazer o primeiro acesso como Votante |
+| Organização | nada (interna) |
+| Qualquer inscrição com identidade divergente | **Precisa de atenção**: "Identidade divergente"; nada é aplicado |
+| Entrada da Even3 com inscrições e sem mapeamento | **Precisa de atenção**: "Entrada sem mapeamento" |
 
-- Só inscrições `CONFIRMED`, sem `identity_mismatch`, em entrada mapeada (`internal_category`) geram candidatos. Pendentes, canceladas, sem mapeamento ou com conflito de identidade não entram.
-- Um candidato por Person e fila, mesmo com várias inscrições.
-- Pendência some quando a entidade interna existe (Jurado do evento, representante ativo em empresa do evento, conta ou liberação pendente).
-- Ignorar exige decisão explícita (nota opcional) e pode ser desfeito ("Restaurar"); restaurar não mexe em nenhuma entidade.
-
-### 23.2 Jurados e Empresas
-
-- Participante: criado automaticamente ao sincronizar (inscrição confirmada em entrada Participante), disponível e sem turma; quem já é participante não muda.
-- Jurado: criado automaticamente ao sincronizar (inscrição confirmada em entrada Jurado), ativo, sem conta e sem equipes. Quem foi ignorado não é recriado. A conta vem do primeiro acesso; as equipes, do Administrador.
-- Nome e datas do evento: copiados da Even3 ao sincronizar, salvo datas que deixariam dias cadastrados fora do período.
-- Organização: interna. A entrada "Organização" da Even3 não gera nada.
-- Empresa/Convidado: único item que pede decisão (página Empresas), porque a Even3 não informa a empresa.
-- Jurado (manual, para os que sobraram): "Cadastrar como Jurado" cria o Jurado interno com as regras normais. Não cria conta (a pessoa faz o primeiro acesso depois) nem atribuições. Jurado já existente, mesmo inativo, não é pendência e não é reativado sozinho.
-- Empresa/Convidado: o Administrador vincula a pessoa como representante de uma empresa do mesmo evento (empresa inativa não recebe representante) ou cria a empresa pelo formulário normal. Nunca há empresa automática.
-
-### 23.3 Liberação de acesso (Organização)
-
-- O Administrador escolhe o perfil — Gestor ou Editor (com setor ativo do evento) ou Consultor (sem setor) — e libera o acesso. Não define senha e não envia senha.
-- Administrador, Jurado e Votante não são liberados por esta via.
-- No máximo uma liberação pendente por pessoa. Pessoa que já tem conta não recebe liberação.
-- Revogar só antes da ativação. Depois, a conta segue a gestão normal de usuários.
-- Limitação conhecida: o perfil da conta é global (não por evento). Membership por evento é dívida futura.
-
-### 23.4 Evento
-
-Nome e datas diferentes da Even3 aparecem como divergência. O Administrador escolhe quais campos aplicar; os valores vêm do último retrato salvo da Even3 e passam pelas mesmas validações da edição do evento (datas que deixariam dias cadastrados fora do período são recusadas).
+- Inscrição nova não é pendência. Empresa nunca é criada pela Even3, nem por texto.
+- Nome e datas do evento são do HackLab; divergência com a Even3 é só um aviso na Configuração Even3.
+- Presença: check-in vindo da Even3 = "Presente"; sem check-in = "Sem registro" (nunca "Ausente").

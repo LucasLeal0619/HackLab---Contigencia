@@ -7,13 +7,13 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Vincula um candidato Empresa/Convidado como representante de uma empresa existente do mesmo evento.
+ * Pendência "Representante sem empresa": vincula a pessoa a uma empresa existente do mesmo evento.
  */
 class LinkCompanyGuestRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('reconcileCompanyGuests', EventIntegration::class);
+        return $this->user()->can('linkCompanyGuests', EventIntegration::class);
     }
 
     /**

@@ -44,13 +44,18 @@ class EventRegistrationController extends Controller
             'has_participant' => ['sometimes', Rule::in(['true', 'false', '1', '0'])],
             'identity_mismatch' => ['sometimes', Rule::in(['true', 'false', '1', '0'])],
             'unmapped' => ['sometimes', Rule::in(['true', 'false', '1', '0'])],
+            // Tela Presença: com check-in (present) ou sem registro (none). Nunca "ausente".
+            'presence' => ['sometimes', Rule::in(['present', 'none'])],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
 
         $registrations = $this->filtered(EventRegistration::query()->where('event_registrations.event_id', $event->id), $filters, $event)
             ->with('person', 'ticketType')
+            ->when(($filters['presence'] ?? null) === 'present', fn ($q) => $q->whereHas('attendance'))
+            ->when(($filters['presence'] ?? null) === 'none', fn ($q) => $q->whereDoesntHave('attendance'))
             ->join('people', 'people.id', '=', 'event_registrations.person_id')
             ->select('event_registrations.*')
+            ->withCount('attendance') // depois do select: senão o select apaga a contagem
             ->orderBy('people.full_name')
             ->orderBy('event_registrations.id')
             ->paginate((int) ($filters['per_page'] ?? 50));

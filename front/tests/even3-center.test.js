@@ -9,7 +9,7 @@ const CONSULTANT = {
   id: 7, email: 'consultor@hacklab.local', status: 'ACTIVE', role: { code: 'CONSULTANT', name: 'Consultor' }, sector: null,
   person: { id: 7, full_name: 'Consultor' }, permissions: ['events.view', 'integrations.view', 'event_registrations.view', 'attendance.view'],
 }
-const ADMIN_FULL = { ...ADMIN, permissions: [...ADMIN.permissions, 'integrations.manage', 'integrations.sync', 'jurors.manage', 'users.manage', 'companies.manage', 'participants.manage', 'events.manage'] }
+const ADMIN_FULL = { ...ADMIN, permissions: [...ADMIN.permissions, 'integrations.manage', 'integrations.sync', 'event_registrations.view', 'attendance.view', 'companies.manage', 'participants.manage'] }
 
 const WORKBENCH = (overrides = {}) => ({
   event_id: 1,
@@ -17,15 +17,36 @@ const WORKBENCH = (overrides = {}) => ({
   integration_status: 'ACTIVE',
   external_event_id: '793572',
   sync: { running: false, running_since: null, last_sync_at: new Date().toISOString(), last_sync_status: 'SUCCESS', last_error_code: null },
-  pending: { participants: 0, jurors: 3, organization: 5, company_guests: 4, public_without_access: 27, event_differences: 2 },
-  ignored: { jurors: 1, organization: 0, company_guests: 0 },
-  unmapped_tickets: 0,
+  totals: { registered: 187, present: 142, without_record: 45, public_without_access: 14 },
+  attention: { total: 2, PARTICIPANT_NOT_FOUND: 1, IDENTITY_CONFLICT: 0, COMPANY_UNLINKED: 1, UNMAPPED_TICKET: 0 },
+  tickets: { active: 4, mapped: 4 },
+  event_differences: 0,
   ...overrides,
 })
+const ATTENTION = [
+  { type: 'PARTICIPANT_NOT_FOUND', person: { id: 11, full_name: 'Bia Souza', email: 'bia@teste.local' }, category: 'Participante', registration_id: 31, ticket: null },
+  { type: 'COMPANY_UNLINKED', person: { id: 12, full_name: 'Maria Silva', email: 'maria@teste.local' }, category: 'Empresa / Convidado', registration_id: 32, ticket: null },
+]
+const PAGE = (data) => ({ data, meta: { current_page: 1, last_page: 1, total: data.length } })
+const RUN = { id: 9, status: 'SUCCESS', finished_at: new Date().toISOString(), counters: { attendees_created: 3, attendees_updated: 31, jurors_created: 2 } }
 
-const RUNS = { data: [{ id: 3, scope: 'ALL', status: 'SUCCESS', started_at: '2026-10-20T12:00:00Z', counters: { participants_created: 2 } }], meta: { current_page: 1, last_page: 1, total: 1 } }
+function defaultHandler(path) {
+  if (path.endsWith('/sync')) return response(201, { data: RUN })
+  if (path.endsWith('/attention')) return response(200, { data: ATTENTION, meta: { total: 2 } })
+  if (path.endsWith('/event-registrations')) return response(200, PAGE([
+    { id: 1, person: { full_name: 'Ana Souza', email: 'ana@teste.local' }, ticket: { internal_category: 'PARTICIPANT' }, check_ins: 2 },
+    { id: 2, person: { full_name: 'Maria Alves', email: 'mariaa@teste.local' }, ticket: { internal_category: 'PUBLIC' }, check_ins: 0 },
+  ]))
+  if (path.endsWith('/companies')) return response(200, PAGE([{ id: 5, name: 'Senac Tech', status: 'CONFIRMED' }]))
+  if (path.endsWith('/company-guests/12/link')) return response(201, { data: { id: 1 } })
+  if (path.endsWith('/status')) return response(200, { data: { configured: true, status: 'ACTIVE', external_event_id: '793572', token_configured: true, webhook_configured: false, last_sync_at: null } })
+  if (path.endsWith('/tickets')) return response(200, { data: [{ id: 1, external_name: 'Participante', internal_category: 'PARTICIPANT', active: true, registrations_count: 10 }] })
+  if (path.endsWith('/sync-runs')) return response(200, PAGE([{ id: 9, status: 'SUCCESS', trigger: 'MANUAL', started_at: new Date().toISOString() }]))
+  if (path.endsWith('/event-metadata')) return response(200, { data: { configured: true, fields: [] } })
+  return response(200, { data: WORKBENCH() })
+}
 
-async function setup(user, handler = (path) => (path.endsWith('/sync-runs') ? response(200, RUNS) : response(200, { data: WORKBENCH() }))) {
+async function boot(user, handler = defaultHandler) {
   vi.resetModules()
   clearCookies()
   document.body.innerHTML = ''
@@ -45,223 +66,172 @@ async function setup(user, handler = (path) => (path.endsWith('/sync-runs') ? re
   const { eventContext } = await import('@/js/stores/event-context')
   Object.assign(eventContext, { status: 'ready', events: [{ id: 1, name: 'A', days: [] }, { id: 2, name: 'B', days: [] }], activeEventId: 1 })
   const store = await import('@/js/stores/even3-context')
+  return { calls, store, eventContext }
+}
+
+async function center(user, handler) {
+  const ctx = await boot(user, handler)
   const Even3Center = (await import('@/components/Even3Center.vue')).default
   const wrapper = mount(Even3Center, { attachTo: document.body })
   await flushPromises()
-  return { wrapper, calls, store, eventContext }
+  return { wrapper, ...ctx }
 }
 
 const workbenchCalls = (calls) => calls.filter((c) => c.path.endsWith('/workbench'))
 
-describe('Centro Even3', () => {
-  it('Administrador vê o botão, o estado e as pendências; sincronizar usa o endpoint central', async () => {
-    const { wrapper, calls } = await setup(ADMIN_FULL, (path) => (path.endsWith('/sync')
-      ? response(201, { data: { id: 9, status: 'SUCCESS' } })
-      : response(200, { data: WORKBENCH() })))
+describe('cabeçalho Even3 (compacto)', () => {
+  it('Administrador: estado compacto e ↻ sincroniza na hora, sem confirmação', async () => {
+    const { wrapper, calls, store } = await center(ADMIN_FULL)
 
-    expect(wrapper.find('.even3-btn').text()).toContain('Sincronizar Even3')
-    expect(wrapper.find('.even3-btn').text()).toContain('9 pendências') // 3 + 4 + 2 (público não acende o selo; Organização é interna)
-    await wrapper.find('.even3-btn').trigger('click')
-    await flushPromises()
-    const queues = wrapper.findAll('.even3-queues li').map((li) => li.text())
-    // Participantes não aparecem (automáticos) e Organização é interna.
-    expect(queues).toEqual(['Jurados · 1 ignorado(s)3', 'Empresa / Convidado4', 'Público sem acesso27', 'Divergências do evento2'])
-    // Histórico das últimas sincronizações no próprio painel.
-    expect(calls.some((c) => c.path.endsWith('/sync-runs'))).toBe(true)
-    // Painel só com resumo: nenhuma lista de pessoas foi pedida.
-    expect(calls.some((c) => c.path.includes('/reconciliation/'))).toBe(false)
+    expect(wrapper.find('.even3-btn').text()).toContain('Even3')
+    expect(wrapper.find('.even3-btn-state').text()).toBe('Atualizado agora')
+    expect(wrapper.find('.even3-attention').text()).toBe('⚠ 2')
 
     calls.length = 0
-    await wrapper.find('.even3-sync').trigger('click')
+    await wrapper.find('.even3-sync-btn').trigger('click')
     await flushPromises()
     const sync = calls.filter((c) => c.path.endsWith('/sync'))
-    expect(sync).toHaveLength(1)
-    expect(sync[0]).toMatchObject({ method: 'POST', path: '/api/v1/events/1/integrations/even3/sync', body: { scope: 'ALL' } })
-    expect(workbenchCalls(calls)).toHaveLength(1) // recarrega o resumo depois de sincronizar
-  })
+    expect(sync).toEqual([expect.objectContaining({ method: 'POST', path: '/api/v1/events/1/integrations/even3/sync', body: { scope: 'ALL' } })])
+    expect(document.querySelector('.modal')).toBeNull() // nada de "tem certeza?"
+    expect(store.even3Context.lastResult.lines.map((l) => l.text)).toEqual([
+      'inscrição(ões) nova(s)', 'inscrição(ões) atualizada(s)', 'jurado(s) adicionado(s)', 'pessoa(s) do público disponível(is) para primeiro acesso',
+    ])
 
-  it('Consultor vê estado e pendências, sem sincronizar', async () => {
-    const { wrapper } = await setup(CONSULTANT)
-    expect(wrapper.find('.even3-btn').text()).not.toContain('Sincronizar Even3')
     await wrapper.find('.even3-btn').trigger('click')
-    expect(wrapper.find('.even3-sync').exists()).toBe(false)
-    expect(wrapper.findAll('.even3-queues li')).toHaveLength(4)
+    expect(wrapper.find('.even3-result').text()).toContain('31 inscrição(ões) atualizada(s)')
+    expect(wrapper.find('.even3-result').text()).toContain('2 item(ns) precisam de atenção')
+    expect(wrapper.text()).not.toMatch(/fila|candidato|reconcili/i)
   })
 
-  it.each([['Gestor', MANAGER], ['Jurado', JUROR], ['Votante', VOTER], ['Editor', { ...MANAGER, role: { code: 'EDITOR', name: 'Editor' } }]])('%s não vê o Centro nem consulta o resumo', async (_, user) => {
-    const { wrapper, calls } = await setup(user)
+  it('Consultor vê o estado, sem sincronizar', async () => {
+    const { wrapper } = await center(CONSULTANT)
+    expect(wrapper.find('.even3-btn').exists()).toBe(true)
+    expect(wrapper.find('.even3-sync-btn').exists()).toBe(false)
+  })
+
+  it.each([['Gestor', MANAGER], ['Jurado', JUROR], ['Votante', VOTER], ['Editor', { ...MANAGER, role: { code: 'EDITOR', name: 'Editor' } }]])('%s não vê a Even3 nem consulta o resumo', async (_, user) => {
+    const { wrapper, calls } = await center(user)
     expect(wrapper.find('.even3-btn').exists()).toBe(false)
     expect(workbenchCalls(calls)).toHaveLength(0)
   })
 
   it.each([
-    ['não configurado', WORKBENCH({ configured: false, pending: null, ignored: null }), 'Não configurado'],
-    ['sincronizando', WORKBENCH({ sync: { running: true, running_since: '2026-10-20T12:00:00Z', last_sync_at: null, last_sync_status: null } }), 'Sincronizando…'],
-    ['falhou', WORKBENCH({ sync: { running: false, last_sync_at: '2026-10-20T12:00:00Z', last_sync_status: 'FAILED', last_error_code: 'UNAUTHORIZED' } }), 'Última sincronização falhou'],
-    ['atualizado', WORKBENCH({ pending: { participants: 0, jurors: 0, organization: 0, company_guests: 0, public_without_access: 10, event_differences: 0 } }), 'Atualizado'],
+    ['não configurado', WORKBENCH({ configured: false, totals: null, attention: null }), 'Não configurado'],
+    ['sincronizando', WORKBENCH({ sync: { running: true, last_sync_at: new Date().toISOString(), last_sync_status: 'SUCCESS' } }), 'Sincronizando…'],
+    ['falhou', WORKBENCH({ sync: { running: false, last_sync_at: new Date().toISOString(), last_sync_status: 'FAILED' } }), 'Última sincronização falhou'],
   ])('estado: %s', async (_, data, text) => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    const { wrapper, store } = await setup(ADMIN_FULL, () => response(200, { data }))
+    const { wrapper, store } = await center(ADMIN_FULL, () => response(200, { data }))
     expect(wrapper.find('.even3-btn-state').text()).toBe(text)
     store.resetEven3()
-    vi.useRealTimers()
   })
 
-  it('não configurado: Administrador vê "Configurar integração", sem sincronizar', async () => {
-    const { wrapper } = await setup(ADMIN_FULL, () => response(200, { data: WORKBENCH({ configured: false, pending: null }) }))
-    await wrapper.find('.even3-btn').trigger('click')
-    expect(wrapper.text()).toContain('Configurar integração')
-    expect(wrapper.find('.even3-sync').exists()).toBe(false)
-  })
-
-  it('erro no resumo não trava: mostra mensagem e "Tentar novamente"', async () => {
+  it('erro no resumo não trava o sistema e permite tentar de novo', async () => {
     let fail = true
-    const { wrapper, calls } = await setup(ADMIN_FULL, () => (fail ? response(500, { message: 'x' }) : response(200, { data: WORKBENCH() })))
+    const { wrapper } = await center(ADMIN_FULL, (path) => (fail ? response(500, { message: 'x' }) : defaultHandler(path)))
     expect(wrapper.find('.even3-btn-state').text()).toBe('Indisponível')
-    await wrapper.find('.even3-btn').trigger('click') // abrir já tenta de novo (e falha de novo)
-    expect(wrapper.text()).toContain('Não foi possível consultar o estado da integração.')
+    await wrapper.find('.even3-btn').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('Não foi possível consultar o estado da integração.')
     fail = false
     await wrapper.find('.even3-error button').trigger('click')
     await flushPromises()
-    expect(wrapper.find('.even3-btn-state').text()).toBe('9 pendências')
-    expect(workbenchCalls(calls)).toHaveLength(3)
+    expect(wrapper.find('.even3-btn-state').text()).toBe('Atualizado agora')
   })
 
-  it('sincronização já em andamento (409) vira aviso claro', async () => {
-    const { wrapper, store } = await setup(ADMIN_FULL, (path) => (path.endsWith('/sync') ? response(409, { message: 'Já existe' }) : response(200, { data: WORKBENCH() })))
-    await wrapper.find('.even3-btn').trigger('click')
-    await wrapper.find('.even3-sync').trigger('click')
-    await flushPromises()
-    expect(store.even3Context.syncError.message).toBe('Sincronização já em andamento.')
-    expect(wrapper.text()).toContain('Sincronização já em andamento.')
-  })
-
-  it('trocar de evento cancela o pedido anterior, zera e carrega os contadores do novo evento', async () => {
+  it('trocar de evento cancela o pedido anterior e não mistura contadores', async () => {
     let release
-    const { wrapper, calls, eventContext, store } = await setup(ADMIN_FULL, (path) => (path.includes('/events/2/')
-      ? new Promise((resolve) => { release = () => resolve(response(200, { data: WORKBENCH({ event_id: 2, pending: { participants: 1, jurors: 0, organization: 0, company_guests: 0, public_without_access: 0, event_differences: 0 } }) })) })
-      : response(200, { data: WORKBENCH() })))
-    expect(store.even3Context.pending.jurors).toBe(3)
-
+    const { calls, eventContext, store } = await center(ADMIN_FULL, (path) => (path.includes('/events/2/')
+      ? new Promise((resolve) => { release = () => resolve(response(200, { data: WORKBENCH({ event_id: 2, attention: { total: 9 } }) })) })
+      : defaultHandler(path)))
     eventContext.activeEventId = 2
     await nextTick()
-    expect(store.even3Context.pending).toBeNull() // nada do evento anterior
+    expect(store.even3Context.attention).toBeNull()
     eventContext.activeEventId = 1
     await nextTick()
-    const toEvent2 = calls.find((c) => c.path.includes('/events/2/'))
-    expect(toEvent2.signal.aborted).toBe(true)
+    expect(calls.find((c) => c.path.includes('/events/2/')).signal.aborted).toBe(true)
     release()
     await flushPromises()
-    expect(store.even3Context.eventId).toBe(1)
-    expect(store.even3Context.pending.jurors).toBe(3)
-    expect(wrapper.find('.even3-btn').exists()).toBe(true)
+    expect(store.even3Context.attention.total).toBe(2)
   })
 
-  it('cada pendência leva à página onde é revisada; histórico mostra as últimas sincronizações', async () => {
-    const { wrapper } = await setup(ADMIN_FULL)
-    await wrapper.find('.even3-btn').trigger('click')
-    await flushPromises()
-    expect(wrapper.find('.even3-history').text()).toContain('2 participante(s) novo(s)')
-    const targets = {}
-    for (const [index, label] of ['Jurados', 'Empresa / Convidado', 'Público sem acesso', 'Divergências do evento'].entries()) {
-      if (!wrapper.find('.even3-panel').exists()) await wrapper.find('.even3-btn').trigger('click')
-      await wrapper.findAll('.even3-queues button')[index].trigger('click')
-      targets[label] = window.location.hash
-    }
-    expect(targets).toEqual({
-      Jurados: '#/jurados',
-      'Empresa / Convidado': '#/empresas',
-      'Público sem acesso': '#/votacao-gestao',
-      'Divergências do evento': '#/config',
-    })
-  })
-
-  it('sincroniza sozinho (automatic) quando a última tem mais de 10 minutos e o usuário é Administrador', async () => {
+  it('reserva silenciosa: sincroniza sozinho (automatic) só para Administrador e só com mais de 10 min', async () => {
     const old = new Date(Date.now() - 11 * 60_000).toISOString()
-    const { calls } = await setup(ADMIN_FULL, (path) => (path.endsWith('/sync')
-      ? response(201, { data: { id: 5, status: 'SUCCESS', finished_at: new Date().toISOString(), counters: { attendees_created: 2, jurors_created: 1 } } })
-      : response(200, { data: WORKBENCH({ sync: { running: false, last_sync_at: old, last_sync_status: 'SUCCESS' } }) })))
+    const stale = (path) => (path.endsWith('/sync') ? defaultHandler(path) : response(200, { data: WORKBENCH({ sync: { running: false, last_sync_at: old, last_sync_status: 'SUCCESS' } }) }))
+    const admin = await center(ADMIN_FULL, stale)
     await flushPromises()
-    const sync = calls.filter((c) => c.path.endsWith('/sync'))
-    expect(sync).toHaveLength(1)
-    expect(sync[0].body).toEqual({ scope: 'ALL', automatic: true })
-  })
+    expect(admin.calls.filter((c) => c.path.endsWith('/sync')).map((c) => c.body)).toEqual([{ scope: 'ALL', automatic: true }])
+    expect(admin.store.even3Context.lastResult).toBeNull() // automático não interrompe ninguém
 
-  it('não sincroniza sozinho se a última é recente, nem para o Consultor', async () => {
-    const recent = await setup(ADMIN_FULL)
-    await flushPromises()
-    expect(recent.calls.some((c) => c.path.endsWith('/sync'))).toBe(false)
-    const old = new Date(Date.now() - 60 * 60_000).toISOString()
-    const consultant = await setup(CONSULTANT, () => response(200, { data: WORKBENCH({ sync: { running: false, last_sync_at: old, last_sync_status: 'SUCCESS' } }) }))
+    const consultant = await center(CONSULTANT, stale)
     await flushPromises()
     expect(consultant.calls.some((c) => c.path.endsWith('/sync'))).toBe(false)
-  })
 
-  it('avisa as novidades da sincronização no botão; abrir o painel mostra e limpa o aviso', async () => {
-    const run = { id: 5, status: 'SUCCESS', finished_at: new Date().toISOString(), counters: { attendees_created: 2, attendees_unchanged: 9, participants_created: 1, jurors_created: 1 } }
-    const zero = { participants: 0, jurors: 0, organization: 0, company_guests: 0, public_without_access: 0, event_differences: 0 }
-    const { wrapper } = await setup(ADMIN_FULL, (path) => (path.endsWith('/sync') ? response(201, { data: run }) : response(200, { data: WORKBENCH({ pending: zero }) })))
-    await wrapper.find('.even3-btn').trigger('click')
-    await wrapper.find('.even3-sync').trigger('click')
+    const recent = await center(ADMIN_FULL)
     await flushPromises()
-    await wrapper.find('.even3-btn').trigger('click') // fecha
-    expect(wrapper.find('.even3-btn-state').text()).toBe('4 novidades')
-    await wrapper.find('.even3-btn').trigger('click') // abre: mostra e limpa
-    expect(wrapper.find('.even3-news').text()).toContain('2 inscrição(ões) nova(s)')
-    expect(wrapper.find('.even3-news').text()).toContain('1 jurado(s) novo(s)')
-    expect(wrapper.find('.even3-btn-state').text()).toBe('Atualizado')
-  })
-
-  it('abrir o painel não refaz o pedido se o resumo é recente', async () => {
-    const { wrapper, calls } = await setup(ADMIN_FULL)
-    await wrapper.find('.even3-btn').trigger('click')
-    await wrapper.find('.even3-btn').trigger('click')
-    await wrapper.find('.even3-btn').trigger('click')
-    await flushPromises()
-    expect(workbenchCalls(calls)).toHaveLength(1)
+    expect(recent.calls.some((c) => c.path.endsWith('/sync'))).toBe(false)
   })
 })
 
-describe('revisão da Even3 dentro das páginas', () => {
-  const CANDIDATES = { data: [{ person: { id: 41, full_name: 'Joana Jurada', email: 'joana@teste.local' }, tickets: ['Jurado'], state: 'PENDING', internal: { juror: null }, decision: null }], meta: { current_page: 1, last_page: 1, total: 1 } }
-
-  async function queue(user, fila, pending, ignored = { jurors: 0, organization: 0, company_guests: 0 }) {
-    const { wrapper: center, store, calls } = await setup(user, (path) => (path.includes('/reconciliation/')
-      ? response(200, CANDIDATES)
-      : response(200, { data: WORKBENCH({ pending, ignored }) })))
-    center.unmount()
-    const Queue = (await import('@/components/Even3PageQueue.vue')).default
-    const wrapper = mount(Queue, { props: { fila } })
+describe('tela Presença', () => {
+  async function presence(user = ADMIN_FULL, params = {}, handler = defaultHandler) {
+    const ctx = await boot(user, handler)
+    ctx.store.bindEven3Context()
+    const Attendance = (await import('@/pages/Attendance.vue')).default
+    const wrapper = mount(Attendance, { props: { params }, attachTo: document.body })
     await flushPromises()
-    return { wrapper, store, calls }
+    return { wrapper, ...ctx }
   }
 
-  it('Jurados: mostra os candidatos com as ações, sem botão de sincronizar', async () => {
-    const { wrapper, calls } = await queue(ADMIN_FULL, 'jurados', WORKBENCH().pending)
-    expect(wrapper.text()).toContain('Inscritos como Jurado na Even3')
-    expect(wrapper.text()).toContain('Joana Jurada')
-    expect(wrapper.text()).toContain('Cadastrar como Jurado')
-    expect(wrapper.text()).toContain('Ignorar')
-    expect(wrapper.text()).not.toMatch(/Sincronizar/)
-    expect(calls.some((c) => c.path === '/api/v1/events/1/integrations/even3/reconciliation/jurors')).toBe(true)
-    expect(calls.some((c) => c.path.endsWith('/sync'))).toBe(false)
+  it('indicadores, lista com Presente/Sem registro e só as exceções em "Precisa de atenção"', async () => {
+    const { wrapper } = await presence()
+    const stats = wrapper.findAll('.stat').map((s) => s.text())
+    expect(stats.join(' ')).toMatch(/Inscritos\s*187/)
+    expect(stats.join(' ')).toMatch(/Presentes\s*142/)
+    expect(stats.join(' ')).toMatch(/Sem registro\s*45/)
+    expect(stats.join(' ')).toMatch(/Pendências\s*2/)
+    expect(wrapper.find('.even3-attention-card h3').text()).toBe('Precisa de atenção (2)')
+    expect(wrapper.text()).toContain('Participante não localizado')
+    expect(wrapper.text()).toContain('Representante sem empresa')
+    const rows = wrapper.findAll('.attendance-table tbody tr').map((tr) => tr.text())
+    expect(rows[0]).toContain('Presente')
+    expect(rows[1]).toContain('Sem registro')
+    expect(wrapper.text()).not.toMatch(/Ausente|Materializar|Reconcilia/i)
   })
 
-  it('não aparece sem pendência nem ignorado, nem para quem não pode reconciliar', async () => {
-    const zero = await queue(ADMIN_FULL, 'jurados', { ...WORKBENCH().pending, jurors: 0 })
-    expect(zero.wrapper.find('.even3-queue').exists()).toBe(false)
-    const consultant = await queue(CONSULTANT, 'empresas', WORKBENCH().pending)
-    expect(consultant.wrapper.find('.even3-queue').exists()).toBe(false)
+  it('vincular representante: escolher a empresa e pronto', async () => {
+    const { wrapper, calls } = await presence()
+    const item = wrapper.findAll('.recon-item').find((li) => li.text().includes('Maria Silva'))
+    await item.find('select').setValue(5)
+    await item.find('button').trigger('click')
+    await flushPromises()
+    expect(calls.find((c) => c.path.endsWith('/company-guests/12/link')).body).toEqual({ company_id: 5 })
   })
 
-  it('continua visível só com ignorados (para poder restaurar) e some quando zera', async () => {
-    const { wrapper, store } = await queue(ADMIN_FULL, 'empresas', { ...WORKBENCH().pending, company_guests: 0 }, { jurors: 0, organization: 0, company_guests: 1 })
-    expect(wrapper.find('.even3-queue').exists()).toBe(true)
-    store.even3Context.ignored = { jurors: 0, organization: 0, company_guests: 0 }
-    await nextTick()
-    expect(wrapper.find('.even3-queue').exists()).toBe(false)
+  it('Sincronizar inicia na hora e mostra o resultado resumido', async () => {
+    const { wrapper, calls } = await presence()
+    const button = wrapper.findAll('button').find((b) => b.text() === 'Sincronizar')
+    await button.trigger('click')
+    await flushPromises()
+    expect(calls.filter((c) => c.path.endsWith('/sync'))).toHaveLength(1)
+    expect(document.querySelector('.modal')).toBeNull()
+    expect(wrapper.find('.even3-result').text()).toContain('✓ Sincronização concluída')
+    expect(wrapper.find('.even3-result').text()).toContain('2 jurado(s) adicionado(s)')
+  })
+
+  it('configuração técnica fica num painel secundário (entradas e histórico)', async () => {
+    const { wrapper } = await presence(ADMIN_FULL, { config: '1' })
+    const drawer = document.querySelector('.sheet')
+    expect(drawer.textContent).toContain('Configuração Even3')
+    expect(drawer.textContent).toContain('Entradas')
+    expect(drawer.textContent).toContain('Histórico')
+    expect(drawer.textContent).not.toMatch(/token\s*[:=]|secret/i)
+    wrapper.unmount()
+  })
+
+  it('Consultor: sem sincronizar, sem vincular', async () => {
+    const { wrapper } = await presence(CONSULTANT)
+    expect(wrapper.findAll('button').some((b) => b.text() === 'Sincronizar')).toBe(false)
+    expect(wrapper.text()).toContain('Precisa de atenção')
+    expect(wrapper.find('.recon-item select').exists()).toBe(false)
   })
 })
 
@@ -276,12 +246,9 @@ describe('uma única sincronização', () => {
     ['Usuários', ['pages/Users.vue', 'js/pages/users.js']],
     ['Votação', ['pages/VotingAdmin.vue', 'js/pages/voting-admin.js']],
     ['Evento', ['pages/EventConfig.vue', 'js/pages/event-config.js']],
-    ['Inscrições e Presença', ['pages/Attendance.vue', 'js/pages/attendance.js']],
-  ])('%s não tem botão nem chamada de sincronização própria', (_, files) => {
+  ])('%s não sincroniza nem mostra fila da Even3', (_, files) => {
     for (const file of files) {
-      const text = read(file)
-      // Nenhuma chamada de sync e nenhum botão "Sincronizar…" (texto de ajuda apontando para o topo é permitido).
-      expect(text, file).not.toMatch(/syncEven3|integrations\/even3\/sync|>\s*Sincronizar/)
+      expect(read(file), file).not.toMatch(/syncEven3|integrations\/even3|Sincronizar|Even3PageQueue|reconcili/i)
     }
   })
 
@@ -290,17 +257,11 @@ describe('uma única sincronização', () => {
     const walk = (dir) => readdirSync(join(SRC, dir), { withFileTypes: true }).forEach((entry) => {
       const rel = `${dir}/${entry.name}`
       if (entry.isDirectory()) return walk(rel)
-      if (/\.(js|vue)$/.test(entry.name) && /integrationsApi\.syncEven3|from '@\/js\/services\/integrations'[^\n]*syncEven3/.test(readFileSync(join(SRC, rel), 'utf8'))) offenders.push(rel)
+      if (/\.(js|vue)$/.test(entry.name) && /integrationsApi\.syncEven3/.test(readFileSync(join(SRC, rel), 'utf8'))) offenders.push(rel)
     })
     walk('js')
     walk('pages')
     walk('components')
     expect(offenders).toEqual(['js/stores/even3-context.js'])
-  })
-
-  it('não existe mais botão de materializar participantes (automático ao sincronizar)', () => {
-    for (const file of ['pages/Attendance.vue', 'js/pages/attendance.js', 'components/ReconciliationPanel.vue', 'js/services/integrations.js']) {
-      expect(read(file), file).not.toMatch(/materializ/i)
-    }
   })
 })

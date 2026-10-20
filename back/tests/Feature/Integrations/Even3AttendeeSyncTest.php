@@ -295,10 +295,9 @@ class Even3AttendeeSyncTest extends DatabaseTestCase
         ]);
 
         $this->assertSame(4, EventRegistration::query()->count());
-        // Complemento 11.2 (decisão de 20/10/2026): Participante e Jurado confirmados entram ao sincronizar.
-        // Conta, empresa, representante e elegibilidade continuam dependendo de decisão interna.
+        // Simplificação pré-deploy: só o Jurado confiável vira Juror ao sincronizar. Participante é cadastrado antes
+        // (a Even3 só valida); conta, empresa, representante e elegibilidade nunca nascem da Even3.
         $before[1]++;
-        $before[2]++;
         $this->assertSame($before, [User::query()->count(), Juror::query()->count(), Participant::query()->count(), Company::query()->count(), CompanyRepresentative::query()->count(), VotingEligibility::query()->count()]);
     }
 

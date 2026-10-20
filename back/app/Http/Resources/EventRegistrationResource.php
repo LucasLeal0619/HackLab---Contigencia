@@ -60,9 +60,12 @@ class EventRegistrationResource extends JsonResource
                 'badge_name' => $this->source_badge_name,
                 'email' => $this->source_email,
                 'phone' => $this->source_phone,
-                'document' => $this->source_document,
+                // Privacidade: nunca o documento completo; só o final, para conferência.
+                'document' => $this->source_document === null ? null : '•••'.mb_substr($this->source_document, -3),
             ],
             'identity_mismatch' => $this->identity_mismatch,
+            // Quantidade de check-ins (Presente se > 0; senão "Sem registro").
+            'check_ins' => $this->whenCounted('attendance'),
             'links' => (object) $this->links,
             'attendance' => $this->whenLoaded('attendance', fn () => $this->attendance->sortBy('observed_at')->values()->map(fn ($record) => [
                 'id' => $record->id,

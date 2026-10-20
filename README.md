@@ -38,7 +38,7 @@ As inscrições e o credenciamento acontecem na plataforma externa **Even3**. O 
 | 10 | Frontend integrado ao backend real | concluída |
 | 11 | Relatórios reais e PDF | concluída |
 | 11.1 | Primeiro acesso, recuperação de senha e autocadastro seguro de Votantes | concluído |
-| 11.2 | Centro Even3, reconciliação e pré-liberação de acessos | em revisão |
+| 11.2 | Centro Even3 e Presença (simplificado antes do deploy) | em revisão |
 | 12 | Implantação (Render + Supabase + Static Site) | pendente |
 | 13 | Teste de carga | pendente |
 
@@ -65,11 +65,7 @@ O detalhe de cada fase está em [`plano-implementacao.md`](hacklab_docs/docs/pla
 - **Resultados**:
   - resultado técnico e Escolha do Público, sempre separados;
   - publicação oficial versionada, que pode ser revogada.
-- **Inscrições Even3 e presença**:
-  - configuração da integração, entradas e mapeamento de categorias;
-  - sincronização com histórico de execuções e webhook;
-  - inscrições e criação explícita de participantes a partir delas;
-  - presença (check-ins) sincronizada.
+- **Presença (Even3)**: uma tela com inscritos, presentes, sem registro e o que precisa de atenção; sincronização central e webhook; configuração da integração (entradas, histórico) num painel discreto.
 - **Auditoria**: trilha somente leitura das ações relevantes, gerada no backend.
 - **Relatórios**: quatro relatórios consolidados com PDF.
 
@@ -251,7 +247,7 @@ O seed pode ser executado mais de uma vez sem duplicar dados.
 docker compose exec -e HACKLAB_ALLOW_DESTRUCTIVE_DB=true app php artisan migrate:fresh --seed
 ```
 
-Depois disso, a integração Even3 precisa ser configurada e sincronizada de novo pela tela Inscrições e Presença. Não coloque `HACKLAB_ALLOW_DESTRUCTIVE_DB` no `.env`.
+Depois disso, a integração Even3 precisa ser configurada e sincronizada de novo pela tela Presença (Configuração Even3). Não coloque `HACKLAB_ALLOW_DESTRUCTIVE_DB` no `.env`.
 
 Em produção, o primeiro Administrador é criado pelo terminal:
 
@@ -282,16 +278,14 @@ Even3 (API V2 e webhook) → Laravel (Even3Provider / sincronização) → Postg
 ```
 
 - O Vue nunca chama a Even3. O token (`EVEN3_API_TOKEN`, um por deployment) e o segredo do webhook ficam só nas variáveis do backend.
-- A tela **Inscrições e Presença** (submenu Integração, Entradas, Inscrições, Presença) reúne:
-  - status da integração;
-  - entradas e mapeamento de categorias;
-  - inscrições;
-  - presença.
+- **Premissa:** participantes, equipes, organização interna, setores, empresas e desafios são cadastrados no HackLab **antes** do evento. A Even3 valida inscrições e traz jurados externos, convidados de empresas, público e presença.
+- A tela **Presença** é a tela da integração: indicadores (inscritos, presentes, sem registro, pendências), lista de pessoas com presença e **Precisa de atenção**. A **Configuração Even3** (entradas, histórico, divergência do evento) fica num painel discreto.
 - Sincronizar é repetível e não duplica dados. O webhook (`POST /api/v1/webhooks/even3`) é idempotente.
 - Mapear uma entrada não concede perfil e não cria jurado, empresa ou usuário.
 - Comandos: `php artisan even3:test-connection` e `php artisan even3:sync`.
-- **Uma sincronização central por evento, automática.** O HackLab sincroniza sozinho a cada 10 minutos enquanto um Administrador usa o sistema; o botão **Sincronizar Even3** no cabeçalho mostra o estado, as novidades e o histórico e permite sincronizar na hora. Ao sincronizar, Participantes e Jurados confirmados entram no HackLab e o nome/datas do evento acompanham a Even3.
-- **O que ainda pede decisão** aparece na própria página: Empresa/Convidado em Empresas (a Even3 não informa a empresa). Contas nunca nascem da Even3: a pessoa ativa a própria pelo primeiro acesso. A entrada "Organização" não gera nada (a organização é interna). Datas da Even3 que deixariam dias cadastrados fora do período não são aplicadas e viram aviso na página Evento.
+- **Uma sincronização central por evento; o que é seguro é automático.** Sincronizar não pede confirmação. Jurados confirmados viram Jurados do HackLab (sem conta: a conta vem do primeiro acesso). Participantes já cadastrados são validados. Público pode fazer o primeiro acesso como Votante.
+- **Só exceções vão ao Administrador**, numa lista única: participante não localizado, identidade divergente, representante sem empresa (escolher a empresa) e entrada sem mapeamento. Nada cria participante, empresa, conta ou perfil; nome e datas do evento continuam do HackLab.
+- O cabeçalho mostra o estado ("Even3 · Atualizado há 3 min"). Uma sincronização automática silenciosa roda como reserva; em produção o caminho principal é webhook + sincronizar.
 - O teste do webhook público real fica para a Fase 12.
 
 Detalhes em [`integracao-even3.md`](hacklab_docs/docs/integracao-even3.md).

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canAccess, homeFor, legacyTarget, navFor, navState } from '@/js/config/access'
+import { canAccess, homeFor, legacyTarget, navFor, navState, sectionTabsFor } from '@/js/config/access'
 import { ADMIN, JUROR, MANAGER, VOTER } from './helpers'
 
 const labels = (user) => navFor(user).flatMap((group) => group.items.flatMap((item) => (item.children ? item.children.map((child) => child.label) : [item.label])))
@@ -7,33 +7,56 @@ const labels = (user) => navFor(user).flatMap((group) => group.items.flatMap((it
 describe('navegação por permissão', () => {
   it('administrador vê as áreas das permissões que tem', () => {
     const nav = labels(ADMIN)
-    expect(nav).toEqual(expect.arrayContaining(['Dashboard', 'Evento', 'Participantes', 'Usuários e Permissões', 'Auditoria', 'Integração', 'Entradas']))
+    expect(nav).toEqual(expect.arrayContaining(['Dashboard', 'Evento', 'Pessoas e Equipes', 'Empresas e Desafios', 'Setores', 'Pendências', 'Julgamento', 'Votação e Resultados', 'Usuários', 'Auditoria']))
     expect(nav).not.toContain('Validador')
     expect(nav).not.toContain('Documentos')
     expect(nav).not.toContain('Relatórios')
     expect(homeFor(ADMIN)).toBe('dashboard')
   })
 
-  it('Inscrições e Presença é submenu (Integração, Entradas, Inscrições, Presença) e links antigos continuam valendo', () => {
-    const full = { ...ADMIN, permissions: [...ADMIN.permissions, 'event_registrations.view', 'attendance.view'] }
-    const group = navFor(full).flatMap((g) => g.items).find((item) => item.id === 'inscricoes-presenca')
-    expect(group.label).toBe('Inscrições e Presença')
-    expect(group.children.map((c) => c.id)).toEqual(['integracao', 'entradas', 'inscricoes', 'presenca'])
-    expect(navState('entradas', full)).toEqual({ item: 'entradas', group: 'inscricoes-presenca' })
-    expect(legacyTarget('presenca', { aba: 'integracao' })).toBe('integracao')
-    expect(legacyTarget('presenca', { aba: 'sincronizacao' })).toBe('integracao')
-    expect(legacyTarget('presenca', { aba: 'reconciliacao', fila: 'jurados' })).toBe('jurados')
-    expect(legacyTarget('presenca', { aba: 'reconciliacao', fila: 'organizacao' })).toBe('usuarios')
+  it('menu do Administrador: seções planas, no máximo 14 itens, sem submenus', () => {
+    const full = { ...ADMIN, permissions: [...ADMIN.permissions, 'attendance.view', 'reports.view'] }
+    const nav = navFor(full)
+    expect(nav.map((group) => group.group)).toEqual(['Dashboard', 'Preparação', 'Operação', 'Hackathon', 'Gestão'])
+    const items = nav.flatMap((group) => group.items)
+    expect(items.length).toBeLessThanOrEqual(14)
+    expect(items.every((item) => !item.children)).toBe(true)
+    expect(items.map((item) => item.label)).toContain('Presença')
+  })
+
+  it('páginas irmãs viram abas; o item do menu leva à primeira página permitida', () => {
+    expect(sectionTabsFor('equipes', ADMIN)).toEqual([
+      { id: 'participantes', label: 'Participantes', active: false },
+      { id: 'equipes', label: 'Equipes', active: true },
+    ])
+    expect(sectionTabsFor('montar', ADMIN).find((tab) => tab.active).id).toBe('equipes')
+    expect(sectionTabsFor('resultados', ADMIN).map((tab) => tab.label)).toEqual(['Votação', 'Resultados'])
+    expect(navState('equipes', ADMIN)).toEqual({ item: 'participantes', group: '' })
+    expect(navState('avaliacoes', ADMIN)).toEqual({ item: 'jurados', group: '' })
+    expect(sectionTabsFor('dashboard', ADMIN)).toEqual([])
+    // Gestor não vê Jurados: "Julgamento" leva direto a Avaliações, sem abas.
+    const julgamento = navFor(MANAGER).flatMap((group) => group.items).find((item) => item.label === 'Julgamento')
+    expect(julgamento.id).toBe('avaliacoes')
+    expect(sectionTabsFor('avaliacoes', MANAGER)).toEqual([])
+  })
+
+  it('endereços antigos de Inscrições e Presença levam à Presença', () => {
+    expect(legacyTarget('integracao')).toBe('presenca?config=1')
+    expect(legacyTarget('entradas')).toBe('presenca?config=1')
+    expect(legacyTarget('inscricoes')).toBe('presenca')
+    expect(legacyTarget('presenca', { aba: 'sincronizacao' })).toBe('presenca?config=1')
+    expect(legacyTarget('presenca', { aba: 'reconciliacao', fila: 'jurados' })).toBe('presenca')
     expect(legacyTarget('presenca', {})).toBe('')
-    expect(legacyTarget('presenca', { aba: 'presenca' })).toBe('')
+    expect(legacyTarget('presenca', { config: '1' })).toBe('')
   })
 
   it('gestor não vê usuários, auditoria nem evento; setor vira "Meu setor"', () => {
     const nav = labels(MANAGER)
-    expect(nav).toEqual(expect.arrayContaining(['Pendências', 'Ocorrências', 'Meu setor', 'Avaliações']))
-    expect(nav).not.toContain('Usuários e Permissões')
+    expect(nav).toEqual(expect.arrayContaining(['Pendências', 'Ocorrências', 'Meu setor', 'Julgamento']))
+    expect(nav).not.toContain('Usuários')
     expect(nav).not.toContain('Auditoria')
     expect(nav).not.toContain('Evento')
+    expect(nav).not.toContain('Presença')
     expect(canAccess(MANAGER, 'auditoria')).toBe(false)
     expect(canAccess(MANAGER, 'pendencias')).toBe(true)
   })
@@ -82,7 +105,7 @@ describe('navegação por permissão', () => {
   })
 
   it('detalhes acendem o item de navegação do módulo', () => {
-    expect(navState('empresa', ADMIN)).toEqual({ item: 'empresas', group: 'preparacao' })
+    expect(navState('empresa', ADMIN)).toEqual({ item: 'empresas', group: '' })
     expect(navState('auditoria', ADMIN)).toEqual({ item: 'auditoria', group: '' })
   })
 })

@@ -5,12 +5,14 @@ namespace App\Domain\Integrations;
 use App\Domain\Integrations\Enums\SyncScope;
 use App\Domain\Integrations\Enums\SyncStatus;
 use App\Domain\Integrations\Enums\SyncTrigger;
-use App\Domain\Integrations\Reconciliation\Even3AutoApply;
+use App\Domain\Integrations\Enums\TicketCategory;
+use App\Domain\Jurors\JurorService;
 use App\Integrations\Even3\Even3Exception;
 use App\Integrations\EventPlatform\EventPlatformProvider;
 use App\Models\EventIntegration;
 use App\Models\ExternalTicketType;
 use App\Models\IntegrationSyncRun;
+use App\Models\Person;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -26,9 +28,10 @@ use Throwable;
  * - SUCCESS / PARTIAL (algum item rejeitado, em conflito ou com erro) / FAILED (recurso externo essencial);
  * - contadores só contam mudança real; avisos sem payload externo nem segredo;
  * - ausência de um item na resposta nunca cancela inscrição;
- * - ao fim de um sync que não falhou, aplica sozinho (decisão de 20/10/2026): PARTICIPANT → Participant,
- *   JUROR → Juror (Even3AutoApply) e nome/datas do evento. Contadores participants_created, jurors_created,
- *   event_fields_applied. Falha num desses passos vira aviso; o sync não perde as inscrições.
+ * - o que é seguro é automático: ao fim de um sync de inscritos que não falhou, cada Person com inscrição JUROR
+ *   confiável (CONFIRMED, sem identity_mismatch, entrada mapeada) e sem Juror no evento vira Juror ativo pelo
+ *   JurorService (contador jurors_created). Nunca cria User, Participant, Company nem altera o Event.
+ *   Exceções ficam derivadas para a lista "Precisa de atenção" (Even3Attention).
  */
 class IntegrationSyncService
 {
@@ -39,8 +42,7 @@ class IntegrationSyncService
     public function __construct(
         private readonly EventPlatformProvider $provider,
         private readonly RegistrationRecorder $recorder,
-        private readonly ParticipantMaterializer $participants,
-        private readonly Even3AutoApply $autoApply,
+        private readonly JurorService $jurors,
     ) {}
 
     public function start(EventIntegration $integration, SyncScope $scope, SyncTrigger $trigger, ?User $actor): IntegrationSyncRun
@@ -103,31 +105,9 @@ class IntegrationSyncService
             return $this->finish($run, SyncStatus::Failed, $counters, $warnings, 'UNEXPECTED', 'Erro inesperado durante a sincronização ('.class_basename($e).').');
         }
 
-        $actor = $run->started_by_user_id ? User::query()->find($run->started_by_user_id) : null;
-
-        if (in_array($run->scope, [SyncScope::Event, SyncScope::All], true)) {
-            try {
-                $result = $this->autoApply->eventMetadata($integration, $actor);
-                $counters['event_fields_applied'] = count($result['applied']);
-                if ($result['warning'] !== null) {
-                    $this->warn($warnings, 'EVENT_DATES_NOT_APPLIED', null, $result['warning']);
-                }
-            } catch (Throwable $e) {
-                report($e);
-                $this->warn($warnings, 'EVENT_NOT_UPDATED', null, 'Evento sincronizado, mas nome/datas não puderam ser aplicados ('.class_basename($e).').');
-            }
-        }
-
         if (in_array($run->scope, [SyncScope::Attendees, SyncScope::All], true)) {
             try {
-                $counters['participants_created'] = $this->participants->afterSync($integration, $actor)['created'];
-            } catch (Throwable $e) {
-                report($e);
-                $this->warn($warnings, 'PARTICIPANTS_NOT_CREATED', null, 'Inscrições sincronizadas, mas os participantes não puderam ser criados ('.class_basename($e).').');
-            }
-
-            try {
-                $counters['jurors_created'] = $this->autoApply->jurors($integration, $actor)['created'];
+                $counters['jurors_created'] = $this->createTrustedJurors($integration);
             } catch (Throwable $e) {
                 report($e);
                 $this->warn($warnings, 'JURORS_NOT_CREATED', null, 'Inscrições sincronizadas, mas os jurados não puderam ser criados ('.class_basename($e).').');
@@ -253,6 +233,37 @@ class IntegrationSyncService
                 }
             }
         }
+    }
+
+    /**
+     * Jurado confiável → Juror ativo (sem conta, sem equipes). Serializa por Person; o unique(event_id, person_id)
+     * de jurors é a última barreira contra duplicação.
+     */
+    private function createTrustedJurors(EventIntegration $integration): int
+    {
+        $event = $integration->event()->firstOrFail();
+        $people = Person::query()->whereIn('people.id', Even3Attention::trustedPeople($integration, TicketCategory::Juror))
+            ->whereNotExists(fn ($q) => $q->from('jurors as j')->whereColumn('j.person_id', 'people.id')->where('j.event_id', $event->id))
+            ->orderBy('people.id')->pluck('people.id');
+        $created = 0;
+
+        foreach ($people as $personId) {
+            try {
+                $created += DB::transaction(function () use ($event, $personId) {
+                    DB::select('select pg_advisory_xact_lock(?, ?)', [91005, $personId]);
+                    if (DB::table('jurors')->where('event_id', $event->id)->where('person_id', $personId)->exists()) {
+                        return 0;
+                    }
+                    $this->jurors->create($event, ['person_id' => $personId]);
+
+                    return 1;
+                });
+            } catch (UniqueConstraintViolationException) {
+                // Outro processo criou ao mesmo tempo: já existe, segue.
+            }
+        }
+
+        return $created;
     }
 
     /**

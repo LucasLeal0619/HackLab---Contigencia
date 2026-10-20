@@ -1,11 +1,7 @@
-// Centro Even3: estado da integração do evento ativo, compartilhado pelo cabeçalho e pelas páginas.
-// Sincronizar = endpoint central (POST .../sync). Revisar = decisões sobre dados já sincronizados.
-// Sincronização automática (decisão de 20/10/2026): com um Administrador usando o sistema, o próprio front
-// dispara a sincronização central quando a última tem mais de 10 minutos (verifica a cada minuto). As novidades
-// da última sincronização aparecem no botão do topo até o painel ser aberto.
-// Sem polling do resumo: carrega ao entrar, ao trocar de evento, depois de sincronizar/reconciliar e ao abrir
-// o painel se estiver desatualizado. Com uma sincronização de outra origem em andamento, consulta em intervalo
-// curto só até ela terminar.
+// Estado da Even3 do evento ativo, compartilhado pelo cabeçalho e pela tela Presença.
+// Sincronizar = endpoint central (POST .../sync), sem confirmação (idempotente, auditado, com lock).
+// O resumo vem do PostgreSQL (GET .../workbench): carrega ao entrar, ao trocar de evento e depois de sincronizar.
+// Reserva silenciosa: com um Administrador usando o sistema, sincroniza sozinho quando a última tem mais de 10 min.
 import { reactive, watch } from 'vue'
 import { unwrap } from '@/js/api/client'
 import { auth, AUTH, hasPermission, onSessionEnd } from '@/js/stores/auth'
@@ -29,23 +25,22 @@ function emptyState() {
     externalEventId: null,
     lastSyncAt: null,
     lastSyncStatus: null,
-    lastErrorCode: null,
     running: false,
-    pending: null,
-    ignored: null,
-    unmappedTickets: 0,
+    totals: null,
+    attention: null,
+    tickets: null,
+    eventDifferences: 0,
     loadedAt: 0,
   }
 }
 
 export const even3Context = reactive({
   ...emptyState(),
-  // Sincronização disparada por este navegador.
   syncing: false,
   syncError: null,
-  // Novidades da última sincronização (inscrições, participantes, jurados, evento) ainda não vistas.
-  news: null,
-  // Muda depois de cada sincronização ou reconciliação: páginas usam para recarregar dados locais.
+  // Resumo da última sincronização feita por este navegador (mostrado na Presença e no cabeçalho).
+  lastResult: null,
+  // Muda depois de cada sincronização: a tela Presença recarrega as listas.
   revision: 0,
 })
 
@@ -65,11 +60,11 @@ function apply(data) {
     externalEventId: data?.external_event_id ?? null,
     lastSyncAt: data?.sync?.last_sync_at ?? null,
     lastSyncStatus: data?.sync?.last_sync_status ?? null,
-    lastErrorCode: data?.sync?.last_error_code ?? null,
     running: Boolean(data?.sync?.running),
-    pending: data?.pending ?? null,
-    ignored: data?.ignored ?? null,
-    unmappedTickets: data?.unmapped_tickets ?? 0,
+    totals: data?.totals ?? null,
+    attention: data?.attention ?? null,
+    tickets: data?.tickets ?? null,
+    eventDifferences: Number(data?.event_differences || 0),
   })
 }
 
@@ -78,6 +73,7 @@ function stopPolling() {
   pollTimer = 0
 }
 
+// Sincronização de outra origem em andamento: consulta em intervalo curto só até ela terminar.
 function schedulePoll() {
   if (pollTimer || even3Context.syncing) return
   if (!pollStarted) pollStarted = Date.now()
@@ -116,33 +112,56 @@ export async function loadEven3({ force = true } = {}) {
   }
 }
 
-// Troca de evento ou fim de sessão: nada do evento anterior pode aparecer.
 export function resetEven3() {
   controller?.abort()
   controller = null
   stopPolling()
   pollStarted = 0
-  Object.assign(even3Context, emptyState(), { syncing: false, syncError: null, news: null })
+  Object.assign(even3Context, emptyState(), { syncing: false, syncError: null, lastResult: null })
 }
 
-// O que a última sincronização trouxe de novo (só mudanças reais, pelos contadores do histórico).
-export function newsFrom(run) {
+// Resumo curto para gente (sem detalhes técnicos): o que mudou e o que precisa de atenção.
+export function resultFrom(run, summary) {
   const c = run?.counters || {}
-  const items = [
-    ['attendees_created', 'inscrição(ões) nova(s)'],
-    ['attendees_updated', 'inscrição(ões) atualizada(s)'],
-    ['participants_created', 'participante(s) novo(s)'],
-    ['jurors_created', 'jurado(s) novo(s)'],
-    ['event_fields_applied', 'dado(s) do evento atualizado(s)'],
-  ].filter(([key]) => Number(c[key] || 0) > 0).map(([key, text]) => ({ key, count: Number(c[key]), text }))
-  return items.length ? { total: items.reduce((sum, item) => sum + item.count, 0), items, at: run?.finished_at || null } : null
+  const lines = [
+    [Number(c.attendees_created || 0), 'inscrição(ões) nova(s)'],
+    [Number(c.attendees_updated || 0), 'inscrição(ões) atualizada(s)'],
+    [Number(c.jurors_created || 0), 'jurado(s) adicionado(s)'],
+    [Number(summary?.totals?.public_without_access || 0), 'pessoa(s) do público disponível(is) para primeiro acesso'],
+  ].filter(([count]) => count > 0).map(([count, text]) => ({ count, text }))
+  return {
+    status: run?.status || null,
+    lines,
+    attention: Number(summary?.attention?.total || 0),
+    at: run?.finished_at || new Date().toISOString(),
+  }
 }
 
-export function markNewsSeen() {
-  even3Context.news = null
+// Único disparo da sincronização no front (botão Sincronizar ou reserva automática). 409 = já em andamento.
+export async function syncEven3(scope = 'ALL', { automatic = false } = {}) {
+  const eventId = eventContext.activeEventId
+  if (!eventId || even3Context.syncing) return null
+  even3Context.syncing = true
+  even3Context.syncError = null
+  stopPolling()
+  let run = null
+  try {
+    run = unwrap(await integrationsApi.syncEven3(eventId, automatic ? { scope, automatic: true } : { scope }))
+    return run
+  } catch (error) {
+    even3Context.syncError = error?.kind === 'conflict' ? { ...error, message: 'Sincronização já em andamento.' } : error
+    throw even3Context.syncError
+  } finally {
+    even3Context.syncing = false
+    if (eventId === eventContext.activeEventId) {
+      even3Context.revision += 1
+      const summary = await loadEven3()
+      if (run && !automatic) even3Context.lastResult = resultFrom(run, summary)
+    }
+  }
 }
 
-// Hora de sincronizar sozinho? Só Administrador (integrations.sync), integração ativa, nada em andamento.
+// Hora de sincronizar sozinho? Só Administrador, integração ativa, nada em andamento.
 export function autoSyncDue(now = Date.now()) {
   if (!canSyncEven3() || !even3Context.loaded || !even3Context.configured) return false
   if (even3Context.integrationStatus !== 'ACTIVE' || even3Context.running || even3Context.syncing) return false
@@ -155,49 +174,17 @@ export async function autoSyncIfDue() {
   try {
     return await syncEven3('ALL', { automatic: true })
   } catch {
-    // Silencioso: o botão do topo mostra o estado (409 = outro já está sincronizando).
-    return null
+    return null // silencioso: o cabeçalho mostra o estado
   }
 }
 
 function startAutoSync() {
-  if (autoTimer) return
-  autoTimer = window.setInterval(() => { autoSyncIfDue() }, AUTO_CHECK_MS)
+  if (!autoTimer) autoTimer = window.setInterval(() => { autoSyncIfDue() }, AUTO_CHECK_MS)
 }
 
 function stopAutoSync() {
   window.clearInterval(autoTimer)
   autoTimer = 0
-}
-
-// Depois de uma reconciliação (ou outra mudança local relevante): recarrega o resumo e avisa as páginas.
-export function even3Changed() {
-  even3Context.revision += 1
-  return loadEven3()
-}
-
-// Único disparo da sincronização no front (botão do topo ou automático). Usa o endpoint central;
-// 409 = já existe uma em andamento.
-export async function syncEven3(scope = 'ALL', { automatic = false } = {}) {
-  const eventId = eventContext.activeEventId
-  if (!eventId || even3Context.syncing) return null
-  even3Context.syncing = true
-  even3Context.syncError = null
-  stopPolling()
-  try {
-    const run = unwrap(await integrationsApi.syncEven3(eventId, automatic ? { scope, automatic: true } : { scope }))
-    if (eventId === eventContext.activeEventId) even3Context.news = newsFrom(run) || even3Context.news
-    return run
-  } catch (error) {
-    even3Context.syncError = error?.kind === 'conflict' ? { ...error, message: 'Sincronização já em andamento.' } : error
-    throw even3Context.syncError
-  } finally {
-    even3Context.syncing = false
-    if (eventId === eventContext.activeEventId) {
-      even3Context.revision += 1
-      loadEven3()
-    }
-  }
 }
 
 // Liga o store ao login e ao evento ativo (uma vez, a partir do cabeçalho administrativo).
@@ -210,7 +197,6 @@ export function bindEven3Context() {
       const [previousEventId] = previous || []
       if (eventId !== previousEventId || status !== AUTH.AUTHENTICATED) resetEven3()
       if (status === AUTH.AUTHENTICATED && eventId && canSeeEven3()) {
-        // Ao entrar (ou trocar de evento), já sincroniza se a última tiver mais de 10 minutos.
         loadEven3().then(() => autoSyncIfDue())
         if (canSyncEven3()) startAutoSync()
       } else {
