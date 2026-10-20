@@ -61,7 +61,10 @@ RUN composer dump-autoload --no-dev --optimize --no-interaction \
     && mkdir -p storage/app/private storage/app/public storage/framework/cache/data storage/framework/sessions \
         storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache /data /config \
-    && chmod 755 docker/prod/entrypoint.sh docker/prod/release.sh
+    && chmod 755 docker/prod/entrypoint.sh docker/prod/release.sh \
+    # A imagem oficial dá CAP_NET_BIND_SERVICE ao binário (portas < 1024). O Render não permite file capabilities
+    # ("exec: frankenphp: Operation not permitted") e a porta do Render ($PORT) é sempre > 1024: não é necessária.
+    && setcap -r /usr/local/bin/frankenphp
 
 COPY docker/prod/Caddyfile /etc/frankenphp/Caddyfile
 COPY docker/prod/php.ini $PHP_INI_DIR/conf.d/zz-hacklab-prod.ini
