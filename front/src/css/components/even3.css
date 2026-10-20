@@ -1,0 +1,84 @@
+/* Centro Even3 (cabeçalho), avisos contextuais e aba Reconciliação. */
+.even3-center { margin-right: auto; }
+.even3-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 12px;
+  color: var(--blue);
+  font-weight: 650;
+  font-size: 13px;
+  cursor: pointer;
+}
+.even3-btn:hover { border-color: var(--blue); }
+.even3-btn-state { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--muted, #5b6b7d); font-size: 12px; border-left: 1px solid var(--line); padding-left: 8px; }
+.even3-dot { width: 8px; height: 8px; border-radius: 50%; background: #9aafc4; }
+.even3-btn.is-ok .even3-dot { background: var(--ok); }
+.even3-btn.is-warn .even3-dot { background: var(--orange); }
+.even3-btn.is-danger .even3-dot { background: var(--danger, #c0392b); }
+.even3-btn.is-danger .even3-btn-state { color: var(--danger, #c0392b); }
+.even3-btn.is-busy .even3-dot { background: var(--blue); }
+.even3-btn.is-news .even3-dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+.even3-btn.is-news .even3-btn-state { color: var(--ok); font-weight: 650; }
+.even3-news { background: var(--ok-bg); border-radius: var(--radius); padding: 8px 12px; }
+.even3-news ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+.spinning { animation: even3-spin 1s linear infinite; }
+@keyframes even3-spin { to { transform: rotate(360deg); } }
+html.reduce-motion .spinning { animation: none; }
+
+.even3-panel { left: 0; right: auto; width: min(380px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: var(--space-3); }
+.even3-status { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.even3-sync { width: 100%; justify-content: center; }
+.even3-advanced summary { cursor: pointer; font-size: 12px; color: var(--muted, #5b6b7d); }
+.even3-advanced select { margin-top: 4px; width: 100%; }
+.even3-subtitle { margin: 4px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #5b6b7d); }
+.even3-queues { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.even3-queues button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 2px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+.even3-queues button:hover { background: #f4f7fb; }
+.even3-queues b { color: var(--orange); }
+.even3-queues .zero b { color: var(--muted, #5b6b7d); font-weight: 500; }
+.even3-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.even3-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.even3-history li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
+.even3-queue { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); border-left: 4px solid var(--orange); }
+.even3-queue-head h3 { margin: 0; display: flex; align-items: center; gap: 8px; }
+.even3-tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #fff; background: var(--blue); border-radius: 999px; padding: 2px 8px; }
+.recon-list .recon-item { padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.recon-list .recon-item:last-child { border-bottom: 0; }
+.even3-error { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--blue); text-decoration: underline; cursor: pointer; font: inherit; }
+
+/* Revisão da Even3 embutida nas páginas */
+.recon-bar { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; justify-content: space-between; margin-bottom: var(--space-3); }
+.recon-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.recon-item { display: grid; grid-template-columns: 1fr auto; gap: var(--space-3); align-items: center; }
+.recon-item-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.recon-item small { display: block; }
+.recon-diff { width: 100%; border-collapse: collapse; }
+.recon-diff th, .recon-diff td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); }
+
+@media (max-width: 900px) {
+  .even3-btn-label { display: none; }
+}
+@media (max-width: 560px) {
+  .even3-btn-state { display: none; }
+  .recon-item { grid-template-columns: 1fr; }
+  .recon-item-actions { justify-content: flex-start; }
+}

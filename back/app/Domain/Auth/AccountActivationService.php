@@ -4,7 +4,9 @@ namespace App\Domain\Auth;
 
 use App\Domain\Audit\AuditAction;
 use App\Domain\Audit\AuditLogger;
+use App\Domain\Auth\Enums\AccessGrantStatus;
 use App\Domain\Users\Enums\UserStatus;
+use App\Models\AccountAccessGrant;
 use App\Models\AccountActivationToken;
 use App\Models\Person;
 use App\Models\Role;
@@ -20,7 +22,9 @@ use Illuminate\Validation\ValidationException;
  *
  * - Pedido: se elegível, gera um token aleatório (só o HMAC fica no banco), substitui o pedido anterior da
  *   Person e envia o link. Se não, não faz nada. O chamador responde sempre igual (anti-enumeração).
- * - Conclusão: em transação, com lock do token e da Person, revalida tudo e só então cria o User.
+ * - Conclusão: em transação, com lock do token, da Person e da liberação pendente, revalida tudo e só então
+ *   cria o User. O perfil precisa ser o mesmo do pedido (liberação revogada ou situação mudada = link sem
+ *   efeito). Com liberação de acesso, a conta nasce com o perfil/setor dela e a liberação vira CONSUMED.
  */
 class AccountActivationService
 {
@@ -87,8 +91,11 @@ class AccountActivationService
                 }
 
                 $person = Person::query()->whereKey($record->person_id)->lockForUpdate()->first();
+                // Serializa com a revogação: depois deste lock, a leitura vê o estado já confirmado da liberação.
+                AccountAccessGrant::query()->where('person_id', $record->person_id)
+                    ->where('status', AccessGrantStatus::Pending->value)->lockForUpdate()->get();
                 $eligible = $person === null ? null : $this->eligibility->resolveFor($person, $record->requested_email);
-                if ($eligible === null) {
+                if ($eligible === null || $eligible['role'] !== $record->intended_role) {
                     // A situação mudou desde o pedido (conta criada, inscrição cancelada, conflito): link sem efeito.
                     $record->delete();
 
@@ -98,7 +105,7 @@ class AccountActivationService
                 $user = User::query()->create([
                     'person_id' => $person->id,
                     'role_id' => Role::forCode($eligible['role'])->id,
-                    'sector_id' => null,
+                    'sector_id' => $eligible['sector_id'],
                     'email' => $record->requested_email,
                     'password' => $password,
                     'status' => UserStatus::Active->value,
@@ -108,16 +115,19 @@ class AccountActivationService
 
                 $record->delete();
 
+                $grant = $eligible['grant'];
+                $grant?->forceFill(['status' => AccessGrantStatus::Consumed, 'consumed_at' => now(), 'user_id' => $user->id])->save();
+
                 $this->audit->record(
                     AuditAction::USER_SELF_ACTIVATED,
                     'auth',
                     "Primeiro acesso concluído por {$person->full_name} ({$eligible['role']->label()}).",
                     entity: $user,
-                    after: ['email' => $user->email, 'role' => $eligible['role']->value, 'status' => UserStatus::Active->value, 'person_id' => $person->id],
+                    after: ['email' => $user->email, 'role' => $eligible['role']->value, 'sector_id' => $eligible['sector_id'], 'status' => UserStatus::Active->value, 'person_id' => $person->id, 'access_grant_id' => $grant?->id],
                     actor: $user,
                 );
 
-                return $user->load('person', 'role');
+                return $user->load('person', 'role', 'sector');
             });
         } catch (QueryException $e) {
             // Última linha de defesa: users.person_id/users.email únicos (corrida improvável depois dos locks).

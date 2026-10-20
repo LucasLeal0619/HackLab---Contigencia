@@ -12,5 +12,19 @@ export const getSyncRun = (id, options) => api.get(`/api/v1/integration-sync-run
 
 export const listRegistrations = (eventId, query, options) => api.get(`/api/v1/events/${eventId}/event-registrations`, { query, ...options })
 export const getRegistration = (id, options) => api.get(`/api/v1/event-registrations/${id}`, options)
-export const materializeParticipants = (eventId) => api.post(`/api/v1/events/${eventId}/event-registrations/materialize-participants`)
 export const listAttendance = (eventId, query, options) => api.get(`/api/v1/events/${eventId}/attendance`, { query, ...options })
+
+// Centro Even3 (Complemento 11.2): resumo e reconciliação dos dados JÁ sincronizados. Nada aqui chama a Even3;
+// sincronizar é sempre o syncEven3 acima (endpoint central).
+const even3 = (eventId) => `/api/v1/events/${eventId}/integrations/even3`
+export const even3Workbench = (eventId, options) => api.get(`${even3(eventId)}/workbench`, options)
+export const listCandidates = (eventId, queue, query, options) => api.get(`${even3(eventId)}/reconciliation/${queue}`, { query, ...options })
+export const confirmJurorCandidate = (eventId, personId, body) => api.post(`${even3(eventId)}/reconciliation/jurors/${personId}/confirm`, body)
+export const linkCompanyGuest = (eventId, personId, body) => api.post(`${even3(eventId)}/reconciliation/company-guests/${personId}/link`, body)
+export const grantOrganizationAccess = (eventId, personId, body) => api.post(`${even3(eventId)}/reconciliation/organization/${personId}/grant`, body)
+export const ignoreCandidate = (eventId, queue, personId, body) => api.post(`${even3(eventId)}/reconciliation/${queue}/${personId}/ignore`, body)
+export const restoreCandidate = (eventId, queue, personId) => api.post(`${even3(eventId)}/reconciliation/${queue}/${personId}/restore`)
+export const revokeAccessGrant = (grantId) => api.post(`/api/v1/account-access-grants/${grantId}/revoke`)
+export const eventMetadata = (eventId, options) => api.get(`${even3(eventId)}/event-metadata`, options)
+// Só QUAIS campos: os valores vêm do retrato da Even3 guardado no backend.
+export const applyEventMetadata = (eventId, fields) => api.post(`${even3(eventId)}/event-metadata/apply`, { fields })

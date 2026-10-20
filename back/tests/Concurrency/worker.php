@@ -11,6 +11,7 @@
  * Saída: uma linha JSON {"ok": bool, "status": int, ...}.
  */
 
+use App\Domain\Auth\AccountAccessGrantService;
 use App\Domain\Auth\AccountActivationService;
 use App\Domain\Evaluations\EvaluationService;
 use App\Domain\Integrations\Enums\SyncScope;
@@ -22,6 +23,7 @@ use App\Domain\Results\ResultPublicationService;
 use App\Domain\Voting\PublicVoterEnrollment;
 use App\Domain\Voting\PublicVoteService;
 use App\Domain\Voting\VotingSessionService;
+use App\Models\AccountAccessGrant;
 use App\Models\Evaluation;
 use App\Models\Event;
 use App\Models\EventIntegration;
@@ -103,6 +105,7 @@ try {
         'materialize' => app(ParticipantMaterializer::class)->materialize(Event::query()->findOrFail($args['event_id']), $actor),
         'add_public_voters' => app(PublicVoterEnrollment::class)->addActivatedPublicVoters(VotingSession::query()->findOrFail($args['session_id']), $actor),
         'activation_complete' => ['user_id' => app(AccountActivationService::class)->complete($args['token'], $args['password'])->id],
+        'grant_revoke' => ['grant_status' => app(AccountAccessGrantService::class)->revoke(AccountAccessGrant::query()->findOrFail($args['grant_id']), $actor)->status->value],
         default => throw new InvalidArgumentException("Operação desconhecida: {$operation}"),
     };
 

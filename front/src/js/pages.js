@@ -4,6 +4,7 @@ import { defineAsyncComponent } from 'vue'
 const lazy = (loader) => defineAsyncComponent(loader)
 
 const Companies = lazy(() => import('@/pages/Companies.vue'))
+const Attendance = lazy(() => import('@/pages/Attendance.vue'))
 
 export const PAGES = {
   dashboard: { component: lazy(() => import('@/pages/Dashboard.vue')) },
@@ -22,7 +23,11 @@ export const PAGES = {
   reuniao: { component: lazy(() => import('@/pages/MeetingDetail.vue')) },
   pendencias: { component: lazy(() => import('@/pages/Tasks.vue')) },
   ocorrencias: { component: lazy(() => import('@/pages/Occurrences.vue')) },
-  presenca: { component: lazy(() => import('@/pages/Attendance.vue')) },
+  // Inscrições e Presença: uma página, uma seção por item do submenu.
+  integracao: { component: Attendance, props: { section: 'integracao' } },
+  entradas: { component: Attendance, props: { section: 'entradas' } },
+  inscricoes: { component: Attendance, props: { section: 'inscricoes' } },
+  presenca: { component: Attendance, props: { section: 'presenca' } },
   jurados: { component: lazy(() => import('@/pages/Jurors.vue')) },
   avaliacoes: { component: lazy(() => import('@/pages/Evaluations.vue')) },
   'votacao-gestao': { component: lazy(() => import('@/pages/VotingAdmin.vue')) },

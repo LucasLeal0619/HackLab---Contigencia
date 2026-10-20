@@ -38,6 +38,7 @@ As inscrições e o credenciamento acontecem na plataforma externa **Even3**. O 
 | 10 | Frontend integrado ao backend real | concluída |
 | 11 | Relatórios reais e PDF | concluída |
 | 11.1 | Primeiro acesso, recuperação de senha e autocadastro seguro de Votantes | concluído |
+| 11.2 | Centro Even3, reconciliação e pré-liberação de acessos | em revisão |
 | 12 | Implantação (Render + Supabase + Static Site) | pendente |
 | 13 | Teste de carga | pendente |
 
@@ -281,15 +282,16 @@ Even3 (API V2 e webhook) → Laravel (Even3Provider / sincronização) → Postg
 ```
 
 - O Vue nunca chama a Even3. O token (`EVEN3_API_TOKEN`, um por deployment) e o segredo do webhook ficam só nas variáveis do backend.
-- A tela **Inscrições e Presença** reúne:
-  - status da integração e entradas;
-  - mapeamento de categorias;
-  - sincronização com histórico de execuções;
-  - inscrições e criação explícita de participantes a partir delas;
+- A tela **Inscrições e Presença** (submenu Integração, Entradas, Inscrições, Presença) reúne:
+  - status da integração;
+  - entradas e mapeamento de categorias;
+  - inscrições;
   - presença.
 - Sincronizar é repetível e não duplica dados. O webhook (`POST /api/v1/webhooks/even3`) é idempotente.
 - Mapear uma entrada não concede perfil e não cria jurado, empresa ou usuário.
 - Comandos: `php artisan even3:test-connection` e `php artisan even3:sync`.
+- **Uma sincronização central por evento, automática.** O HackLab sincroniza sozinho a cada 10 minutos enquanto um Administrador usa o sistema; o botão **Sincronizar Even3** no cabeçalho mostra o estado, as novidades e o histórico e permite sincronizar na hora. Ao sincronizar, Participantes e Jurados confirmados entram no HackLab e o nome/datas do evento acompanham a Even3.
+- **O que ainda pede decisão** aparece na própria página: Empresa/Convidado em Empresas (a Even3 não informa a empresa). Contas nunca nascem da Even3: a pessoa ativa a própria pelo primeiro acesso. A entrada "Organização" não gera nada (a organização é interna). Datas da Even3 que deixariam dias cadastrados fora do período não são aplicadas e viram aviso na página Evento.
 - O teste do webhook público real fica para a Fase 12.
 
 Detalhes em [`integracao-even3.md`](hacklab_docs/docs/integracao-even3.md).

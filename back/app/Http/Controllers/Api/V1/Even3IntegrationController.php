@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Domain\Integrations\Enums\IntegrationStatus;
 use App\Domain\Integrations\Enums\RegistrationStatus;
 use App\Domain\Integrations\Enums\SyncScope;
+use App\Domain\Integrations\Enums\SyncTrigger;
 use App\Domain\Integrations\Enums\TicketCategory;
 use App\Domain\Integrations\IntegrationAdminService;
 use App\Http\Controllers\Controller;
@@ -134,7 +135,12 @@ class Even3IntegrationController extends Controller
     public function sync(SyncRequest $request, Event $event): JsonResponse
     {
         $integration = $this->integrationOrFail($event);
-        $run = $this->admin->triggerSync($integration, SyncScope::from($request->validated('scope', SyncScope::All->value)), $request->user());
+        $run = $this->admin->triggerSync(
+            $integration,
+            SyncScope::from($request->validated('scope', SyncScope::All->value)),
+            $request->user(),
+            $request->boolean('automatic') ? SyncTrigger::Scheduled : SyncTrigger::Manual,
+        );
 
         return IntegrationSyncRunResource::make($run)->withDetails()->response()->setStatusCode(201);
     }

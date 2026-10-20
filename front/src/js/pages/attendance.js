@@ -1,62 +1,39 @@
 // Lógica da página Attendance.vue ("Inscrições e Presença"): integração Even3 pelo backend.
 // O HackLab não credencia ninguém: inscrições, entradas e check-ins vêm da Even3 via sincronização/webhook.
 // Sem scanner, câmera, QR, credencial local ou check-in manual. O front nunca vê token, segredo ou header do webhook.
+//
+// Complemento 11.2: uma seção por item do submenu (Integração, Entradas, Inscrições, Presença). Sincronizar e o
+// histórico ficam no Centro Even3 do cabeçalho; os participantes são criados automaticamente ao sincronizar.
 import { computed, ref, watch } from 'vue'
 import { unwrap } from '@/js/api/client'
-import { useAction, usePaged, useRequest } from '@/js/composables/async'
+import { usePaged, useAction, useRequest } from '@/js/composables/async'
 import { label, options, tone } from '@/js/labels'
-import { go } from '@/js/router'
 import { hasPermission } from '@/js/stores/auth'
 import { activeDays, eventContext } from '@/js/stores/event-context'
+import { even3Changed, even3Context } from '@/js/stores/even3-context'
 import * as integrationsApi from '@/js/services/integrations'
 import { dayLabel, formatDate, formatDateTime, formatNumber } from '@/js/utils/format'
 
-// Contadores do sync (IntegrationSyncService). Chave desconhecida aparece com o próprio código.
-const COUNTER_LABELS = {
-  event_checked: 'Evento consultado',
-  tickets_seen: 'Entradas lidas',
-  tickets_created: 'Entradas novas',
-  tickets_updated: 'Entradas atualizadas',
-  tickets_unchanged: 'Entradas sem mudança',
-  tickets_deactivated: 'Entradas desativadas',
-  tickets_invalid: 'Entradas inválidas',
-  attendee_pages: 'Páginas de inscritos',
-  attendees_seen: 'Inscrições lidas',
-  attendees_created: 'Inscrições novas',
-  attendees_updated: 'Inscrições atualizadas',
-  attendees_unchanged: 'Inscrições sem mudança',
-  attendees_rejected: 'Inscrições rejeitadas',
-  attendees_conflicts: 'Conflitos de identidade',
-  attendees_failed: 'Falhas de processamento',
-  persons_created: 'Pessoas criadas',
-}
-
 const BOOL_OPTIONS = [['true', 'Sim'], ['false', 'Não']]
+
+export const SECTIONS = {
+  integracao: { title: 'Integração Even3', subtitle: 'Vínculo deste evento com a Even3. Sincronize pelo botão "Sincronizar Even3" no topo da tela.', permission: 'integrations.view' },
+  entradas: { title: 'Entradas', subtitle: 'Entradas (categorias) do evento na Even3 e o mapeamento para as categorias do HackLab.', permission: 'integrations.view' },
+  inscricoes: { title: 'Inscrições', subtitle: 'Inscrições vindas da Even3. Os participantes confirmados entram no HackLab ao sincronizar.', permission: 'event_registrations.view' },
+  presenca: { title: 'Presença', subtitle: 'Check-ins feitos na Even3. O credenciamento é feito na Even3.', permission: 'attendance.view' },
+}
 
 export function useAttendance(props) {
   const canView = computed(() => hasPermission('integrations.view'))
   const canManage = computed(() => hasPermission('integrations.manage'))
-  const canSync = computed(() => hasPermission('integrations.sync'))
   const canRegistrations = computed(() => hasPermission('event_registrations.view'))
   const canAttendance = computed(() => hasPermission('attendance.view'))
-  const canMaterialize = computed(() => canManage.value && hasPermission('participants.manage'))
-  const readOnly = computed(() => !canManage.value && !canSync.value)
+  const readOnly = computed(() => !canManage.value)
 
   const eventId = () => eventContext.activeEventId
-
-  // Abas visíveis conforme as permissões (consulta). Ações dentro de cada aba têm permissão própria.
-  const sectionTabs = computed(() => [
-    ...(canView.value ? [{ id: 'integracao', label: 'Integração' }, { id: 'entradas', label: 'Entradas' }, { id: 'sincronizacao', label: 'Sincronização' }] : []),
-    ...(canRegistrations.value ? [{ id: 'inscricoes', label: 'Inscrições' }] : []),
-    ...(canAttendance.value ? [{ id: 'presenca', label: 'Presença' }] : []),
-  ])
-  const tab = computed(() => {
-    const ids = sectionTabs.value.map((item) => item.id)
-    return ids.includes(props.params?.aba) ? props.params.aba : ids[0] || ''
-  })
-  function setTab(id) {
-    go(`presenca?aba=${id}`)
-  }
+  const tab = computed(() => (SECTIONS[props.section] ? props.section : 'presenca'))
+  const section = computed(() => SECTIONS[tab.value])
+  const allowed = computed(() => hasPermission(section.value.permission))
 
   // ---------- Integração (status) ----------
   const status = useRequest(({ signal }) => (canView.value && eventId() ? integrationsApi.even3Status(eventId(), { signal }).then(unwrap) : null))
@@ -80,7 +57,7 @@ export function useAttendance(props) {
     })
     configWarnings.value = payload?.meta?.warnings || []
     modal.value = null
-    await status.load()
+    await Promise.all([status.load(), even3Changed()])
     return payload
   }, { success: 'Integração Even3 salva.' })
 
@@ -119,56 +96,14 @@ export function useAttendance(props) {
     mapping.clear()
     modal.value = 'mapping'
   }
+  // Mapear muda quem é candidato nas filas: o Centro Even3 recalcula as pendências.
   const mapping = useAction(async () => {
     const category = mappingForm.value.internal_category || null
     const updated = unwrap(await integrationsApi.mapTicket(selectedTicket.value.id, { internal_category: category }))
     modal.value = null
-    await Promise.all([tickets.load(), status.load()])
+    await Promise.all([tickets.load(), status.load(), even3Changed()])
     return updated
   }, { success: (updated) => (updated?.internal_category ? `Entrada mapeada como ${label('ticketCategory', updated.internal_category)}.` : 'Mapeamento removido.') })
-
-  // ---------- Sincronização ----------
-  const runs = usePaged((query, opts) => (canView.value && configured.value ? integrationsApi.listSyncRuns(eventId(), query, opts) : { data: [] }), {
-    filters: { status: '' },
-    perPage: 20,
-    immediate: false,
-  })
-  const syncForm = ref({ scope: 'ALL' })
-  function openSync() {
-    syncForm.value = { scope: 'ALL' }
-    sync.clear()
-    modal.value = 'sync'
-  }
-  const sync = useAction(async () => {
-    const run = unwrap(await integrationsApi.syncEven3(eventId(), { scope: syncForm.value.scope }))
-    modal.value = null
-    runDetail.data.value = run
-    runDetailId.value = run?.id || null
-    await Promise.all([runs.load(), status.load()])
-    return run
-  }, { success: (run) => `Sincronização ${label('syncStatus', run?.status).toLowerCase()}.` })
-
-  const runDetailId = ref(null)
-  const runDetail = useRequest(({ signal }) => (runDetailId.value ? integrationsApi.getSyncRun(runDetailId.value, { signal }).then(unwrap) : null), { immediate: false })
-  function openRun(run) {
-    runDetailId.value = run.id
-    runDetail.data.value = run
-    runDetail.load()
-  }
-  function closeRun() {
-    runDetailId.value = null
-  }
-  const counterRows = computed(() => Object.entries(runDetail.data.value?.counters || {}).map(([key, value]) => ({ key, label: COUNTER_LABELS[key] || key, value })))
-  const warningCodeRows = computed(() => Object.entries(runDetail.data.value?.warning_codes || {}).map(([code, count]) => ({ code, count })))
-  function warningTotal(run) {
-    return Object.values(run?.warning_codes || {}).reduce((sum, value) => sum + Number(value || 0), 0)
-  }
-  function duration(ms) {
-    if (ms === null || ms === undefined) return '—'
-    if (ms < 1000) return `${ms} ms`
-    const seconds = Math.round(ms / 100) / 10
-    return seconds < 60 ? `${formatNumber(seconds, 1)} s` : `${Math.floor(seconds / 60)} min ${Math.round(seconds % 60)} s`
-  }
 
   // ---------- Inscrições ----------
   const registrations = usePaged((query, opts) => (canRegistrations.value ? integrationsApi.listRegistrations(eventId(), query, opts) : { data: [] }), {
@@ -192,18 +127,6 @@ export function useAttendance(props) {
     return day ? dayLabel(day) : record.event_day_id ? `Dia #${record.event_day_id}` : 'Fora dos dias do evento'
   }
 
-  const materializeResult = ref(null)
-  function openMaterialize() {
-    materializeResult.value = null
-    modal.value = 'materialize'
-  }
-  const materialize = useAction(async () => {
-    const result = unwrap(await integrationsApi.materializeParticipants(eventId()))
-    materializeResult.value = result
-    await registrations.load()
-    return result
-  }, { success: (result) => `Materialização concluída: ${result?.created ?? 0} participante(s) novo(s).` })
-
   // ---------- Presença (somente leitura) ----------
   const attendance = usePaged((query, opts) => (canAttendance.value ? integrationsApi.listAttendance(eventId(), query, opts) : { data: [] }), {
     filters: { search: '', event_day_id: '', internal_category: '', status: '' },
@@ -212,28 +135,27 @@ export function useAttendance(props) {
   })
   const dayTabs = computed(() => [{ id: '', label: 'Todos os dias' }, ...activeDays.value.map((day) => ({ id: String(day.id), label: day.label || `Dia ${day.day_number}` }))])
 
-  // ---------- Carregamento por aba (o backend é lento: só busca o que a aba mostra) ----------
-  // Entradas e histórico dependem da integração existir: recarregam se "configurada" mudar.
-  const loadedTabs = new Map()
-  function loadTab(id) {
-    if (!id) return
-    const needsStatus = ['entradas', 'sincronizacao'].includes(id)
-    if (needsStatus && !status.loaded.value) return
-    const key = needsStatus ? configured.value : true
-    if (loadedTabs.get(id) === key) {
-      if (id === 'inscricoes' && configured.value && !ticketChoices.loaded.value && !ticketChoices.loading.value) ticketChoices.load()
-      return
-    }
-    loadedTabs.set(id, key)
-    if (id === 'entradas') tickets.load()
-    if (id === 'sincronizacao') runs.load()
-    if (id === 'inscricoes') {
-      registrations.load()
-      if (configured.value) ticketChoices.load()
-    }
-    if (id === 'presenca') attendance.load()
+  // ---------- Carregamento da seção (o backend é lento: só busca o que a seção mostra) ----------
+  // Listas que não dependem da integração carregam já; as que dependem esperam o status.
+  function loadLists() {
+    if (!allowed.value) return
+    if (tab.value === 'inscricoes') registrations.load()
+    if (tab.value === 'presenca') attendance.load()
   }
-  watch([tab, () => status.loaded.value, configured], () => loadTab(tab.value), { immediate: true })
+  function loadIntegrationParts() {
+    if (!allowed.value || !configured.value) return
+    if (tab.value === 'entradas') tickets.load()
+    if (tab.value === 'inscricoes') ticketChoices.load()
+  }
+  loadLists()
+  watch([() => status.loaded.value, configured], () => loadIntegrationParts(), { immediate: true })
+
+  // Sincronização ou reconciliação feita pelo Centro Even3: recarrega o estado e a seção aberta.
+  watch(() => even3Context.revision, () => {
+    if (canView.value) status.load()
+    loadLists()
+    loadIntegrationParts()
+  })
 
   function yesNo(value) {
     return value ? 'Sim' : 'Não'
@@ -243,14 +165,12 @@ export function useAttendance(props) {
     BOOL_OPTIONS,
     canView,
     canManage,
-    canSync,
     canRegistrations,
     canAttendance,
-    canMaterialize,
     readOnly,
-    sectionTabs,
     tab,
-    setTab,
+    section,
+    allowed,
     status,
     integration,
     configured,
@@ -268,27 +188,12 @@ export function useAttendance(props) {
     mappingForm,
     openMapping,
     mapping,
-    runs,
-    syncForm,
-    openSync,
-    sync,
-    runDetailId,
-    runDetail,
-    openRun,
-    closeRun,
-    counterRows,
-    warningCodeRows,
-    warningTotal,
-    duration,
     registrations,
     registrationId,
     registrationDetail,
     openRegistration,
     closeRegistration,
     attendanceDay,
-    materializeResult,
-    openMaterialize,
-    materialize,
     attendance,
     dayTabs,
     activeDays,

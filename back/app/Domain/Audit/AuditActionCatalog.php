@@ -136,6 +136,12 @@ final class AuditActionCatalog
         AuditAction::EVEN3_TICKET_MAPPING_CHANGED => ['integrations', 'Mapeamento de entrada Even3 alterado'],
         AuditAction::EVEN3_SYNC_TRIGGERED => ['integrations', 'Sincronização Even3 disparada'],
         AuditAction::EVEN3_PARTICIPANTS_MATERIALIZED => ['integrations', 'Participantes criados a partir das inscrições Even3'],
+        AuditAction::EVEN3_RECONCILIATION_RESOLVED => ['integrations', 'Candidato da Even3 reconciliado'],
+        AuditAction::EVEN3_RECONCILIATION_IGNORED => ['integrations', 'Candidato da Even3 ignorado'],
+        AuditAction::EVEN3_RECONCILIATION_RESTORED => ['integrations', 'Candidato da Even3 restaurado para revisão'],
+        AuditAction::EVEN3_EVENT_METADATA_APPLIED => ['integrations', 'Dados do evento na Even3 aplicados'],
+        AuditAction::ACCESS_GRANT_CREATED => ['users', 'Acesso liberado para primeiro acesso'],
+        AuditAction::ACCESS_GRANT_REVOKED => ['users', 'Liberação de acesso revogada'],
     ];
 
     /**

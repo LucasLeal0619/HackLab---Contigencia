@@ -1,4 +1,5 @@
 <script setup>
+import Even3Center from './Even3Center.vue'
 import Field from './Field.vue'
 import Icon from './Icon.vue'
 import Logo from './Logo.vue'
@@ -68,6 +69,8 @@ const { ui, open, panel, nav, isOpen, toggleGroup, togglePanel, current, alerts,
       <header class="topbar">
         <button class="icon-btn menu-btn" type="button" aria-label="Abrir menu" title="Abrir menu" aria-controls="navegacao" :aria-expanded="open" @click="open = !open"><Icon name="menu" /></button>
         <span class="top-brand"><b>Hack</b><b class="lab">Lab</b></span>
+        <!-- Centro Even3: único disparo visual da sincronização central (Administrador e Consultor). -->
+        <Even3Center />
         <div class="top-tools">
           <label v-if="eventContext.events.length > 1" class="event-switch">
             <span class="event-switch-label stat-hint">Evento</span>

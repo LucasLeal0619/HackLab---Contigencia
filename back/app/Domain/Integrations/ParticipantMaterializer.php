@@ -15,9 +15,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Operação explícita e idempotente: inscrição CONFIRMED + entrada PARTICIPANT → Participant(event, person)
- * AVAILABLE, sem turma, se ainda não existir. Participante existente não muda (status, turma, equipe, desafio).
- * Um único log por execução (sem um log por participante).
+ * Idempotente: inscrição CONFIRMED + entrada PARTICIPANT → Participant(event, person) AVAILABLE, sem turma, se
+ * ainda não existir. Participante existente não muda (status, turma, equipe, desafio).
+ *
+ * Roda pelo endpoint explícito (um log por execução) e, desde o Complemento 11.2, automaticamente ao fim de cada
+ * sincronização com inscritos (log só quando cria alguém). Nunca um log por participante.
  */
 class ParticipantMaterializer
 {
@@ -34,7 +36,25 @@ class ParticipantMaterializer
             throw ValidationException::withMessages(['integration' => 'Este evento não tem integração Even3 configurada.']);
         }
 
-        return DB::transaction(function () use ($event, $integration, $actor) {
+        return $this->run($event, $integration, $actor, alwaysAudit: true);
+    }
+
+    /**
+     * Depois de uma sincronização: mesma regra, log só se criou alguém.
+     *
+     * @return array{eligible: int, created: int, already_existing: int}
+     */
+    public function afterSync(EventIntegration $integration, ?User $actor): array
+    {
+        return $this->run($integration->event()->firstOrFail(), $integration, $actor, alwaysAudit: false);
+    }
+
+    /**
+     * @return array{eligible: int, created: int, already_existing: int}
+     */
+    private function run(Event $event, EventIntegration $integration, ?User $actor, bool $alwaysAudit): array
+    {
+        return DB::transaction(function () use ($event, $integration, $actor, $alwaysAudit) {
             // Serializa materializações do mesmo evento; o unique(event_id, person_id) é a última barreira.
             DB::select('select pg_advisory_xact_lock(?, ?)', [91004, $event->id]);
 
@@ -60,6 +80,10 @@ class ParticipantMaterializer
             ], $personIds));
 
             $result = ['eligible' => count($personIds), 'created' => $created, 'already_existing' => count($personIds) - $created];
+
+            if (! $alwaysAudit && $created === 0) {
+                return $result;
+            }
 
             $this->audit->record(
                 AuditAction::EVEN3_PARTICIPANTS_MATERIALIZED,

@@ -19,7 +19,11 @@ export const ROUTES = {
   reuniao: ['meetings.view'],
   pendencias: ['tasks.view'],
   ocorrencias: ['occurrences.view'],
-  presenca: ['integrations.view', 'event_registrations.view', 'attendance.view'],
+  // Inscrições e Presença (submenu desde o Complemento 11.2).
+  integracao: ['integrations.view'],
+  entradas: ['integrations.view'],
+  inscricoes: ['event_registrations.view'],
+  presenca: ['attendance.view'],
   jurados: ['jurors.view', 'evaluation_criteria.manage'],
   avaliacoes: ['evaluations.progress.view', 'evaluations.all.view'],
   'votacao-gestao': ['voting_sessions.view'],
@@ -79,7 +83,17 @@ const NAV = [
   {
     group: 'Evento',
     items: [
-      { id: 'presenca', label: 'Inscrições e Presença', icon: 'ticket' },
+      {
+        id: 'inscricoes-presenca',
+        label: 'Inscrições e Presença',
+        icon: 'ticket',
+        children: [
+          { id: 'integracao', label: 'Integração' },
+          { id: 'entradas', label: 'Entradas' },
+          { id: 'inscricoes', label: 'Inscrições' },
+          { id: 'presenca', label: 'Presença' },
+        ],
+      },
       {
         id: 'encerramento',
         label: 'Encerramento',
@@ -135,6 +149,11 @@ export function legacyTarget(path, params = {}) {
   }
   if (path === 'empresas' && params.aba === 'desafios') return 'desafios'
   if (['evento', 'ingresso', 'validar'].includes(path)) return 'presenca'
+  // Abas antigas de "Inscrições e Presença" (antes do submenu do Complemento 11.2).
+  if (path === 'presenca' && params.aba && params.aba !== 'presenca') {
+    if (params.aba === 'reconciliacao') return { jurados: 'jurados', organizacao: 'usuarios', empresas: 'empresas', evento: 'config' }[params.fila] || 'integracao'
+    return { integracao: 'integracao', entradas: 'entradas', inscricoes: 'inscricoes', sincronizacao: 'integracao' }[params.aba] || 'integracao'
+  }
   if (path === 'sala') return 'setores'
   return ''
 }

@@ -1,5 +1,6 @@
 <script setup>
 import Badge from '../components/Badge.vue'
+import Even3PageQueue from '../components/Even3PageQueue.vue'
 import Drawer from '../components/Drawer.vue'
 import Empty from '../components/Empty.vue'
 import Field from '../components/Field.vue'
@@ -38,6 +39,7 @@ const { filters, page, items, meta, loading, error, loaded } = list
       <button v-if="tab === 'criterios' && canManageCriteria" class="btn" type="button" :disabled="locked || criteria.loading.value" :title="locked ? 'Já existem avaliações: a estrutura dos critérios está travada.' : ''" @click="openCriterion()">+ Adicionar critério</button>
       <Badge v-if="(tab === 'jurados' && !canManage) || (tab === 'criterios' && !canManageCriteria)">Consulta</Badge>
     </template>
+    <Even3PageQueue v-if="tab === 'jurados'" fila="jurados" />
 
     <Tabs v-if="tabs.length > 1" v-model="tab" :tabs="tabs" />
 

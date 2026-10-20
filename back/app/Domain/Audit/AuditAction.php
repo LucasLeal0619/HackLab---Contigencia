@@ -198,4 +198,22 @@ final class AuditAction
 
     /** Um por execução da materialização (não um por participante criado). */
     public const EVEN3_PARTICIPANTS_MATERIALIZED = 'EVEN3_PARTICIPANTS_MATERIALIZED';
+
+    /**
+     * Reconciliação (Complemento 11.2): referência ao resultado. A criação do Jurado/representante mantém o
+     * próprio log de entidade (JUROR_CREATED, COMPANY_REPRESENTATIVE_ADDED).
+     */
+    public const EVEN3_RECONCILIATION_RESOLVED = 'EVEN3_RECONCILIATION_RESOLVED';
+
+    public const EVEN3_RECONCILIATION_IGNORED = 'EVEN3_RECONCILIATION_IGNORED';
+
+    public const EVEN3_RECONCILIATION_RESTORED = 'EVEN3_RECONCILIATION_RESTORED';
+
+    /** Nome/datas do retrato da Even3 aplicados ao evento (além do EVENT_UPDATED da edição). */
+    public const EVEN3_EVENT_METADATA_APPLIED = 'EVEN3_EVENT_METADATA_APPLIED';
+
+    /** Liberação de acesso para ativar a própria conta (sem senha; a conta nasce no primeiro acesso). */
+    public const ACCESS_GRANT_CREATED = 'ACCESS_GRANT_CREATED';
+
+    public const ACCESS_GRANT_REVOKED = 'ACCESS_GRANT_REVOKED';
 }

@@ -84,7 +84,7 @@ class IntegrationAdminService
                 if ($status === IntegrationStatus::Active || ! $integration->exists || $changingTarget) {
                     $external = $this->fetchAccessibleEvent($externalEventId);
                     $warnings = $this->differences($event, $external);
-                    $integration->external_event_title = $external['title'] ?? null;
+                    $integration->rememberExternalEvent($external);
                     $integration->last_connection_checked_at = now();
                 }
 
@@ -145,7 +145,7 @@ class IntegrationAdminService
     /**
      * Sync manual: um log (EVEN3_SYNC_TRIGGERED); o resultado detalhado fica no IntegrationSyncRun.
      */
-    public function triggerSync(EventIntegration $integration, SyncScope $scope, User $actor): IntegrationSyncRun
+    public function triggerSync(EventIntegration $integration, SyncScope $scope, User $actor, SyncTrigger $trigger = SyncTrigger::Manual): IntegrationSyncRun
     {
         self::ensureEnabled();
 
@@ -153,14 +153,15 @@ class IntegrationAdminService
             throw ValidationException::withMessages(['integration' => 'Integração desativada: ative-a antes de sincronizar.']);
         }
 
-        $run = $this->sync->start($integration, $scope, SyncTrigger::Manual, $actor);
+        $run = $this->sync->start($integration, $scope, $trigger, $actor);
+        $how = $trigger === SyncTrigger::Scheduled ? 'automática' : 'manual';
 
         $this->audit->record(
             AuditAction::EVEN3_SYNC_TRIGGERED,
             'integrations',
-            "Sincronização Even3 ({$scope->value}) disparada para o evento externo {$integration->external_event_id}.",
+            "Sincronização Even3 {$how} ({$scope->value}) disparada para o evento externo {$integration->external_event_id}.",
             entity: $run,
-            after: ['sync_run_id' => $run->id, 'scope' => $scope->value],
+            after: ['sync_run_id' => $run->id, 'scope' => $scope->value, 'trigger' => $trigger->value],
             actor: $actor,
             event: $integration->event_id,
         );

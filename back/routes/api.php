@@ -1,5 +1,7 @@
 <?php
 
+use App\Domain\Integrations\Enums\ReconciliationKind;
+use App\Http\Controllers\Api\V1\AccountAccessGrantController;
 use App\Http\Controllers\Api\V1\AccountRecoveryController;
 use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuditLogController;
@@ -13,6 +15,7 @@ use App\Http\Controllers\Api\V1\DemandRoutingController;
 use App\Http\Controllers\Api\V1\EvaluationController;
 use App\Http\Controllers\Api\V1\EvaluationCriterionController;
 use App\Http\Controllers\Api\V1\Even3IntegrationController;
+use App\Http\Controllers\Api\V1\Even3ReconciliationController;
 use App\Http\Controllers\Api\V1\Even3WebhookController;
 use App\Http\Controllers\Api\V1\EventController;
 use App\Http\Controllers\Api\V1\EventDashboardController;
@@ -234,6 +237,21 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/events/{event}/integrations/even3/sync', [Even3IntegrationController::class, 'sync'])->name('events.integrations.even3.sync');
         Route::get('/events/{event}/integrations/even3/sync-runs', [Even3IntegrationController::class, 'syncRuns'])->name('events.integrations.even3.sync-runs');
         Route::get('/integration-sync-runs/{run}', [Even3IntegrationController::class, 'showSyncRun'])->name('integration-sync-runs.show');
+
+        // Centro Even3 (Complemento 11.2): resumo, reconciliação e divergências do evento. Não sincroniza.
+        Route::get('/events/{event}/integrations/even3/workbench', [Even3ReconciliationController::class, 'workbench'])->name('events.integrations.even3.workbench');
+        Route::get('/events/{event}/integrations/even3/event-metadata', [Even3ReconciliationController::class, 'eventMetadata'])->name('events.integrations.even3.event-metadata');
+        Route::post('/events/{event}/integrations/even3/event-metadata/apply', [Even3ReconciliationController::class, 'applyEventMetadata'])->name('events.integrations.even3.event-metadata.apply');
+        Route::post('/events/{event}/integrations/even3/reconciliation/jurors/{person}/confirm', [Even3ReconciliationController::class, 'confirmJuror'])->name('events.integrations.even3.reconciliation.jurors.confirm');
+        Route::post('/events/{event}/integrations/even3/reconciliation/company-guests/{person}/link', [Even3ReconciliationController::class, 'linkCompanyGuest'])->name('events.integrations.even3.reconciliation.company-guests.link');
+        Route::post('/events/{event}/integrations/even3/reconciliation/organization/{person}/grant', [Even3ReconciliationController::class, 'grantAccess'])->name('events.integrations.even3.reconciliation.organization.grant');
+        Route::get('/events/{event}/integrations/even3/reconciliation/{queue}', [Even3ReconciliationController::class, 'queue'])
+            ->whereIn('queue', ReconciliationKind::queues())->name('events.integrations.even3.reconciliation.queue');
+        Route::post('/events/{event}/integrations/even3/reconciliation/{queue}/{person}/ignore', [Even3ReconciliationController::class, 'ignore'])
+            ->whereIn('queue', ReconciliationKind::queues())->name('events.integrations.even3.reconciliation.ignore');
+        Route::post('/events/{event}/integrations/even3/reconciliation/{queue}/{person}/restore', [Even3ReconciliationController::class, 'restore'])
+            ->whereIn('queue', ReconciliationKind::queues())->name('events.integrations.even3.reconciliation.restore');
+        Route::post('/account-access-grants/{grant}/revoke', [AccountAccessGrantController::class, 'revoke'])->name('account-access-grants.revoke');
 
         Route::get('/events/{event}/event-registrations', [EventRegistrationController::class, 'index'])->name('events.event-registrations.index');
         Route::post('/events/{event}/event-registrations/materialize-participants', [EventRegistrationController::class, 'materialize'])->name('events.event-registrations.materialize');

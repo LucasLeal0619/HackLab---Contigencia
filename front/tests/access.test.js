@@ -7,11 +7,25 @@ const labels = (user) => navFor(user).flatMap((group) => group.items.flatMap((it
 describe('navegação por permissão', () => {
   it('administrador vê as áreas das permissões que tem', () => {
     const nav = labels(ADMIN)
-    expect(nav).toEqual(expect.arrayContaining(['Dashboard', 'Evento', 'Participantes', 'Usuários e Permissões', 'Auditoria', 'Inscrições e Presença']))
+    expect(nav).toEqual(expect.arrayContaining(['Dashboard', 'Evento', 'Participantes', 'Usuários e Permissões', 'Auditoria', 'Integração', 'Entradas']))
     expect(nav).not.toContain('Validador')
     expect(nav).not.toContain('Documentos')
     expect(nav).not.toContain('Relatórios')
     expect(homeFor(ADMIN)).toBe('dashboard')
+  })
+
+  it('Inscrições e Presença é submenu (Integração, Entradas, Inscrições, Presença) e links antigos continuam valendo', () => {
+    const full = { ...ADMIN, permissions: [...ADMIN.permissions, 'event_registrations.view', 'attendance.view'] }
+    const group = navFor(full).flatMap((g) => g.items).find((item) => item.id === 'inscricoes-presenca')
+    expect(group.label).toBe('Inscrições e Presença')
+    expect(group.children.map((c) => c.id)).toEqual(['integracao', 'entradas', 'inscricoes', 'presenca'])
+    expect(navState('entradas', full)).toEqual({ item: 'entradas', group: 'inscricoes-presenca' })
+    expect(legacyTarget('presenca', { aba: 'integracao' })).toBe('integracao')
+    expect(legacyTarget('presenca', { aba: 'sincronizacao' })).toBe('integracao')
+    expect(legacyTarget('presenca', { aba: 'reconciliacao', fila: 'jurados' })).toBe('jurados')
+    expect(legacyTarget('presenca', { aba: 'reconciliacao', fila: 'organizacao' })).toBe('usuarios')
+    expect(legacyTarget('presenca', {})).toBe('')
+    expect(legacyTarget('presenca', { aba: 'presenca' })).toBe('')
   })
 
   it('gestor não vê usuários, auditoria nem evento; setor vira "Meu setor"', () => {

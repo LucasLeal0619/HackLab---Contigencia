@@ -1,5 +1,6 @@
 <script setup>
 import Badge from '../components/Badge.vue'
+import Even3PageQueue from '../components/Even3PageQueue.vue'
 import ChallengeFormModal from '../components/ChallengeFormModal.vue'
 import CompanyFormModal from '../components/CompanyFormModal.vue'
 import FilterPanel from '../components/FilterPanel.vue'
@@ -33,6 +34,7 @@ const { filters, page, items, meta, loading, error, loaded } = list
         <Badge v-else>Consulta</Badge>
       </template>
     </template>
+    <Even3PageQueue v-if="tab === 'empresas'" fila="empresas" />
 
     <template v-if="tab === 'empresas'">
       <FilterPanel :active="list.activeFilters.value" @clear="list.reset()">

@@ -27,6 +27,8 @@ class SyncRequest extends FormRequest
     {
         return [
             'scope' => ['sometimes', Rule::enum(SyncScope::class)],
+            // Disparo automático do front (a cada 10 min com Administrador ativo): mesmo sync, origem SCHEDULED.
+            'automatic' => ['sometimes', 'boolean'],
         ];
     }
 }

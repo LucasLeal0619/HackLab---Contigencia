@@ -443,7 +443,8 @@ Principais grupos (fonte da verdade: `back/routes/api.php`):
 /events/{event}/results (/preview, /publications, /publish, /revoke, /published)
 /audit-logs (+ /meta, /{id})
 /events/{event}/reports (/general, /participants-presence, /operations, /closing-results)
-/events/{event}/integrations/even3 (/status, /tickets, /sync, /sync-runs), /external-ticket-types/{t}/mapping, /integration-sync-runs/{run}
+/events/{event}/integrations/even3 (/status, /tickets, /sync, /sync-runs, /workbench, /event-metadata, /reconciliation/{fila}), /external-ticket-types/{t}/mapping, /integration-sync-runs/{run}
+/account-access-grants/{grant}/revoke
 /events/{event}/event-registrations (+ /materialize-participants), /event-registrations/{r}
 /events/{event}/attendance
 /webhooks/even3
@@ -688,3 +689,15 @@ O Dashboard faz **uma** requisição: `GET /api/v1/events/{event}/dashboard` (`E
 - Autorização: `events.view` no evento (`EventPolicy::view`); cada bloco usa a Policy `viewAny` do módulo (`participants.view`, `teams.view`, `companies.view`, `challenges.view`, `tasks.view`, `occurrences.view`). Bloco sem permissão vem `null` e o front não o mostra.
 - Pendências e ocorrências usam o mesmo `visibleTo` (recorte setorial) das listagens. Cada número é o mesmo `meta.total` da listagem que o card abre, com os mesmos filtros (`Sem equipe` = `has_team=false&status=AVAILABLE`; `Atrasadas` = regra de `OverdueTasks`).
 - Só contagens (`count`, `groupBy status`): nenhum registro, nome ou e-mail. Número fixo de consultas, independente do volume. Somente leitura, sem auditoria.
+
+## 18. Centro Even3 e reconciliação (Complemento 11.2)
+
+```text
+SINCRONIZAR   Centro Even3 → POST .../integrations/even3/sync → IntegrationSyncService (lock, histórico) → Even3 → PostgreSQL
+RECONCILIAR   PostgreSQL → filas (por Person) → ação do Administrador → JurorService / CompanyRepresentativeService / AccountAccessGrantService / EventService
+```
+
+- **Uma** sincronização por evento, disparada só pelo Centro Even3 (botão "Sincronizar Even3" no cabeçalho, com o histórico no próprio painel). Ao terminar, os Participantes confirmados são criados automaticamente. Páginas de domínio mostram a própria fila de revisão (sem botão de sync) e nunca chamam a Even3.
+- Backend: `App\Domain\Integrations\Reconciliation\*` (consultas de candidatos, decisões de ignorar/restaurar, workbench), `App\Domain\Auth\AccountAccessGrantService` (liberação de acesso) e `EventMetadataReconciler` (divergências do evento). Controllers finos; as ações reutilizam os services de domínio existentes.
+- Front: store `even3-context` (estado do evento ativo, `revision` incrementada a cada sync/reconciliação), `Even3Center` (botão + painel + histórico) e `Even3PageQueue` (fila de revisão embutida em Jurados, Usuários, Empresas e Evento). "Inscrições e Presença" virou submenu: Integração, Entradas, Inscrições, Presença.
+- Primeiro acesso com precedência: conta existente → liberação pendente → Jurado ativo → público. Detalhes em `integracao-even3.md` §9.3 e `regras-de-negocio.md` §19.1 e §23.

@@ -1,4 +1,5 @@
 <script setup>
+import Even3PageQueue from '../components/Even3PageQueue.vue'
 import Badge from '../components/Badge.vue'
 import Empty from '../components/Empty.vue'
 import Field from '../components/Field.vue'
@@ -16,6 +17,7 @@ const { canManage, creating, form, days, sortedDays, timezones, save, startCreat
       <Badge v-if="activeEvent && !creating" :tone="tone('eventStatus', activeEvent.status)">{{ label('eventStatus', activeEvent.status) }}</Badge>
       <button v-if="canManage && !creating" class="btn ghost" type="button" @click="startCreate">Novo evento</button>
     </template>
+    <Even3PageQueue v-if="!creating" fila="evento" />
 
     <Empty v-if="!activeEvent && !creating" title="Nenhum evento cadastrado" text="Cadastre o evento para começar a organizar participantes, equipes e setores.">
       <template v-if="canManage" #action><button class="btn" type="button" @click="startCreate">Cadastrar evento</button></template>

@@ -466,6 +466,36 @@ Regra operacional: os Votantes ativam o acesso **antes** da abertura da sessão;
 
 Fora deste complemento: login social, magic link no lugar de senha, MFA, SSO, SMS/WhatsApp, elegibilidade automática para votação, Juror automático pela categoria externa, conta automática de participante, múltiplos perfis por evento.
 
+## Complemento 11.2 — Centro Even3, reconciliação e pré-liberação de acessos
+
+Antes da Fase 12. Desenho em `arquitetura.md` §18, `integracao-even3.md` §9.3 e regras em `regras-de-negocio.md` §19.1 e §23.
+
+| Método | Endpoint | Permissão |
+|---|---|---|
+| GET | `/events/{e}/integrations/even3/workbench` | `integrations.view` (só contagens) |
+| GET | `/events/{e}/integrations/even3/reconciliation/{jurors\|organization\|company-guests}` | `integrations.manage` + domínio |
+| POST | `.../reconciliation/jurors/{person}/confirm` | + `jurors.manage` |
+| POST | `.../reconciliation/company-guests/{person}/link` | + `companies.manage` |
+| POST | `.../reconciliation/organization/{person}/grant` | + `users.manage` |
+| POST | `.../reconciliation/{fila}/{person}/ignore` · `/restore` | + domínio da fila |
+| POST | `/account-access-grants/{grant}/revoke` | `integrations.manage` + `users.manage` |
+| GET | `/events/{e}/integrations/even3/event-metadata` | `integrations.view` |
+| POST | `/events/{e}/integrations/even3/event-metadata/apply` | `integrations.manage` + `events.manage` |
+
+- [x] §5.5 e §5.7 do CLAUDE.md: sincronização única; dado externo é sugestão;
+- [x] migrations: retrato do evento externo em `event_integrations`, `integration_reconciliations`, `account_access_grants` (+ perfis do token de ativação);
+- [x] workbench, filas por Person, ignorar/restaurar, confirmar Jurado, vincular representante, liberar/revogar acesso;
+- [x] primeiro acesso com liberação (precedência sobre Jurado e Público), consumo na mesma transação, perfil revalidado;
+- [x] divergências do evento com aplicação campo a campo pelo `EventService`;
+- [x] Centro Even3 global (botão "Sincronizar Even3" no cabeçalho, histórico no painel), store `even3-context`;
+- [x] revisão dentro das páginas (Jurados, Usuários, Empresas, Evento); "Inscrições e Presença" como submenu (Integração, Entradas, Inscrições, Presença);
+- [x] participantes criados automaticamente ao sincronizar (sem botão de materializar);
+- [x] jurados e nome/datas do evento aplicados automaticamente ao sincronizar; Organização sem fila (interna);
+- [x] sincronização automática a cada 10 min com Administrador ativo (e `even3:sync` no Scheduler); botão do topo avisa as novidades;
+- [ ] atividades/programação da Even3: só investigação (ver `integracao-even3.md` §11); domínio próprio a decidir.
+
+Dívidas registradas: perfil global do User (sem membership por evento); a materialização de participantes não exclui inscrições com `identity_mismatch` (a contagem do Centro segue a materialização); atividades sem domínio.
+
 ## Fase 12 — Implantação (Render + Supabase)
 
 - [ ] projeto Supabase de produção, schema `hacklab` criado (SQL em `infraestrutura.md` §3.1);

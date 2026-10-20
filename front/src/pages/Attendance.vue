@@ -15,31 +15,30 @@ import { useAttendance } from '@/js/pages/attendance'
 
 const props = defineProps({
   params: { type: Object, default: () => ({}) },
+  // Item do submenu: integracao | entradas | inscricoes | presenca.
+  section: { type: String, default: 'presenca' },
 })
 const {
-  BOOL_OPTIONS, canManage, canSync, canMaterialize, readOnly, sectionTabs, tab, setTab,
+  BOOL_OPTIONS, canManage, readOnly, tab, section, allowed,
   status, integration, configured, modal, configForm, configWarnings, openConfigure, configure, checkConnection,
   ticketFilters, tickets, categoryOptions, ticketChoices, selectedTicket, mappingForm, openMapping, mapping,
-  runs, syncForm, openSync, sync, runDetailId, runDetail, openRun, closeRun, counterRows, warningCodeRows, warningTotal, duration,
   registrations, registrationId, registrationDetail, openRegistration, closeRegistration, attendanceDay,
-  materializeResult, openMaterialize, materialize, attendance, dayTabs, yesNo, label, tone, options, formatDate, formatDateTime, formatNumber,
+  attendance, dayTabs, yesNo, label, tone, options, formatDate, formatDateTime, formatNumber,
 } = useAttendance(props)
 const regFilters = registrations.filters
 const attFilters = attendance.filters
 </script>
 
 <template>
-  <Page title="Inscrições e Presença" subtitle="Inscrições, entradas e check-ins vêm da Even3 pelo backend. O credenciamento é feito na Even3.">
+  <Page :title="section.title" :subtitle="section.subtitle">
     <template #actions>
-      <Badge v-if="readOnly">Consulta</Badge>
+      <Badge v-if="readOnly && allowed">Consulta</Badge>
     </template>
 
-    <Empty v-if="!sectionTabs.length" title="Sem acesso a esta área" text="Seu perfil não consulta a integração, as inscrições nem a presença." />
-
-    <Tabs v-else class="attendance-sections" :tabs="sectionTabs" :model-value="tab" @update:model-value="setTab" />
+    <Empty v-if="!allowed" title="Sem acesso a esta área" text="Seu perfil não consulta esta parte de Inscrições e Presença." />
 
     <!-- Integração -->
-    <section v-if="tab === 'integracao'" aria-label="Integração">
+    <section v-else-if="tab === 'integracao'" aria-label="Integração">
       <LoadState :loading="status.loading.value" :loaded="status.loaded.value" :error="status.error.value" @retry="status.load()">
         <template v-if="integration">
           <div v-if="!integration.configured" class="banner warn integration-banner">
@@ -123,7 +122,7 @@ const attFilters = attendance.filters
             <option value="false">Sem mapeamento</option>
           </select>
         </div>
-        <LoadState :loading="tickets.loading.value" :loaded="tickets.loaded.value" :error="tickets.error.value" :empty="!tickets.data.value.items.length" empty-title="Nenhuma entrada encontrada" empty-text="Execute uma sincronização para trazer as entradas da Even3." @retry="tickets.load()">
+        <LoadState :loading="tickets.loading.value" :loaded="tickets.loaded.value" :error="tickets.error.value" :empty="!tickets.data.value.items.length" empty-title="Nenhuma entrada encontrada" empty-text="Use “Sincronizar Even3” no topo da tela para trazer as entradas." @retry="tickets.load()">
           <div class="table-wrap attendance-table-wrap">
             <table class="attendance-table">
               <thead><tr><th>Entrada na Even3</th><th>Inscrições</th><th>Situação</th><th>Categoria interna</th><th>Vista por último</th><th v-if="canManage">Ações</th></tr></thead>
@@ -157,49 +156,7 @@ const attFilters = attendance.filters
       </template>
     </section>
 
-    <!-- Sincronização -->
-    <section v-else-if="tab === 'sincronizacao'" aria-label="Sincronização">
-      <LoadState v-if="!configured" :loading="status.loading.value" :loaded="status.loaded.value" :error="status.error.value" empty empty-title="Integração não configurada" empty-text="Configure a integração Even3 para sincronizar evento, entradas e inscritos." @retry="status.load()" />
-      <template v-else>
-        <div class="attendance-bar">
-          <select v-model="runs.filters.status" class="input attendance-filter" aria-label="Status da sincronização">
-            <option value="">Todos os status</option>
-            <option v-for="[code, name] in options('syncStatus')" :key="code" :value="code">{{ name }}</option>
-          </select>
-          <button v-if="canSync" class="btn" type="button" :disabled="integration?.status !== 'ACTIVE'" :title="integration?.status !== 'ACTIVE' ? 'Ative a integração antes de sincronizar.' : ''" @click="openSync">Sincronizar agora</button>
-        </div>
-        <p v-if="canSync && integration?.status !== 'ACTIVE'" class="stat-hint">A integração está desativada: ative-a na aba Integração antes de sincronizar.</p>
-        <LoadState :loading="runs.loading.value" :loaded="runs.loaded.value" :error="runs.error.value" :empty="runs.items.value.length === 0" empty-title="Nenhuma sincronização registrada" @retry="runs.load()">
-          <div class="table-wrap attendance-table-wrap">
-            <table class="attendance-table">
-              <thead><tr><th>Início</th><th>Escopo</th><th>Origem</th><th>Status</th><th>Duração</th><th>Avisos</th><th>Ações</th></tr></thead>
-              <tbody>
-                <tr v-for="run in runs.items.value" :key="run.id">
-                  <td>{{ formatDateTime(run.started_at) }}</td>
-                  <td>{{ label('syncScope', run.scope) }}</td>
-                  <td>{{ label('syncTrigger', run.trigger) }}</td>
-                  <td><Badge :tone="tone('syncStatus', run.status)">{{ label('syncStatus', run.status) }}</Badge></td>
-                  <td>{{ duration(run.duration_ms) }}</td>
-                  <td>{{ warningTotal(run) || '—' }}</td>
-                  <td><button class="btn ghost small" type="button" @click="openRun(run)">Ver</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <ul class="attendance-cards">
-            <li v-for="run in runs.items.value" :key="run.id" class="card attendance-card">
-              <div class="attendance-card-head">
-                <b>{{ formatDateTime(run.started_at) }}</b>
-                <Badge :tone="tone('syncStatus', run.status)">{{ label('syncStatus', run.status) }}</Badge>
-              </div>
-              <p>{{ label('syncScope', run.scope) }} · {{ label('syncTrigger', run.trigger) }} · {{ duration(run.duration_ms) }}</p>
-              <div class="attendance-card-actions"><button class="btn ghost" type="button" @click="openRun(run)">Ver detalhes</button></div>
-            </li>
-          </ul>
-          <Pager :meta="runs.meta.value" :disabled="runs.loading.value" @page="runs.page.value = $event" />
-        </LoadState>
-      </template>
-    </section>
+
 
     <!-- Inscrições -->
     <section v-else-if="tab === 'inscricoes'" aria-label="Inscrições">
@@ -238,7 +195,6 @@ const attFilters = attendance.filters
             <option value="false">Sem divergência</option>
           </select>
         </FilterPanel>
-        <button v-if="canMaterialize" class="btn" type="button" :disabled="!configured" :title="configured ? '' : 'Configure a integração Even3 primeiro.'" @click="openMaterialize">Materializar participantes</button>
       </div>
       <LoadState :loading="registrations.loading.value" :loaded="registrations.loaded.value" :error="registrations.error.value" :empty="registrations.items.value.length === 0"
         :empty-title="registrations.activeFilters.value ? 'Nenhuma inscrição para estes filtros' : 'Nenhuma inscrição sincronizada'"
@@ -363,7 +319,7 @@ const attFilters = attendance.filters
         </Field>
       </form>
       <p v-if="configure.fieldErrors.value.integration" class="banner warn">{{ configure.fieldErrors.value.integration }}</p>
-      <p class="stat-hint">Ao salvar, o servidor consulta o evento na Even3 para conferir o vínculo. Isso não importa inscrições: use a aba Sincronização.</p>
+      <p class="stat-hint">Ao salvar, o servidor consulta o evento na Even3 para conferir o vínculo. Isso não importa inscrições: use o botão “Sincronizar Even3” no topo da tela.</p>
       <template #footer>
         <button class="btn ghost" type="button" @click="modal = null">Cancelar</button>
         <button class="btn" type="button" :disabled="configure.pending.value" @click="configure.run()">{{ configure.pending.value ? 'Salvando…' : 'Salvar integração' }}</button>
@@ -386,74 +342,8 @@ const attFilters = attendance.filters
       </template>
     </Modal>
 
-    <Modal v-if="modal === 'sync'" title="Sincronizar com a Even3?" subtitle="O servidor consulta a Even3 e atualiza os dados locais. Pode levar alguns minutos." @close="sync.pending.value || (modal = null)">
-      <Field label="Escopo" :error="sync.fieldErrors.value.scope">
-        <select v-model="syncForm.scope" class="input" :disabled="sync.pending.value">
-          <option v-for="[code, name] in options('syncScope')" :key="code" :value="code">{{ name }}</option>
-        </select>
-      </Field>
-      <p class="stat-hint">Completo: evento → entradas → inscritos. A sincronização é repetível e não duplica pessoas nem inscrições; não cria participantes, jurados, empresas nem contas.</p>
-      <p v-if="sync.fieldErrors.value.integration" class="banner warn">{{ sync.fieldErrors.value.integration }}</p>
-      <template #footer>
-        <button class="btn ghost" type="button" :disabled="sync.pending.value" @click="modal = null">Cancelar</button>
-        <button class="btn" type="button" :disabled="sync.pending.value" @click="sync.run()">{{ sync.pending.value ? 'Sincronizando…' : 'Sincronizar' }}</button>
-      </template>
-    </Modal>
 
-    <Modal v-if="modal === 'materialize'" title="Materializar participantes?" subtitle="Cria participantes a partir das inscrições confirmadas em entradas da categoria Participante." @close="materialize.pending.value || (modal = null)">
-      <template v-if="!materializeResult">
-        <p>Para cada inscrição <b>confirmada</b> em entrada mapeada como <b>Participante</b>, o HackLab cria um participante disponível, sem turma, se ele ainda não existir.</p>
-        <p class="stat-hint">Participantes existentes não mudam (status, turma, equipe e desafio). A operação pode ser repetida sem duplicar.</p>
-      </template>
-      <dl v-else class="detail-list" aria-live="polite">
-        <dt>Elegíveis</dt><dd>{{ formatNumber(materializeResult.eligible) }}</dd>
-        <dt>Criados agora</dt><dd>{{ formatNumber(materializeResult.created) }}</dd>
-        <dt>Já existiam</dt><dd>{{ formatNumber(materializeResult.already_existing) }}</dd>
-      </dl>
-      <template #footer>
-        <template v-if="!materializeResult">
-          <button class="btn ghost" type="button" :disabled="materialize.pending.value" @click="modal = null">Cancelar</button>
-          <button class="btn" type="button" :disabled="materialize.pending.value" @click="materialize.run()">{{ materialize.pending.value ? 'Materializando…' : 'Materializar' }}</button>
-        </template>
-        <button v-else class="btn" type="button" @click="modal = null">Fechar</button>
-      </template>
-    </Modal>
 
-    <!-- Detalhe da sincronização -->
-    <Drawer v-if="runDetailId" title="Sincronização" :subtitle="runDetail.data.value ? `${label('syncScope', runDetail.data.value.scope)} · ${formatDateTime(runDetail.data.value.started_at)}` : ''" @close="closeRun">
-      <LoadState :loading="runDetail.loading.value" :loaded="Boolean(runDetail.data.value)" :error="runDetail.error.value" @retry="runDetail.load()">
-        <template v-if="runDetail.data.value">
-          <dl class="detail-list">
-            <dt>Status</dt><dd><Badge :tone="tone('syncStatus', runDetail.data.value.status)">{{ label('syncStatus', runDetail.data.value.status) }}</Badge></dd>
-            <dt>Escopo</dt><dd>{{ label('syncScope', runDetail.data.value.scope) }}</dd>
-            <dt>Origem</dt><dd>{{ label('syncTrigger', runDetail.data.value.trigger) }}</dd>
-            <dt>Início</dt><dd>{{ formatDateTime(runDetail.data.value.started_at) }}</dd>
-            <dt>Fim</dt><dd>{{ formatDateTime(runDetail.data.value.finished_at) }}</dd>
-            <dt>Duração</dt><dd>{{ duration(runDetail.data.value.duration_ms) }}</dd>
-            <template v-if="runDetail.data.value.error_code"><dt>Erro</dt><dd><span class="ticket-code">{{ runDetail.data.value.error_code }}</span></dd></template>
-            <template v-if="runDetail.data.value.error_message"><dt>Mensagem</dt><dd>{{ runDetail.data.value.error_message }}</dd></template>
-          </dl>
-          <h3 class="ops-title">Contadores</h3>
-          <p v-if="!counterRows.length" class="stat-hint">Sem contadores registrados.</p>
-          <dl v-else class="detail-list">
-            <template v-for="row in counterRows" :key="row.key"><dt>{{ row.label }}</dt><dd>{{ formatNumber(row.value) }}</dd></template>
-          </dl>
-          <h3 class="ops-title">Avisos</h3>
-          <p v-if="!warningCodeRows.length" class="stat-hint">Nenhum aviso.</p>
-          <dl v-else class="detail-list">
-            <template v-for="row in warningCodeRows" :key="row.code"><dt><span class="ticket-code">{{ row.code }}</span></dt><dd>{{ formatNumber(row.count) }}</dd></template>
-          </dl>
-          <ul v-if="runDetail.data.value.warnings?.length" class="audit-changes sync-warnings">
-            <li v-for="(item, index) in runDetail.data.value.warnings" :key="index">
-              <span>{{ item.code }}<template v-if="item.external_id"> · ID externo {{ item.external_id }}</template></span>
-              <p>{{ item.message }}</p>
-            </li>
-          </ul>
-          <p v-else-if="warningCodeRows.length && !canManage" class="stat-hint">O detalhe dos avisos é visível só para quem administra a integração.</p>
-        </template>
-      </LoadState>
-      <template #footer><button class="btn ghost" type="button" @click="closeRun">Fechar</button></template>
-    </Drawer>
 
     <!-- Detalhe da inscrição -->
     <Drawer v-if="registrationId" title="Inscrição" :subtitle="registrationDetail.data.value?.person?.full_name || registrationDetail.data.value?.source?.name || ''" @close="closeRegistration">

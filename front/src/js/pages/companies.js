@@ -1,6 +1,6 @@
 // Lógica de Companies.vue: listagem de empresas (/events/{e}/companies) ou de desafios (/events/{e}/challenges).
 // Sem exclusão: empresa inativa via status (página da empresa); desafio muda de status na página do desafio.
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { fetchAll } from '@/js/api/pagination'
 import { usePaged, useRequest } from '@/js/composables/async'
 import { label, options, tone } from '@/js/labels'
@@ -9,6 +9,7 @@ import { useCompanyForm } from '@/js/pages/company-form'
 import { go } from '@/js/router'
 import { hasPermission } from '@/js/stores/auth'
 import { eventContext } from '@/js/stores/event-context'
+import { even3Context } from '@/js/stores/even3-context'
 import { listChallenges } from '@/js/services/challenges'
 import { listCompanies } from '@/js/services/companies'
 
@@ -37,6 +38,9 @@ export function useCompanies(props) {
     () => (tab.value === 'desafios' && canViewCompanies.value && eventId() ? fetchAll((query) => listCompanies(eventId(), query)) : []),
     { initial: [], immediate: tab.value === 'desafios' },
   )
+
+  // Representante vinculado pela revisão da Even3: recarrega a lista de empresas.
+  watch(() => even3Context.revision, () => { if (tab.value === 'empresas') list.load() })
 
   const companyForm = useCompanyForm({
     onSaved: async (company, created) => {

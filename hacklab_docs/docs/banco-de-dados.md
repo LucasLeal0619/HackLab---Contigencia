@@ -175,7 +175,7 @@ Usuário não é apagado: é inativado (`status = INACTIVE`), o que encerra as s
 id
 person_id FK unique          (um pedido vigente por Person; novo pedido substitui)
 requested_email              (minúsculo; check no banco)
-intended_role                (JUROR | VOTER; check no banco; revalidado na conclusão)
+intended_role                (JUROR | VOTER | MANAGER | EDITOR | CONSULTANT; check no banco; revalidado na conclusão — perfil diferente invalida o link)
 token_hash unique            (HMAC-SHA256 do token com APP_KEY; o token em si nunca é gravado)
 expires_at                   (60 minutos)
 created_at
@@ -942,7 +942,10 @@ id
 event_id FK
 provider                   EVEN3
 external_event_id          id do evento na plataforma (texto)
-external_event_title nullable   último título lido (só exibição)
+external_event_title nullable   último título lido
+external_start_date nullable    data inicial lida da Even3 (Complemento 11.2)
+external_end_date nullable      data final lida da Even3
+external_metadata_synced_at nullable   quando título/datas foram lidos (configuração ou sync EVENT/ALL)
 api_version                V2
 status                     ACTIVE | DISABLED
 last_connection_checked_at nullable
@@ -1077,6 +1080,54 @@ unique(external_delivery_id) where event_integration_id is null
 ```
 
 Não guarda token nem payload completo.
+
+### integration_reconciliations (Complemento 11.2)
+
+```text
+id
+event_id
+event_integration_id
+person_id FK
+kind                       JUROR | ORGANIZATION | COMPANY_GUEST
+status                     RESOLVED | IGNORED   (pendente é derivado, não gravado)
+resolution nullable        JUROR_CREATED | REPRESENTATIVE_LINKED | IGNORED
+target_type nullable       juror | company_representative
+target_id nullable
+resolved_by_user_id FK nullable
+resolved_at
+note nullable
+created_at
+updated_at
+
+unique(event_integration_id, person_id, kind)
+```
+
+- FK composta `(event_integration_id, event_id) → event_integrations`; checks de `kind`, `status`, `resolution` e de `target_*` (os dois juntos ou nenhum).
+- Restaurar um ignorado apaga a linha.
+
+### account_access_grants (Complemento 11.2)
+
+```text
+id
+event_id FK
+person_id FK
+role_id FK                 MANAGER | EDITOR | CONSULTANT (trigger)
+sector_id nullable         obrigatório para MANAGER/EDITOR, nulo para CONSULTANT (trigger)
+status                     PENDING | CONSUMED | REVOKED
+source                     EVEN3_ORGANIZATION
+granted_by_user_id FK
+user_id FK nullable        conta criada ao consumir
+revoked_by_user_id FK nullable
+consumed_at nullable       (status = CONSUMED) = (consumed_at is not null)
+revoked_at nullable        (status = REVOKED) = (revoked_at is not null)
+created_at
+updated_at
+
+unique(person_id) where status = 'PENDING'   no máximo uma liberação pendente por Person
+```
+
+- FK composta `(sector_id, event_id) → sectors(id, event_id)`: setor do mesmo evento.
+- O perfil é global no User (sem membership por evento): por isso a unicidade da pendente é por Person, não por evento.
 
 ## 9. Webhooks e sincronização
 
