@@ -1,0 +1,29 @@
+# Netlify: só regras de rota. Build e diretórios continuam definidos no painel do site
+# (este arquivo precisa estar no Base directory do site: front/).
+#
+# Proxy assinado para a API no Render (HACKLAB-IP-001; hacklab_docs/docs/infraestrutura.md §3.4 e §3.2.8).
+# Front e API ficam na mesma origem para o navegador (cookie Sanctum first-party), e o Netlify envia em
+# cada requisição o x-nf-sign (JWS HS256) assinado com o segredo da variável abaixo. O segredo fica só nas
+# variáveis do Netlify (escopo Runtime) e do Render; nunca aqui nem em variável VITE_.
+#
+# Não existe _redirects: as regras dele são processadas ANTES deste arquivo, e um "/*" lá capturaria /api/*.
+# A ordem aqui importa: proxies primeiro, fallback da SPA por último.
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://hacklab-api.onrender.com/api/:splat"
+  status = 200
+  force = true
+  signed = "HACKLAB_PROXY_SIGNATURE_SECRET"
+
+[[redirects]]
+  from = "/sanctum/*"
+  to = "https://hacklab-api.onrender.com/sanctum/:splat"
+  status = 200
+  force = true
+  signed = "HACKLAB_PROXY_SIGNATURE_SECRET"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
