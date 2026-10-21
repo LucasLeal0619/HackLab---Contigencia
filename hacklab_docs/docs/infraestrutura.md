@@ -267,6 +267,12 @@ FRONTEND_URL=https://…        (base dos links de ativação e redefinição)
 
 ### 3.2.8 IP real do cliente e host (HACKLAB-IP-001)
 
+**Status: concluído e validado em produção em 21/10/2026.**
+- Commits `478df95` (backend) e `fa4b03e` (proxy assinado do Netlify).
+- Variáveis em produção:
+  - Netlify: `HACKLAB_PROXY_SIGNATURE_SECRET` (Runtime);
+  - Render: `HACKLAB_NETLIFY_PROXY_SECRET`, `HACKLAB_EDGE_CLIENT_IP_HEADER=CF-Connecting-IP` e `TRUSTED_PROXIES=127.0.0.1,::1`.
+
 **Causa raiz.** O diagnóstico em produção de 20/10/2026 mediu a cadeia abaixo:
 
 ```text
@@ -323,7 +329,7 @@ X-Forwarded-For recebido: "<forjado pelo cliente?>, <cliente>, 100.64.x,<saída 
 - no Render, em `HACKLAB_NETLIFY_PROXY_SECRET`;
 - nunca no Git, nem em variável `VITE_`, nem em log.
 
-**Deploy coordenado.** Nenhuma combinação intermediária quebra o login, porque o pior caso é o comportamento atual ou o IP de saída do Netlify:
+**Deploy coordenado** (executado em 20–21/10/2026, nesta ordem). Nenhuma combinação intermediária quebra o login, porque o pior caso é o comportamento anterior ou o IP de saída do Netlify:
 
 1. **Netlify:**
    - conferir se o *Base directory* é `front` (onde está o `netlify.toml`);
@@ -333,7 +339,7 @@ X-Forwarded-For recebido: "<forjado pelo cliente?>, <cliente>, 100.64.x,<saída 
 3. **Push do backend** (commit 1). Com `*`, a resolução nova fica **desligada** (comportamento atual de IP), mas a correção de host já vale. Validar o login.
 4. **Render:** `TRUSTED_PROXIES=127.0.0.1,::1` e redeploy. Agora o acesso direto grava o IP real, e o caminho pelo Netlify grava o IP de saída do Netlify. Validar o login.
 5. **Push do frontend** (commit 2: `netlify.toml` e remoção do `_redirects`). A partir daqui, o caminho pelo Netlify grava o IP real.
-6. Validar (abaixo). Depois, remover `HACKLAB_REQUEST_DIAGNOSTICS_TOKEN` do Render.
+6. Validar (abaixo). A variável do diagnóstico temporário, que já saiu do código no commit `478df95`, também sai do Render.
 
 **Rollback:**
 - Frontend: `git revert` do commit 2, que traz de volta o `_redirects` sem assinatura. O login continua funcionando, e o IP volta a ser o de saída do Netlify.
@@ -350,7 +356,34 @@ X-Forwarded-For recebido: "<forjado pelo cliente?>, <cliente>, 100.64.x,<saída 
 | D. Login com `X-Forwarded-For`/`x-nf-client-connection-ip` forjados (curl pelo Netlify e direto no Render) | a Auditoria não grava o valor forjado |
 | E. DevTools | `/sanctum/csrf-cookie` e `/api/v1/...` em `hacklab-senac.netlify.app` |
 
+**Resultados (20–21/10/2026):**
+- **Automatizados:**
+  - backend 616/616, frontend 130/130 e Pint PASS;
+  - 17 testes de feature novos (`ClientIpResolutionTest`), pelo stack HTTP real:
+    - assinatura válida, ausente, inválida (12 variações), vencida e com claims alteradas;
+    - cabeçalhos forjados e IP inválido;
+    - IPv4 e IPv6;
+    - `X-Forwarded-Host` malicioso e URLs absolutas;
+    - Auditoria de login e logout;
+    - sessão por cookie;
+    - rate limit por cliente real.
+- **Passo 4** (`TRUSTED_PROXIES` exato, ainda sem assinatura): a Auditoria gravou o IP de saída do Netlify (`56.126.136.177`), como esperado.
+- **Passo 5, verificação técnica:** três logins recusados com e-mails `ip-check-1-*@hacklab.invalid`. O IP público do cliente foi gravado nos três casos:
+  - pelo Netlify sem nada forjado;
+  - pelo Netlify com `X-Forwarded-For`, `x-nf-client-connection-ip`, `X-Real-IP` e `True-Client-IP` forjados;
+  - direto no Render com o `x-nf` forjado, sem assinatura.
+  - Respostas 422 (nunca 419), `csrf-cookie` 204, fallback da SPA 200.
+  - Isso confirma que o JWS emitido pelo Netlify é aceito pela validação.
+- **Passo 5, testes manuais:**
+  - login sem 419;
+  - sessão mantida após `Ctrl + Shift + R`;
+  - navegação entre módulos;
+  - API pelo domínio do Netlify;
+  - rotas internas da SPA após atualizar a página;
+  - IP da Auditoria igual ao do IPify, em **IPv4 e IPv6**.
+
 **Limitações:**
+- O valor exato do `exp` emitido pelo Netlify não foi observado: o cabeçalho é descartado pelo middleware e não é registrado.
 - A confiança no `CF-Connecting-IP` depende de o Render manter o Cloudflare na frente e o proxy local em `::1`/`127.0.0.1`. Se o Render mudar a infraestrutura, repetir a medição.
 - Sem assinatura válida, quem chega pelo Netlify aparece com o IP de saída do Netlify, compartilhado.
 - Deploy previews do Netlify (`deploy_context` diferente de `production`) também aparecem assim.
@@ -440,5 +473,5 @@ O código não usa nada proprietário do Render nem do Supabase. Para trocar de 
 | 08/10/2026 | MySQL 8.4 + Docker, produção numa VM Oracle Cloud (Always Free) | substituída. Oracle fica como alternativa futura de host para uma stack Docker de produção |
 | 09/10/2026 | PostgreSQL em todos os ambientes; Docker para dev/testes; Render + Supabase em produção | **vigente** |
 | 20/10/2026 | Frontend de produção no Netlify (o Render Static Site fica como alternativa); Render Free só para validação, plano do evento decidido após a Fase 13 | **vigente** |
-| 20/10/2026 | HACKLAB-IP-001: proxy assinado do Netlify (`netlify.toml`), IP do cliente resolvido pelo `ResolveClientIp` (x-nf assinado → `CF-Connecting-IP` → nenhum), `TRUSTED_PROXIES` exato, `X-Forwarded-Host` nunca confiável | **vigente** |
+| 20/10/2026 | HACKLAB-IP-001: proxy assinado do Netlify (`netlify.toml`), IP do cliente resolvido pelo `ResolveClientIp` (x-nf assinado → `CF-Connecting-IP` → nenhum), `TRUSTED_PROXIES` exato, `X-Forwarded-Host` nunca confiável. Validado em produção em 21/10/2026 | **vigente** |
 | 20/10/2026 | Alvo `prod` com FrankenPHP (modo clássico), caches no start, release por Pre-Deploy ou `HACKLAB_MIGRATE_ON_START`, Cron Job opcional para o sync, sem worker de fila | **vigente** |

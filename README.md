@@ -13,9 +13,9 @@ PostgreSQL 17 (schema hacklab)
 | Ambiente | Frontend | API | Banco |
 |---|---|---|---|
 | Desenvolvimento | Vue/Vite em `http://localhost:5174` | Laravel em Docker, `http://localhost:8000` | PostgreSQL 17 em Docker, `127.0.0.1:5442` |
-| Produção (planejada) | Netlify | Laravel no Render (Web Service) | PostgreSQL gerenciado no Supabase |
+| Produção | Netlify | Laravel no Render (Web Service) | PostgreSQL gerenciado no Supabase |
 
-A implantação em produção é a **Fase 12** e ainda não foi feita.
+A produção está no ar desde 20/10/2026, no Render Free, que serve só para validação (**Fase 12**, em andamento). Pendências antes do evento: e-mail real, Even3 em produção e o plano do Render para o evento.
 
 As inscrições e o credenciamento acontecem na plataforma externa **Even3**. O HackLab importa inscrições e presença pelo backend e cuida da gestão interna. Não vende ingresso, não gera QR e não faz check-in próprio.
 
@@ -39,7 +39,7 @@ As inscrições e o credenciamento acontecem na plataforma externa **Even3**. O 
 | 11 | Relatórios reais e PDF | concluída |
 | 11.1 | Primeiro acesso, recuperação de senha e autocadastro seguro de Votantes | concluído |
 | 11.2 | Centro Even3 e Presença (simplificado antes do deploy) | em revisão |
-| 12 | Implantação (Render + Supabase + Netlify) | em andamento (etapa 1: backend pronto para o Render) |
+| 12 | Implantação (Render + Supabase + Netlify) | em andamento (produção no ar; HACKLAB-IP-001 concluído; pendentes: e-mail real, Even3, plano do evento) |
 | 13 | Teste de carga | pendente |
 
 O detalhe de cada fase está em [`plano-implementacao.md`](hacklab_docs/docs/plano-implementacao.md).
@@ -350,10 +350,15 @@ docker build --target prod -t hacklab-back-prod ./back
 | Sincronização agendada | Cron Job opcional, `php artisan even3:sync` a cada 10 min (o Web Service não roda o Scheduler) |
 | Fila | nenhum fluxo usa; sem worker (`QUEUE_CONNECTION=sync`) |
 
-Variáveis, segredos e decisões em [`infraestrutura.md`](hacklab_docs/docs/infraestrutura.md) §3.2. Ainda faltam:
-- o deploy de fato;
-- os cookies e o Sanctum entre domínios;
-- o SMTP e o webhook real da Even3.
+Variáveis, segredos e decisões em [`infraestrutura.md`](hacklab_docs/docs/infraestrutura.md) §3.2. Já validado em produção:
+- deploy;
+- login com Sanctum pelo proxy assinado do Netlify (mesma origem);
+- IP real do cliente na Auditoria (HACKLAB-IP-001).
+
+Ainda faltam:
+- o SMTP real (hoje `MAIL_MAILER=array`: primeiro acesso e recuperação de senha não entregam e-mail);
+- a liberação de Jurados e Votantes;
+- a Even3 real com webhook.
 
 A Fase 13 fará o teste de carga.
 

@@ -486,7 +486,7 @@ Antes da Fase 12. Desenho em `arquitetura.md` §18, `integracao-even3.md` §8–
 
 Fora do escopo: atividades/programação da Even3.
 
-## Fase 12 — Implantação (Render + Supabase)
+## Fase 12 — Implantação (Render + Supabase + Netlify)
 
 **Etapa 1 — backend pronto para o Render (código, sem conta configurada).** Detalhes em `infraestrutura.md` §3.2:
 
@@ -496,7 +496,7 @@ Fora do escopo: atividades/programação da Even3.
   - `www-data`, sem `.env` nem segredos;
 - [x] caches do Laravel (`optimize`) no start, não no build;
 - [x] `docker/prod/release.sh` (`migrate --force` + `RolePermissionSeeder`): Pre-Deploy no plano pago, `HACKLAB_MIGRATE_ON_START=true` no Free;
-- [x] `TRUSTED_PROXIES` (IP real do cliente nos rate limits atrás do proxy do Render);
+- [x] `TRUSTED_PROXIES` (o desenho inicial com `*` foi substituído pelo HACKLAB-IP-001, abaixo);
 - [x] health check: `GET /api/v1/health` (Laravel + consulta ao banco). Um endpoint `readiness` separado não é necessário;
 - [x] scheduler documentado: Render Cron Job opcional com `even3:sync` a cada 10 min. Fila: nenhum fluxo usa, sem worker;
 - [x] imagem `prod` testada localmente:
@@ -506,23 +506,30 @@ Fora do escopo: atividades/programação da Even3.
   - recusa de `sslmode=disable`;
   - SIGTERM com exit 0.
 
-**Próximas etapas:**
+**Etapa 2 — produção no ar (20–21/10/2026, validado):**
 
-- [ ] projeto Supabase de produção, schema `hacklab` criado (SQL em `infraestrutura.md` §3.1);
-- [ ] Web Service no Render com as variáveis de `infraestrutura.md` §3.2.3 (Session pooler, `sslmode=require`);
-- [ ] primeiro Administrador em produção (`hacklab:create-admin`; forma de execução sem shell em `infraestrutura.md` §3.2.4);
-- [ ] primeiro deploy no Render Free com `HACKLAB_MIGRATE_ON_START=true`. Depois de confirmar as migrations e os perfis, voltar para `false` e redeployar;
-- [ ] front no **Netlify** com `VITE_API_URL` e rewrite `/* → /index.html`;
-- [ ] **PoC do cookie de sessão** (proxy `/api` no Netlify ou domínio próprio; ver `infraestrutura.md` §3.4);
+- [x] projeto Supabase de produção com o schema `hacklab` (SQL em `infraestrutura.md` §3.1);
+- [x] Web Service no Render (Free) com as variáveis de `infraestrutura.md` §3.2.3 (Session pooler, `sslmode=require`);
+- [x] primeiro deploy com `HACKLAB_MIGRATE_ON_START=true` (36 migrations e `RolePermissionSeeder`), depois `false`;
+- [x] FrankenPHP sem `CAP_NET_BIND_SERVICE` (o Render recusava a file capability; commit `0c4755b`);
+- [x] primeiro Administrador criado pela imagem `prod` local, com as variáveis de produção num arquivo fora do Git;
+- [x] front no **Netlify** (Base directory `front`), com `VITE_API_URL` vazio;
+- [x] **cookie de sessão:** o proxy `/api` e `/sanctum` no Netlify deixa front e API na mesma origem. O 419 foi resolvido; login, CSRF e sessão foram validados (`infraestrutura.md` §3.4);
+- [x] **HACKLAB-IP-001:** IP real do cliente na Auditoria e nos rate limits. **Concluído e validado em produção em 21/10/2026.**
+  - Commits `478df95` (backend) e `fa4b03e` (proxy assinado do Netlify).
+  - Detalhes, rollback e limitações em `infraestrutura.md` §3.2.8.
+
+**Pendências:**
+
 - [ ] **PRIORITÁRIO — serviço real de envio de e-mail antes de liberar Jurados e Votantes.** Desde 20/10/2026 a produção usa `MAIL_MAILER=array`, que descarta os e-mails. Antes era `log`, que gravaria links com token nos logs do Render. Enquanto isso:
   - o primeiro acesso (única forma de Jurado e Votante criarem conta) e o "esqueci a senha" não entregam nada;
   - as telas e a API continuam dizendo "enviaremos…", porque a resposta é genérica de propósito.
 
   Provedor compatível com o Render Free (portas 25/465/587 bloqueadas): porta alternativa, como 2525, ou provedor por HTTPS;
-- [ ] **HACKLAB-IP-001:** IP real do cliente na Auditoria e nos rate limits. Correção implementada; falta o deploy coordenado e a validação em produção (`infraestrutura.md` §3.2.8);
+- [ ] envio real dos e-mails de primeiro acesso e de recuperação de senha, validado em produção (depende do item anterior);
+- [ ] liberação dos fluxos de Jurados (primeiro acesso, avaliações) e Votantes (primeiro acesso, elegibilidade, votação) em produção (depende do e-mail);
+- [ ] Even3 real em produção: `EVEN3_*` no Render, sincronização e webhook público. A integração operacional ainda não foi validada; Cron Job só se houver orçamento;
 - [ ] plano do Render para o evento: pago básico no mínimo, decidido após a Fase 13;
-- [ ] PoC do `X-Forwarded-For` atrás do proxy do Render (`infraestrutura.md` §3.2.1);
-- [ ] Even3 real e webhook público; Cron Job só se houver orçamento (não é necessário para subir);
 - [ ] `pg_dump` periódico para armazenamento fora do Supabase + teste de restauração.
 
 ## Fase 13 — Teste de carga do dia 3
