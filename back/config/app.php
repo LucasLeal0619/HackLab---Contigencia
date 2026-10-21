@@ -57,12 +57,16 @@ return [
     // Base dos links enviados por e-mail (primeiro acesso, redefinição de senha). Só por configuração.
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:5174'),
 
-    // Proxies cujos X-Forwarded-* valem (IP real do cliente, HTTPS). Vazio = nenhum (desenvolvimento).
-    // Render: "*" (o TLS termina no proxy dele; sem isso todo usuário teria o IP do proxy nos rate limits).
+    // IP do cliente atrás de Netlify → Render (HACKLAB-IP-001; hacklab_docs/docs/infraestrutura.md §3.2.8).
+    // Proxy local exato que entrega a requisição ao Laravel (Render: "127.0.0.1,::1"). Vazio = nenhum (desenvolvimento).
+    // Só X-Forwarded-For/-Proto valem; X-Forwarded-Host nunca. "*" ainda é aceito, mas não ativa a resolução abaixo.
     'trusted_proxies' => env('TRUSTED_PROXIES'),
 
-    // TEMPORÁRIO (SPEC HACKLAB-IP-001): liga GET /api/v1/system/request-diagnostics. Vazio = desligado (404).
-    'request_diagnostics_token' => env('HACKLAB_REQUEST_DIAGNOSTICS_TOKEN'),
+    // Cabeçalho que a borda do host sobrescreve com o IP que conectou nela (Render: "CF-Connecting-IP").
+    'edge_client_ip_header' => env('HACKLAB_EDGE_CLIENT_IP_HEADER'),
+
+    // Segredo do proxy assinado do Netlify (x-nf-sign, JWS HS256). O mesmo valor fica só no Netlify (escopo Runtime).
+    'netlify_proxy_secret' => env('HACKLAB_NETLIFY_PROXY_SECRET'),
 
     /*
     |--------------------------------------------------------------------------

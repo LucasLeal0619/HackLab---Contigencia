@@ -2,6 +2,8 @@
 
 Decisão vigente desde 09/10/2026. Substitui as decisões anteriores (Supabase sem Docker local; MySQL + Oracle VM).
 
+**O banco de produção é PostgreSQL**, gerenciado no Supabase (schema `hacklab`). O HackLab não usa MySQL em nenhum ambiente: o MySQL aparece neste documento só como decisão antiga, substituída em 09/10/2026 (§8).
+
 ## 1. Princípio
 
 O sistema é sempre **Vue + Laravel + PostgreSQL**. Onde ele roda é escolha de hospedagem, não dependência do código.
@@ -145,9 +147,7 @@ Consequências para o HackLab:
 
 **Caches do Laravel no start, não no build.** As variáveis do Render só existem de verdade em runtime. Por isso o `docker/prod/entrypoint.sh` roda `php artisan optimize` (config, rotas, eventos e views) a cada start, antes do servidor, e não precisa de banco. Um `config:cache` no build congelaria a configuração sem as variáveis.
 
-**Proxy do Render:** o TLS termina no proxy do Render e o Laravel recebe HTTP. `TRUSTED_PROXIES=*` faz o Laravel usar o `X-Forwarded-For`/`-Proto`. Sem isso, todos os usuários teriam o IP do proxy e dividiriam os limites por IP (login: 5/min; primeiro acesso: 20/h). Vazio em desenvolvimento.
-
-**Pendente (PoC no deploy):** confirmar se o proxy do Render reescreve um `X-Forwarded-For` enviado pelo cliente (teste: mandar um forjado e ver o IP na auditoria). Se não reescrever, um cliente pode trocar o IP que entra no rate limit.
+**Proxy do Render:** o TLS termina na borda do Render e o Laravel recebe HTTP de um proxy local (`::1`). O IP real do cliente e a proteção contra host header injection estão em §3.2.8.
 
 ### 3.2.2 Web Service no Render (configuração manual no painel)
 
@@ -177,9 +177,12 @@ Segredos (🔒) só no painel do Render, nunca no Git. URLs reais são definidas
 | `FRONTEND_URL` | URL do front (CORS e links dos e-mails) |
 | `CORS_ALLOWED_ORIGINS` | URL do front |
 | `SANCTUM_STATEFUL_DOMAINS` | host do front (sem `https://`) |
-| `SESSION_DOMAIN`, `SESSION_SAME_SITE` | dependem da PoC do cookie (§3.4) |
+| `SESSION_SAME_SITE` | `lax` (§3.4) |
+| `SESSION_DOMAIN` | **ausente** (cookie host-only, §3.4) |
 | `SESSION_SECURE_COOKIE` | `true` |
-| `TRUSTED_PROXIES` | `*` |
+| `TRUSTED_PROXIES` | `127.0.0.1,::1` (proxy local do Render; nunca `*`, §3.2.8) |
+| `HACKLAB_EDGE_CLIENT_IP_HEADER` | `CF-Connecting-IP` (§3.2.8) |
+| `HACKLAB_NETLIFY_PROXY_SECRET` 🔒 | mesmo valor de `HACKLAB_PROXY_SIGNATURE_SECRET` no Netlify (§3.2.8) |
 | `DB_CONNECTION` | `pgsql` |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` | Session pooler do Supabase (porta 5432) |
 | `DB_PASSWORD` 🔒 | senha do banco |
@@ -262,13 +265,103 @@ FRONTEND_URL=https://…        (base dos links de ativação e redefinição)
 - a escolha do provedor SMTP fica para a Fase 12. No Render Free, as portas 25/465/587 estão bloqueadas: o provedor precisa oferecer porta alternativa (ex.: 2525) enquanto o serviço estiver no Free;
 - `php artisan hacklab:prune-auth-tokens` limpa tokens vencidos; em produção, junto do Cron Job (§3.2.5).
 
+### 3.2.8 IP real do cliente e host (HACKLAB-IP-001)
+
+**Causa raiz.** O diagnóstico em produção de 20/10/2026 mediu a cadeia abaixo:
+
+```text
+cliente → borda Netlify → 100.64.x (rede interna Netlify) → saída AWS do Netlify (variável)
+        → Cloudflare (borda do Render) → balanceador Render (10.25–27.x) → proxy local (::1) → Laravel
+X-Forwarded-For recebido: "<forjado pelo cliente?>, <cliente>, 100.64.x,<saída Netlify>, <Cloudflare>, <balanceador>"
+```
+
+- Com `TRUSTED_PROXIES=*`, o Laravel confia só no `REMOTE_ADDR` (`::1`). O `ip()` virava o último salto, o balanceador `10.x`, e a Auditoria gravava `10.27.0.14`.
+- Os rate limits por IP eram compartilhados por todos os usuários.
+- O `*` também aceitava `X-Forwarded-Host`: no acesso direto ao Render, um cliente trocava o host que o Laravel enxerga (testado: `https://evil.example`).
+
+**Cabeçalhos medidos:**
+
+| Cabeçalho | Pelo Netlify | Direto no Render | Uso |
+|---|---|---|---|
+| `X-Forwarded-For` | cada salto acrescenta; valor forjado preservado | idem | **descartado** |
+| `x-nf-client-connection-ip` | Netlify sobrescreve com o IP real | **passa forjado** | só com `x-nf-sign` válido |
+| `CF-Connecting-IP` | IP de saída do Netlify | IP real; forjado → Cloudflare `error 1000` | quem conectou no Render |
+| `True-Client-IP` / `X-Real-IP` | sobrescrito / removido | sobrescrito / removido | não usados |
+| `X-Forwarded-Proto` | `https`; forjado é ignorado | idem | confiável |
+| `X-Forwarded-Host` | removido pelo Netlify | **passa forjado** | **nunca confiável** |
+
+**Arquitetura definitiva:**
+
+1. **Proxy assinado no Netlify** (`front/netlify.toml`).
+   - `/api/*` e `/sanctum/*` usam `signed = "HACKLAB_PROXY_SIGNATURE_SECRET"`, e o Netlify envia o `x-nf-sign` (JWS HS256) em cada requisição.
+   - Não há `_redirects`: as regras dele vêm **antes** das do `netlify.toml`, e o `/*` da SPA capturaria `/api/*`.
+2. **`ResolveClientIp`**, primeiro middleware global. Só age se o `REMOTE_ADDR` for o proxy local exato (`TRUSTED_PROXIES`, nunca `*`).
+   - Descarta o `X-Forwarded-For` recebido e põe no lugar um único IP:
+     1. `x-nf-sign` válido → `x-nf-client-connection-ip`;
+     2. senão `CF-Connecting-IP` (`HACKLAB_EDGE_CLIENT_IP_HEADER`) → quem conectou no Render;
+     3. senão nenhum: o `ip()` fica sendo o proxy local. Nunca um cabeçalho não autenticado e nunca o primeiro IP do `X-Forwarded-For`.
+   - O IP precisa ser um IPv4 ou IPv6 único e válido (`FILTER_VALIDATE_IP`). Listas, portas e lixo são recusados.
+3. **`ProxyConfiguration`** (no `AppServiceProvider`):
+   - só `X-Forwarded-For` e `-Proto` são confiáveis;
+   - em production, as URLs absolutas, inclusive as de paginação, vêm do `APP_URL`, nunca do `Host`.
+4. O `$request->ip()` continua sendo a única forma de leitura. `AuditLogger` e rate limits não mudaram.
+
+**Validação do `x-nf-sign`** (`App\Support\Http\NetlifyProxySignature`):
+- 3 partes base64url, `alg` = `HS256`, `typ` ausente ou `JWT`, sem `crit`;
+- HMAC-SHA256 com `HACKLAB_NETLIFY_PROXY_SECRET`, comparado com `hash_equals`;
+- claims: `iss` = `netlify`, `exp` inteiro e não vencido (tolerância de 30 s), `deploy_context` = `production`, `site_url` = `FRONTEND_URL`.
+
+**O que a assinatura garante, e o que não garante:**
+- **Garante:** a requisição passou pelo proxy do **nosso** site no Netlify (o segredo só existe no Netlify e no Render).
+- **Não garante:** os cabeçalhos HTTP. O JWS cobre só as próprias claims e não amarra a requisição nem o IP.
+- **De onde vem a confiança no IP:** o Netlify sobrescreve `x-nf-client-connection-ip` nesse caminho (medido em produção). O JWS só trafega entre o Netlify e o Render, sob TLS; o cliente nunca o vê. Para reaproveitá-lo, um atacante precisaria capturar esse tráfego.
+- **Prazo de validade:** o `exp` limita a janela de uso. O valor real do `exp` é conferido na validação de produção.
+
+**Segredo:**
+- valor aleatório (ex.: `openssl rand -hex 32`);
+- no Netlify, em `HACKLAB_PROXY_SIGNATURE_SECRET`, com escopo **Runtime**;
+- no Render, em `HACKLAB_NETLIFY_PROXY_SECRET`;
+- nunca no Git, nem em variável `VITE_`, nem em log.
+
+**Deploy coordenado.** Nenhuma combinação intermediária quebra o login, porque o pior caso é o comportamento atual ou o IP de saída do Netlify:
+
+1. **Netlify:**
+   - conferir se o *Base directory* é `front` (onde está o `netlify.toml`);
+   - criar `HACKLAB_PROXY_SIGNATURE_SECRET` (escopo Runtime).
+   Ainda não muda nada.
+2. **Render:** criar `HACKLAB_NETLIFY_PROXY_SECRET` (mesmo valor) e `HACKLAB_EDGE_CLIENT_IP_HEADER=CF-Connecting-IP`. **Manter `TRUSTED_PROXIES=*` por enquanto.** O código atual ignora as duas variáveis.
+3. **Push do backend** (commit 1). Com `*`, a resolução nova fica **desligada** (comportamento atual de IP), mas a correção de host já vale. Validar o login.
+4. **Render:** `TRUSTED_PROXIES=127.0.0.1,::1` e redeploy. Agora o acesso direto grava o IP real, e o caminho pelo Netlify grava o IP de saída do Netlify. Validar o login.
+5. **Push do frontend** (commit 2: `netlify.toml` e remoção do `_redirects`). A partir daqui, o caminho pelo Netlify grava o IP real.
+6. Validar (abaixo). Depois, remover `HACKLAB_REQUEST_DIAGNOSTICS_TOKEN` do Render.
+
+**Rollback:**
+- Frontend: `git revert` do commit 2, que traz de volta o `_redirects` sem assinatura. O login continua funcionando, e o IP volta a ser o de saída do Netlify.
+- Backend sem deploy: voltar `TRUSTED_PROXIES=*` no Render, o que desliga a resolução nova. Se preciso, `git revert` do commit 1.
+- As variáveis novas podem ficar: o código anterior as ignora.
+
+**Validação em produção:**
+
+| Teste | Esperado |
+|---|---|
+| A. Login pelo Netlify | sem 419 |
+| B. `Ctrl + Shift + R` | a sessão continua |
+| C. Auditoria do login | IP = o IP público do cliente (comparar com https://api.ipify.org) |
+| D. Login com `X-Forwarded-For`/`x-nf-client-connection-ip` forjados (curl pelo Netlify e direto no Render) | a Auditoria não grava o valor forjado |
+| E. DevTools | `/sanctum/csrf-cookie` e `/api/v1/...` em `hacklab-senac.netlify.app` |
+
+**Limitações:**
+- A confiança no `CF-Connecting-IP` depende de o Render manter o Cloudflare na frente e o proxy local em `::1`/`127.0.0.1`. Se o Render mudar a infraestrutura, repetir a medição.
+- Sem assinatura válida, quem chega pelo Netlify aparece com o IP de saída do Netlify, compartilhado.
+- Deploy previews do Netlify (`deploy_context` diferente de `production`) também aparecem assim.
+
 ### 3.3 Frontend (Netlify)
 
 - Em produção o front fica no **Netlify**: `npm run build` e o `dist/` publicado como site estático. Decisão da Fase 12; o Render Static Site, previsto antes, ficou só como alternativa;
 - a URL da API vem de variável de ambiente no build: `VITE_API_URL`. Nunca fixar domínio no código;
 - rewrite `/* → /index.html` para as rotas do Vue.
 
-### 3.4 ⚠️ Cookie de sessão entre front e API (pendente de PoC)
+### 3.4 Cookie de sessão entre front e API
 
 `onrender.com` está na [Public Suffix List](https://publicsuffix.org/list/public_suffix_list.dat). O front no Netlify e a API no Render (`*.onrender.com`) são **sites diferentes** para o navegador. O cookie de sessão do Sanctum (SPA, HttpOnly) viraria cookie de terceiro, que Safari e Chrome restringem. Sem resolver isso, o login por cookie não funciona de forma confiável.
 
@@ -280,15 +373,15 @@ Opções, em ordem de preferência:
 
 Decisão: opção 1. A PoC do primeiro deploy confirmou o problema: chamando o Render direto, o login respondia 419, porque o `XSRF-TOKEN` era do domínio do Render e o front no Netlify não conseguia lê-lo.
 
-Implementação (`front/public/_redirects`, copiado para `dist/` pelo Vite):
+Implementação: `front/netlify.toml`, no *Base directory* do site. Antes era o `front/public/_redirects`, substituído no HACKLAB-IP-001 para assinar o proxy (§3.2.8):
 
 ```text
-/api/*      https://<api>.onrender.com/api/:splat      200
-/sanctum/*  https://<api>.onrender.com/sanctum/:splat  200
-/*          /index.html                                200
+/api/*      → https://<api>.onrender.com/api/:splat      200, force, signed
+/sanctum/*  → https://<api>.onrender.com/sanctum/:splat  200, force, signed
+/*          → /index.html                                200
 ```
 
-- Primeiro os proxies, depois o fallback da SPA.
+- Primeiro os proxies, depois o fallback da SPA. Nada de `_redirects`, cujas regras viriam antes.
 - O domínio da API fica nesse arquivo de configuração do Netlify, nunca no JS.
 - Em produção, `VITE_API_URL` fica **vazio/ausente**: o client chama `/sanctum/csrf-cookie` e `/api/v1/...` no próprio domínio do Netlify. Nunca usar `VITE_API_URL=/api`, que duplicaria o prefixo.
 - No Render:
@@ -347,4 +440,5 @@ O código não usa nada proprietário do Render nem do Supabase. Para trocar de 
 | 08/10/2026 | MySQL 8.4 + Docker, produção numa VM Oracle Cloud (Always Free) | substituída. Oracle fica como alternativa futura de host para uma stack Docker de produção |
 | 09/10/2026 | PostgreSQL em todos os ambientes; Docker para dev/testes; Render + Supabase em produção | **vigente** |
 | 20/10/2026 | Frontend de produção no Netlify (o Render Static Site fica como alternativa); Render Free só para validação, plano do evento decidido após a Fase 13 | **vigente** |
+| 20/10/2026 | HACKLAB-IP-001: proxy assinado do Netlify (`netlify.toml`), IP do cliente resolvido pelo `ResolveClientIp` (x-nf assinado → `CF-Connecting-IP` → nenhum), `TRUSTED_PROXIES` exato, `X-Forwarded-Host` nunca confiável | **vigente** |
 | 20/10/2026 | Alvo `prod` com FrankenPHP (modo clássico), caches no start, release por Pre-Deploy ou `HACKLAB_MIGRATE_ON_START`, Cron Job opcional para o sync, sem worker de fila | **vigente** |

@@ -514,7 +514,12 @@ Fora do escopo: atividades/programação da Even3.
 - [ ] primeiro deploy no Render Free com `HACKLAB_MIGRATE_ON_START=true`. Depois de confirmar as migrations e os perfis, voltar para `false` e redeployar;
 - [ ] front no **Netlify** com `VITE_API_URL` e rewrite `/* → /index.html`;
 - [ ] **PoC do cookie de sessão** (proxy `/api` no Netlify ou domínio próprio; ver `infraestrutura.md` §3.4);
-- [ ] SMTP compatível com o Render Free (portas 25/465/587 bloqueadas: porta alternativa ou provedor por HTTPS);
+- [ ] **PRIORITÁRIO — serviço real de envio de e-mail antes de liberar Jurados e Votantes.** Desde 20/10/2026 a produção usa `MAIL_MAILER=array`, que descarta os e-mails. Antes era `log`, que gravaria links com token nos logs do Render. Enquanto isso:
+  - o primeiro acesso (única forma de Jurado e Votante criarem conta) e o "esqueci a senha" não entregam nada;
+  - as telas e a API continuam dizendo "enviaremos…", porque a resposta é genérica de propósito.
+
+  Provedor compatível com o Render Free (portas 25/465/587 bloqueadas): porta alternativa, como 2525, ou provedor por HTTPS;
+- [ ] **HACKLAB-IP-001:** IP real do cliente na Auditoria e nos rate limits. Correção implementada; falta o deploy coordenado e a validação em produção (`infraestrutura.md` §3.2.8);
 - [ ] plano do Render para o evento: pago básico no mínimo, decidido após a Fase 13;
 - [ ] PoC do `X-Forwarded-For` atrás do proxy do Render (`infraestrutura.md` §3.2.1);
 - [ ] Even3 real e webhook público; Cron Job só se houver orçamento (não é necessário para subir);

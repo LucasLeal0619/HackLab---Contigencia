@@ -7,10 +7,10 @@ use App\Integrations\Even3\Even3Provider;
 use App\Integrations\EventPlatform\EventPlatformProvider;
 use App\Support\Database\DatabaseEnvironmentGuard;
 use App\Support\Database\DestructiveCommandGuard;
+use App\Support\Http\ProxyConfiguration;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Database\Events\ConnectionEstablished;
-use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
@@ -57,11 +57,9 @@ class AppServiceProvider extends ServiceProvider
             }
         });
 
-        // Atrás do proxy do Render: IP do cliente e HTTPS vêm dos X-Forwarded-* (lido da config, que pode estar em cache).
-        $proxies = trim((string) config('app.trusted_proxies'));
-        if ($proxies !== '') {
-            TrustProxies::at($proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
-        }
+        // Atrás de Netlify → Render (HACKLAB-IP-001): só X-Forwarded-For/-Proto do proxy local; o IP do cliente é
+        // resolvido pelo ResolveClientIp. Lido da config, que pode estar em cache.
+        ProxyConfiguration::apply(config('app.trusted_proxies'), $this->app->environment(), config('app.url'));
 
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());

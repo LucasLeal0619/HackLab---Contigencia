@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\ApiExceptionRenderer;
+use App\Http\Middleware\ResolveClientIp;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,6 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Primeiro do stack global: resolve o IP real do cliente antes de qualquer leitura de $request->ip().
+        $middleware->prepend(ResolveClientIp::class);
+
         // Sanctum SPA: requisições do frontend autenticam por cookie de sessão + CSRF.
         $middleware->statefulApi();
         $middleware->throttleApi();

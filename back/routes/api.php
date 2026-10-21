@@ -27,7 +27,6 @@ use App\Http\Controllers\Api\V1\OccurrenceController;
 use App\Http\Controllers\Api\V1\ParticipantController;
 use App\Http\Controllers\Api\V1\PersonController;
 use App\Http\Controllers\Api\V1\ReportController;
-use App\Http\Controllers\Api\V1\RequestDiagnosticsController;
 use App\Http\Controllers\Api\V1\ResultController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SectorController;
@@ -40,11 +39,6 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('/health', HealthController::class)->name('health');
-
-    // TEMPORÁRIO (SPEC HACKLAB-IP-001): diagnóstico da cadeia de proxies; 404 sem HACKLAB_REQUEST_DIAGNOSTICS_TOKEN.
-    Route::get('/system/request-diagnostics', RequestDiagnosticsController::class)
-        ->middleware('throttle:30,1')
-        ->name('system.request-diagnostics');
 
     // Webhook da Even3: público (sem Sanctum), autenticado pelo token de segurança no header configurado.
     Route::post('/webhooks/even3', Even3WebhookController::class)

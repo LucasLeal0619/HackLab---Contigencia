@@ -228,6 +228,7 @@ Regras:
 - produção conecta pelo **Session pooler (5432)** do Supabase, com `sslmode=require` e `search_path=hacklab`;
 - o Render Free dorme após 15 min sem tráfego (cold start de ~1 min). Antes de momentos críticos, chamar `GET /api/v1/health` (também é o Health Check Path). O Free serve só para validar o deploy: no evento, no mínimo o plano pago básico, decidido após a Fase 13. No Free, `HACKLAB_MIGRATE_ON_START=true` só no primeiro deploy (depois `false`) e SMTP nas portas 25/465/587 não está disponível;
 - migrations em produção só por `docker/prod/release.sh` (`migrate --force` + `RolePermissionSeeder`), no Pre-Deploy ou com `HACKLAB_MIGRATE_ON_START=true`; nunca no `docker build`;
+- IP do cliente só por `$request->ip()`, resolvido pelo `ResolveClientIp` (proxy assinado do Netlify → `CF-Connecting-IP`). Não ler `X-Forwarded-For`/`X-Real-IP` direto, não usar `TRUSTED_PROXIES=*` e nunca confiar em `X-Forwarded-Host` (`docs/infraestrutura.md` §3.2.8);
 - o Web Service não roda o Scheduler: sincronização agendada só por Render Cron Job (`even3:sync`). Não há worker de fila (nenhum fluxo usa fila);
 - trocar de hospedagem (ex.: servidor do Senac) não exige mudar código: mesma imagem Docker, `pg_dump`/`pg_restore`, novo `VITE_API_URL`.
 
