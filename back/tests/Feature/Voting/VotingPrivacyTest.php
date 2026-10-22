@@ -148,7 +148,7 @@ class VotingPrivacyTest extends DatabaseTestCase
     {
         $this->closeSession($this->session);
 
-        $this->assertSame(0, AuditLog::query()->where('action', 'ilike', '%VOTE_CAST%')->count());
+        $this->assertSame(0, AuditLog::query()->whereILike('action', '%VOTE_CAST%')->count());
 
         foreach (AuditLog::query()->get() as $log) {
             $payload = json_encode([$log->before_data, $log->after_data, $log->description]);

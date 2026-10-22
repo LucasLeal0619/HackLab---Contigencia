@@ -34,8 +34,8 @@ class CompanyController extends Controller
                 $document = Company::normalizeDocument($search);
 
                 $q->where(fn ($w) => $w
-                    ->where('name', 'ilike', "%{$search}%")
-                    ->orWhere('legal_name', 'ilike', "%{$search}%")
+                    ->whereILike('name', "%{$search}%")
+                    ->orWhereILike('legal_name', "%{$search}%")
                     ->when($document, fn ($d) => $d->orWhere('document', 'like', "%{$document}%")));
             })
             ->orderBy('name')

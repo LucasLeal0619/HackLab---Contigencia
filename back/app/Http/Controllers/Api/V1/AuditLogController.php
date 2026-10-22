@@ -30,14 +30,14 @@ class AuditLogController extends Controller
             ->when($filters['search'] ?? null, function ($q, string $search) {
                 $like = '%'.addcslashes($search, '%_\\').'%';
                 $q->where(fn ($w) => $w
-                    ->where('action', 'ilike', $like)
-                    ->orWhere('module', 'ilike', $like)
-                    ->orWhere('description', 'ilike', $like)
-                    ->orWhere('actor_name', 'ilike', $like)
-                    ->orWhere('actor_email', 'ilike', $like)
-                    ->orWhere('entity_type', 'ilike', $like)
-                    ->orWhere('entity_id', 'ilike', $like)
-                    ->orWhere('entity_label', 'ilike', $like));
+                    ->whereILike('action', $like)
+                    ->orWhereILike('module', $like)
+                    ->orWhereILike('description', $like)
+                    ->orWhereILike('actor_name', $like)
+                    ->orWhereILike('actor_email', $like)
+                    ->orWhereILike('entity_type', $like)
+                    ->orWhereILike('entity_id', $like)
+                    ->orWhereILike('entity_label', $like));
             })
             // event_id prevalece sobre has_event.
             ->when(isset($filters['event_id']), fn ($q) => $q->where('event_id', $filters['event_id']))

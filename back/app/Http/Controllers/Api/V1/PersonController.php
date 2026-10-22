@@ -23,8 +23,8 @@ class PersonController extends Controller
         $people = Person::query()
             ->with('user')
             ->when($request->query('search'), fn ($query, string $search) => $query->where(fn ($q) => $q
-                ->where('full_name', 'ilike', "%{$search}%")
-                ->orWhere('email', 'ilike', "%{$search}%")))
+                ->whereILike('full_name', "%{$search}%")
+                ->orWhereILike('email', "%{$search}%")))
             ->orderBy('full_name')
             ->paginate(min((int) $request->query('per_page', 20), 100));
 

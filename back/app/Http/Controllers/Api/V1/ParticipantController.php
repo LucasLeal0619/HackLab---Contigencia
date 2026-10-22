@@ -42,8 +42,8 @@ class ParticipantController extends Controller
                 : $q->whereDoesntHave('activeMembership'))
             ->when($request->query('team_id'), fn ($q, $teamId) => $q->whereHas('activeMembership', fn ($m) => $m->where('team_id', $teamId)))
             ->when($request->query('search'), fn ($q, string $search) => $q->whereHas('person', fn ($p) => $p
-                ->where('full_name', 'ilike', "%{$search}%")
-                ->orWhere('email', 'ilike', "%{$search}%")))
+                ->whereILike('full_name', "%{$search}%")
+                ->orWhereILike('email', "%{$search}%")))
             ->join('people', 'people.id', '=', 'participants.person_id')
             ->orderBy('people.full_name')
             ->select('participants.*')

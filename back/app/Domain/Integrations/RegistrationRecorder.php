@@ -85,7 +85,7 @@ class RegistrationRecorder
         } else {
             // 2–3) Matching controlado da Person.
             $byDocument = $document === null ? collect() : Person::query()
-                ->whereRaw("upper(regexp_replace(coalesce(document, ''), '[^A-Za-z0-9]', '', 'g')) = ?", [$document])->limit(2)->pluck('id');
+                ->whereRaw('upper('.self::regexpReplaceAll("coalesce(document, '')", '[^A-Za-z0-9]', '').') = ?', [$document])->limit(2)->pluck('id');
             $byEmail = $email === null ? collect() : Person::query()
                 ->whereRaw('lower(trim(email)) = ?', [$email])->limit(2)->pluck('id');
 
@@ -297,7 +297,7 @@ class RegistrationRecorder
     {
         $matches = ExternalTicketType::query()
             ->where('event_integration_id', $integration->id)
-            ->whereRaw("lower(regexp_replace(trim(external_name), '\\s+', ' ', 'g')) = ?", [IdentityNormalizer::label($label)])
+            ->whereRaw('lower('.self::regexpReplaceAll('trim(external_name)', '\\s+', ' ', mysqlPattern: '[[:space:]]+').') = ?', [IdentityNormalizer::label($label)])
             ->limit(2)
             ->pluck('id');
 
@@ -390,5 +390,16 @@ class RegistrationRecorder
     private function warning(string $code, ?string $externalId, string $message): array
     {
         return ['code' => $code, 'external_id' => $externalId, 'message' => $message];
+    }
+
+    /**
+     * regexp_replace de todas as ocorrências (HACKLAB-DEV-001). PostgreSQL: flag 'g' (SQL de sempre). MySQL: substitui
+     * todas por padrão e não tem a flag; e descarta "\" em literais, então classes como \s vão em $mysqlPattern.
+     */
+    private static function regexpReplaceAll(string $expression, string $pattern, string $replacement, ?string $mysqlPattern = null): string
+    {
+        return DB::connection()->getDriverName() === 'mysql'
+            ? "regexp_replace({$expression}, '".($mysqlPattern ?? $pattern)."', '{$replacement}')"
+            : "regexp_replace({$expression}, '{$pattern}', '{$replacement}', 'g')";
     }
 }

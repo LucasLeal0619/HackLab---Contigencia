@@ -45,7 +45,7 @@ class VotingSessionController extends Controller
             ->where('event_id', $event->id)
             ->withCount(self::COUNTS)
             ->when($request->query('status'), fn ($q, string $v) => $q->where('status', $v))
-            ->when($request->query('search'), fn ($q, string $s) => $q->where('name', 'ilike', "%{$s}%"))
+            ->when($request->query('search'), fn ($q, string $s) => $q->whereILike('name', "%{$s}%"))
             ->orderByDesc('id')
             ->paginate(min((int) $request->query('per_page', 50), 100));
 
@@ -93,8 +93,8 @@ class VotingSessionController extends Controller
             ->selectRaw('exists (select 1 from public_votes pv where pv.voting_session_id = voting_eligibilities.voting_session_id and pv.user_id = voting_eligibilities.user_id) as has_voted')
             ->with('user.person', 'user.role')
             ->when($request->query('search'), fn ($q, string $s) => $q->where(fn ($w) => $w
-                ->where('people.full_name', 'ilike', "%{$s}%")
-                ->orWhere('users.email', 'ilike', "%{$s}%")))
+                ->whereILike('people.full_name', "%{$s}%")
+                ->orWhereILike('users.email', "%{$s}%")))
             ->when($request->has('has_voted'), fn ($q) => $request->boolean('has_voted')
                 ? $q->whereIn('voting_eligibilities.user_id', $voted)
                 : $q->whereNotIn('voting_eligibilities.user_id', $voted))

@@ -36,7 +36,7 @@ class OccurrenceController extends Controller
             ->where('event_id', $event->id)
             ->visibleTo($request->user())
             ->with(OccurrenceService::RELATIONS)
-            ->when($request->query('search'), fn ($q, string $s) => $q->where(fn ($w) => $w->where('title', 'ilike', "%{$s}%")->orWhere('reference', 'ilike', "%{$s}%")))
+            ->when($request->query('search'), fn ($q, string $s) => $q->where(fn ($w) => $w->whereILike('title', "%{$s}%")->orWhereILike('reference', "%{$s}%")))
             ->when($request->query('status'), fn ($q, string $v) => $q->where('status', $v))
             ->when($request->query('priority'), fn ($q, string $v) => $q->where('priority', $v))
             ->when($request->query('category'), fn ($q, string $v) => $q->where('category', $v))
