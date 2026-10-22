@@ -37,12 +37,12 @@ class PostgresSchemaSnapshot
                    from pg_indexes where schemaname = ? order by tablename, indexname'
             ),
             'constraints' => $rows(
-                "select rel.relname as table_name, con.conname as constraint_name, con.contype as type,
+                'select rel.relname as table_name, con.conname as constraint_name, con.contype as type,
                         pg_get_constraintdef(con.oid, true) as definition
                    from pg_constraint con
                    join pg_class rel on rel.oid = con.conrelid
                    join pg_namespace nsp on nsp.oid = rel.relnamespace
-                  where nsp.nspname = ? order by rel.relname, con.conname"
+                  where nsp.nspname = ? order by rel.relname, con.conname'
             ),
             'triggers' => $rows(
                 'select rel.relname as table_name, tg.tgname as trigger_name, pg_get_triggerdef(tg.oid, true) as definition,
