@@ -95,10 +95,10 @@ class EventRegistrationController extends Controller
         return $query
             ->when($filters['search'] ?? null, function (Builder $q, string $search) {
                 $like = '%'.addcslashes($search, '%_\\').'%';
-                $q->where(fn ($w) => $w->whereHas('person', fn ($p) => $p->where('full_name', 'ilike', $like)->orWhere('email', 'ilike', $like))
-                    ->orWhere('event_registrations.source_name', 'ilike', $like)
-                    ->orWhere('event_registrations.source_email', 'ilike', $like)
-                    ->orWhere('event_registrations.check_in_code', 'ilike', $like));
+                $q->where(fn ($w) => $w->whereHas('person', fn ($p) => $p->whereILike('full_name', $like)->orWhereILike('email', $like))
+                    ->orWhereILike('event_registrations.source_name', $like)
+                    ->orWhereILike('event_registrations.source_email', $like)
+                    ->orWhereILike('event_registrations.check_in_code', $like));
             })
             ->when($filters['status'] ?? null, fn (Builder $q, string $v) => $q->where('event_registrations.status', $v))
             ->when(array_key_exists('confirmed', $filters), fn (Builder $q) => $bool('confirmed')

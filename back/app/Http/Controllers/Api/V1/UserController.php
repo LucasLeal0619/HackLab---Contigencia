@@ -29,8 +29,8 @@ class UserController extends Controller
             ->with('person', 'role', 'sector')
             ->when($request->query('search'), function ($query, string $search) {
                 $query->where(fn ($q) => $q
-                    ->where('email', 'ilike', "%{$search}%")
-                    ->orWhereHas('person', fn ($p) => $p->where('full_name', 'ilike', "%{$search}%")));
+                    ->whereILike('email', "%{$search}%")
+                    ->orWhereHas('person', fn ($p) => $p->whereILike('full_name', "%{$search}%")));
             })
             ->when($request->query('role'), fn ($query, string $role) => $query->whereHas('role', fn ($r) => $r->where('code', $role)))
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))

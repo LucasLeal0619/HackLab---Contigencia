@@ -36,7 +36,7 @@ class JurorController extends Controller
             ->withCount('activeAssignments')
             ->when($request->query('status'), fn ($q, string $v) => $q->where('jurors.status', $v))
             ->when($request->query('company_id'), fn ($q, $v) => $q->where('company_id', $v))
-            ->when($request->query('search'), fn ($q, string $s) => $q->whereHas('person', fn ($p) => $p->where('full_name', 'ilike', "%{$s}%")))
+            ->when($request->query('search'), fn ($q, string $s) => $q->whereHas('person', fn ($p) => $p->whereILike('full_name', "%{$s}%")))
             ->join('people', 'people.id', '=', 'jurors.person_id')
             ->orderBy('people.full_name')
             ->select('jurors.*')

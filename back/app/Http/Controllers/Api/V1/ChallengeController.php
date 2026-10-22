@@ -38,7 +38,7 @@ class ChallengeController extends Controller
             ->when($request->has('has_team'), fn ($q) => $request->boolean('has_team')
                 ? $q->whereHas('team')
                 : $q->whereDoesntHave('team'))
-            ->when($request->query('search'), fn ($q, string $search) => $q->where('title', 'ilike', "%{$search}%"))
+            ->when($request->query('search'), fn ($q, string $search) => $q->whereILike('title', "%{$search}%"))
             ->orderBy('title')
             ->paginate(min((int) $request->query('per_page', 50), 100));
 

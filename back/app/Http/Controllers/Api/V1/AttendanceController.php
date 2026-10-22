@@ -44,7 +44,7 @@ class AttendanceController extends Controller
             ->when($filters['status'] ?? null, fn ($q, string $v) => $q->where('event_registrations.status', $v))
             ->when($filters['search'] ?? null, function ($q, string $search) {
                 $like = '%'.addcslashes($search, '%_\\').'%';
-                $q->where(fn ($w) => $w->whereHas('person', fn ($p) => $p->where('full_name', 'ilike', $like))->orWhere('event_registrations.source_name', 'ilike', $like));
+                $q->where(fn ($w) => $w->whereHas('person', fn ($p) => $p->whereILike('full_name', $like))->orWhereILike('event_registrations.source_name', $like));
             })
             ->with('person:id,full_name', 'ticketType:id,external_name,internal_category')
             ->withCount('attendance')

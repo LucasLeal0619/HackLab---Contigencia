@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Integrations\Even3\Even3Client;
 use App\Integrations\Even3\Even3Provider;
 use App\Integrations\EventPlatform\EventPlatformProvider;
+use App\Support\Database\CaseInsensitiveSearch;
 use App\Support\Database\DatabaseEnvironmentGuard;
 use App\Support\Database\DestructiveCommandGuard;
 use App\Support\Http\ProxyConfiguration;
@@ -60,6 +61,9 @@ class AppServiceProvider extends ServiceProvider
         // Atrás de Netlify → Render (HACKLAB-IP-001): só X-Forwarded-For/-Proto do proxy local; o IP do cliente é
         // resolvido pelo ResolveClientIp. Lido da config, que pode estar em cache.
         ProxyConfiguration::apply(config('app.trusted_proxies'), $this->app->environment(), config('app.url'));
+
+        // Busca sem diferenciar maiúsculas (ilike no PostgreSQL; collation explícita no MySQL local).
+        CaseInsensitiveSearch::register();
 
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
