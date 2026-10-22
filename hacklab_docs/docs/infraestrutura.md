@@ -2,17 +2,17 @@
 
 Decisão vigente desde 09/10/2026. Substitui as decisões anteriores (Supabase sem Docker local; MySQL + Oracle VM).
 
-**O banco de produção é PostgreSQL**, gerenciado no Supabase (schema `hacklab`). O HackLab não usa MySQL em nenhum ambiente: o MySQL aparece neste documento só como decisão antiga, substituída em 09/10/2026 (§8).
+**O banco de produção é PostgreSQL**, gerenciado no Supabase (schema `hacklab`), e o PostgreSQL é a referência de comportamento e de testes (CI). Desde 22/10/2026 (HACKLAB-DEV-001), a equipe desenvolve localmente com **MySQL 8**, sem Docker (§2.2). O "MySQL + Oracle VM" de 08/10 é outra decisão, já substituída (§8).
 
 ## 1. Princípio
 
-O sistema é sempre **Vue + Laravel + PostgreSQL**. Onde ele roda é escolha de hospedagem, não dependência do código.
+O sistema é **Vue + Laravel**. Em produção roda sobre PostgreSQL, e o mesmo código roda também sobre MySQL no desenvolvimento local. Onde ele roda é escolha de hospedagem, não dependência do código.
 
-| Papel | Desenvolvimento e testes | Produção (atual) |
-|---|---|---|
-| Frontend Vue | `npm run dev` local | Netlify (site estático) |
-| API Laravel | container Docker local | Render Web Service (Free, imagem Docker) |
-| PostgreSQL | container Docker local (`hacklab_dev`, `hacklab_test`) | Supabase (PostgreSQL gerenciado) |
+| Papel | Desenvolvimento local (branch `dev`) | CI (PRs) | Produção (branch `main`) |
+|---|---|---|---|
+| Frontend Vue | `npm run dev` | testes + build | Netlify (site estático) |
+| API Laravel | `php artisan serve` (sem Docker) | testes + Pint | Render Web Service (imagem Docker) |
+| Banco | MySQL 8 local (`hacklab_dev`, `hacklab_test`); opcional: PostgreSQL do Docker | PostgreSQL 17 temporário | Supabase (PostgreSQL gerenciado) |
 
 ```text
 DESENVOLVIMENTO                          PRODUÇÃO
@@ -29,6 +29,8 @@ PostgreSQL (Docker)                      PostgreSQL — Supabase
 Função do Docker: **ambiente reproduzível de desenvolvimento e testes**. Ele não é a infraestrutura de produção atual. A produção usa o alvo `prod` do mesmo `back/Dockerfile` (§3.2.1). Se um dia o Senac pedir hospedagem própria, essa mesma imagem roda ao lado de um PostgreSQL, sem mudar o código.
 
 ## 2. Desenvolvimento
+
+O desenvolvimento local padrão da equipe é **sem Docker, com MySQL** (§2.2, em implementação). O Docker Compose abaixo continua como alternativa com PostgreSQL 17, igual à produção:
 
 ```text
 docker-compose.yml (raiz)
@@ -69,6 +71,61 @@ Diagnóstico de 13/10/2026 (Docker Desktop no Windows, código montado por 9p):
 | Dashboard com ~11 contagens em sequência | ~3,4 s para montar o painel | `GET /events/{e}/dashboard` (1 requisição) |
 
 Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s para aparecer no navegador. Ainda esperado em dev: a cada `PHP_OPCACHE_REVALIDATE_FREQ` segundos uma requisição paga a revalidação (~2–5 s). Para eliminar isso seria preciso tirar o `vendor/` da montagem do Windows (volume do Docker), o que muda o fluxo do `composer`; não foi feito. Nada disso vale para produção (Render usa a própria imagem, sem montagem).
+
+### 2.2 Desenvolvimento local sem Docker, com MySQL (HACKLAB-DEV-001)
+
+**Decisão (22/10/2026):** a equipe do Senac desenvolve na branch `dev` com Laravel, Vue e **MySQL instalado na máquina**, sem Docker e sem acesso ao Supabase. A produção não muda: Render, Netlify e PostgreSQL no Supabase.
+
+**Regras:**
+- **PostgreSQL é a referência.** A suíte oficial roda em PostgreSQL 17 no CI, em todo PR para `dev` e `main`, e é ela que libera a integração.
+- **O mesmo código roda nos dois bancos.** Recursos do PostgreSQL ganham um equivalente no MySQL e nunca são removidos para facilitar:
+  - triggers (18 ativos);
+  - índices únicos parciais;
+  - CHECKs com regex;
+  - travas de concorrência;
+  - referências `OCO-`/`PEN-`.
+- **O caminho PostgreSQL das migrations não muda.** Um teste compara o schema gerado com uma referência capturada antes das mudanças.
+- **Requisitos:**
+  - MySQL **8.0.19+**, recomendado o **8.4 LTS**;
+  - **MariaDB (XAMPP) não serve**: não tem os índices funcionais nem o mesmo `SIGNAL` do MySQL;
+  - conexão em `READ COMMITTED` e collation `utf8mb4_0900_as_cs` (diferencia maiúsculas e acentos, como o PostgreSQL);
+  - permissão para criar triggers.
+- **Busca textual:** sempre por `whereILike`/`orWhereILike` (`App\Support\Database\CaseInsensitiveSearch`). No PostgreSQL vira `::text ilike`, o SQL de sempre. No MySQL vira `collate utf8mb4_0900_as_ci like`. Nos dois bancos, a busca não diferencia maiúsculas e diferencia acentos.
+
+**Estado:**
+
+| Etapa | Situação |
+|---|---|
+| 1. Documentação (esta seção, `CLAUDE.md`) | em PR para a `dev` |
+| 2. Código portável (`ilike`, `regexp_replace`, erro de duplicidade) | em PR para a `dev` (#3), sem mudança no SQL do PostgreSQL |
+| 3. Referência do schema PostgreSQL + teste de equivalência | pendente |
+| 4. Migrations: estrutura MySQL (índices, CHECKs, collation) | pendente; depende de confirmar a versão do MySQL nas máquinas do Senac |
+| 5. Triggers e referências no MySQL, com testes nos dois bancos | pendente |
+| 6. Travas de concorrência + job MySQL no CI | pendente |
+| 7. Guia do `README.md` validado do zero, sem Docker | pendente |
+
+**Ambiente do Senac (confirmado em 22/10/2026):** as máquinas usam **MySQL Server 8.0**, que é o banco-alvo do desenvolvimento local. Na máquina de referência, a versão completa é a **8.0.46** (serviço `MySQL80`, porta 3306).
+- Muitas máquinas também têm o **XAMPP**, que traz um **MariaDB 10.4** próprio. Ele **não é usado** e deve ficar parado: usa a mesma porta 3306 e não é compatível. Do XAMPP, só o PHP pode servir.
+- A versão é conferida antes de qualquer SQL específico do MySQL:
+  - versão completa `>= 8.0.19` e sem "MariaDB";
+  - as migrations MySQL recusam rodar fora disso, com uma mensagem clara (etapa 4);
+  - o `hacklab:db-check` mostra a versão.
+
+### 2.3 Branches, PRs e CI
+
+```text
+feature/* ou fix/*  ──PR──▶  dev  ──PR──▶  main
+```
+
+- **`main`:** produção. O Render (Root Directory `back`) e o Netlify (Base directory `front`) publicam só a `main`. Mudanças fora desses diretórios, como `.github/`, não disparam build nem deploy.
+- **`dev`:** integração da equipe. Não publica nada.
+- **`feature/*` e `fix/*`:** saem da `dev` e voltam por PR.
+- **CI (`.github/workflows/ci.yml`):** roda em todo PR para `dev` e `main`, em dois jobs separados:
+  - **Backend (Laravel + PostgreSQL 17):** migrations do zero, `hacklab:db-check`, Pint e testes;
+  - **Frontend (Vue + Vite):** testes e build.
+  - Não usa segredos nem serviços de produção, e não faz deploy.
+- **Proteção recomendada da `main`:** PR obrigatório, os dois checks obrigatórios e nada de push direto nem force-push.
+- **Previews:** os Deploy Previews e Branch deploys do Netlify estão desligados desde 22/10/2026, porque o `netlify.toml` aponta para a API de produção.
 
 ## 3. Produção
 
@@ -473,5 +530,6 @@ O código não usa nada proprietário do Render nem do Supabase. Para trocar de 
 | 08/10/2026 | MySQL 8.4 + Docker, produção numa VM Oracle Cloud (Always Free) | substituída. Oracle fica como alternativa futura de host para uma stack Docker de produção |
 | 09/10/2026 | PostgreSQL em todos os ambientes; Docker para dev/testes; Render + Supabase em produção | **vigente** |
 | 20/10/2026 | Frontend de produção no Netlify (o Render Static Site fica como alternativa); Render Free só para validação, plano do evento decidido após a Fase 13 | **vigente** |
+| 22/10/2026 | HACKLAB-DEV-001 / HACKLAB-GIT-001: branches `main` (produção) e `dev` (equipe); desenvolvimento local com MySQL 8 sem Docker; PostgreSQL continua na produção e como suíte oficial no CI (GitHub Actions) | **vigente** (em implementação) |
 | 20/10/2026 | HACKLAB-IP-001: proxy assinado do Netlify (`netlify.toml`), IP do cliente resolvido pelo `ResolveClientIp` (x-nf assinado → `CF-Connecting-IP` → nenhum), `TRUSTED_PROXIES` exato, `X-Forwarded-Host` nunca confiável. Validado em produção em 21/10/2026 | **vigente** |
 | 20/10/2026 | Alvo `prod` com FrankenPHP (modo clássico), caches no start, release por Pre-Deploy ou `HACKLAB_MIGRATE_ON_START`, Cron Job opcional para o sync, sem worker de fila | **vigente** |

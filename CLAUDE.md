@@ -31,16 +31,17 @@ O HackLab **não deve reinventar plataforma de inscrição/ingresso/QR**. A arqu
 - Jobs/Queues para processamento assíncrono quando necessário
 
 ### Banco
-- PostgreSQL em todos os ambientes
-- Desenvolvimento e testes: PostgreSQL 17 em Docker, bancos `hacklab_dev` e `hacklab_test`
-- Produção: PostgreSQL gerenciado no Supabase
+- Produção: **PostgreSQL** gerenciado no Supabase. É a referência: o comportamento oficial e a suíte oficial de testes (CI) são em PostgreSQL
+- Desenvolvimento local da equipe (branch `dev`): **MySQL 8.0.19+** (recomendado 8.4 LTS; **não MariaDB/XAMPP**), sem Docker, bancos `hacklab_dev` e `hacklab_test`. Alternativa: PostgreSQL 17 em Docker (`docker-compose.yml`)
+- O mesmo código roda nos dois bancos. Recurso exclusivo de um banco só com caminho equivalente no outro, sem enfraquecer o PostgreSQL: triggers, índices parciais, CHECKs e travas de concorrência são reproduzidos no MySQL, nunca removidos (HACKLAB-DEV-001, `docs/infraestrutura.md` §2.2). Busca textual por `whereILike`/`orWhereILike`, nunca `'ilike'` direto
 - Tabelas no schema `hacklab` (nunca `public`)
 - Migrations obrigatórias
 - Seeders e factories para dados de desenvolvimento
 - Chaves estrangeiras, índices e constraints devem ser definidos desde o início
 
 ### Infraestrutura
-- Docker / Docker Compose: ambiente de **desenvolvimento e testes**
+- Desenvolvimento local: PHP + Composer + Node + MySQL instalados na máquina, **sem Docker** (guia no `README.md`). Docker Compose (PostgreSQL 17) continua como alternativa opcional
+- CI: GitHub Actions com PostgreSQL 17 em todo PR para `dev` e `main` (`.github/workflows/ci.yml`)
 - Produção: API Laravel no Render (Web Service), frontend no Netlify, banco no Supabase
 - Render e Supabase são hospedagem, não dependências do código
 - `back/Dockerfile`: alvo `dev` (compose, `php -S`, código montado) ≠ alvo `prod` (Render: FrankenPHP na porta `PORT`, sem dev deps, sem segredos, caches no start). Detalhes em `docs/infraestrutura.md` §3.2
@@ -68,7 +69,8 @@ HackLab/
 │       ├── integracao-even3.md
 │       ├── regras-de-negocio.md
 │       └── plano-implementacao.md
-├── docker-compose.yml     (desenvolvimento e testes)
+├── .github/workflows/ci.yml (CI: PostgreSQL 17, Pint, testes e build em PRs para dev e main)
+├── docker-compose.yml     (opcional: PostgreSQL 17 + Laravel em Docker)
 ├── CLAUDE.md
 ├── .gitignore
 └── README.md
@@ -211,15 +213,15 @@ Não criar: botão de sincronizar em Participantes, Jurados, Empresas, Usuários
 ### 5.6 Ambientes e hospedagem
 
 ```text
-DESENVOLVIMENTO / TESTES                 PRODUÇÃO
+DESENVOLVIMENTO (branch dev)             CI (PRs)                 PRODUÇÃO (branch main)
 
-Vue (npm run dev)                        Vue — Netlify (VITE_API_URL)
-        ↓                                        ↓
-Laravel (Docker)                         Laravel API — Render Web Service (Docker)
-        ↓                                        ↓
-PostgreSQL (Docker)                      PostgreSQL — Supabase (Session pooler, SSL)
-├── hacklab_dev
-└── hacklab_test                         Even3 → Laravel → PostgreSQL
+Vue (npm run dev)                                                 Vue — Netlify (VITE_API_URL)
+        ↓                                                                 ↓
+Laravel (php artisan serve)              PostgreSQL 17            Laravel API — Render Web Service (Docker)
+        ↓                                (GitHub Actions)                 ↓
+MySQL 8 local (sem Docker)                                        PostgreSQL — Supabase (Session pooler, SSL)
+├── hacklab_dev                          ou PostgreSQL do Docker
+└── hacklab_test                                                  Even3 → Laravel → PostgreSQL
 ```
 
 Regras:
@@ -233,6 +235,19 @@ Regras:
 - trocar de hospedagem (ex.: servidor do Senac) não exige mudar código: mesma imagem Docker, `pg_dump`/`pg_restore`, novo `VITE_API_URL`.
 
 Detalhes, riscos e pendências (incluindo o cookie de sessão entre domínios `onrender.com`) em `docs/infraestrutura.md`.
+
+### 5.6.1 Branches e integração
+
+Duas branches permanentes, sem homologação/staging:
+
+```text
+feature/* ou fix/*  ──PR──▶  dev (equipe, MySQL local)  ──PR──▶  main (produção: Render + Netlify + Supabase)
+```
+
+- `main`: produção. Só recebe PR com o CI verde (PostgreSQL 17 + front) e autorização. Nada de push direto.
+- `dev`: integração da equipe. Não dispara deploy (Render e Netlify publicam só a `main`).
+- `feature/*`/`fix/*`: temporárias, saem da `dev` e voltam por PR.
+- Arquivos `.env` nunca no Git.
 
 ### 5.7 O que cada categoria da Even3 faz
 
@@ -340,7 +355,8 @@ Toda feature backend relevante deve possuir:
 - auditoria quando aplicável.
 
 Testes:
-- rodam em PostgreSQL, no banco exclusivo `hacklab_test` do Docker (configurado em `back/.env.testing` e `phpunit.xml`). Não usar SQLite;
+- a suíte oficial roda em PostgreSQL 17 no CI (GitHub Actions, `.github/workflows/ci.yml`) em todo PR para `dev` e `main`, junto com Pint, testes e build do front. Localmente, no `hacklab_test` (MySQL ou PostgreSQL do Docker). Não usar SQLite;
+- regra de integridade nova (trigger, índice, CHECK, trava) precisa de teste que passe nos dois bancos;
 - nenhum teste usa `hacklab_dev` nem o Supabase. No ambiente `testing`, o backend recusa qualquer banco que não termine em `_test` e qualquer host do Supabase;
 - comandos destrutivos (`migrate:fresh`, `migrate:refresh`, `migrate:reset`, `migrate:rollback`, `db:wipe`) são bloqueados em qualquer banco que não termine em `_test` (`DestructiveCommandGuard`). Testes destrutivos e diagnósticos rodam só no `hacklab_test`. O `hacklab_dev` guarda configuração de integração e dados sincronizados da Even3 que o seed não recria. Não usar `HACKLAB_ALLOW_DESTRUCTIVE_DB=true` sem pedido explícito do usuário.
 

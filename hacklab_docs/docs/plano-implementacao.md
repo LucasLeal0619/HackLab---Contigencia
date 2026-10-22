@@ -532,6 +532,24 @@ Fora do escopo: atividades/programação da Even3.
 - [ ] plano do Render para o evento: pago básico no mínimo, decidido após a Fase 13;
 - [ ] `pg_dump` periódico para armazenamento fora do Supabase + teste de restauração.
 
+## HACKLAB-DEV-001 — Desenvolvimento local com MySQL, sem Docker
+
+Decisão e regras em `infraestrutura.md` §2.2 e §2.3. A produção (PostgreSQL) não muda.
+
+- [x] branches `main` (produção) e `dev` (equipe); fluxo `feature/* → dev → main` (HACKLAB-GIT-001);
+- [x] CI em PostgreSQL 17 (GitHub Actions) em PRs para `dev` e `main` (PR #1, na `dev`);
+- [ ] CI na `main` (PR #2, só `ci.yml`, aguardando autorização) + proteção da `main` (PR e checks obrigatórios);
+- [ ] etapa 1 — documentação (`CLAUDE.md`, `infraestrutura.md`, `README.md`);
+- [ ] etapa 2 — código portável sem mudar o PostgreSQL (PR #3);
+- [x] banco-alvo confirmado (22/10/2026): MySQL Server 8.0 nas máquinas do Senac. O MariaDB do XAMPP não é usado;
+- [ ] verificação automática da versão completa (`>= 8.0.19`, sem MariaDB) antes do SQL específico do MySQL (etapa 4) e no `hacklab:db-check`;
+- [x] Netlify: Production branch `main`, Branch deploys e Deploy Previews desligados (22/10/2026);
+- [ ] etapa 3 — referência do schema PostgreSQL capturada **antes** das mudanças + teste de equivalência;
+- [ ] etapa 4 — migrations: estrutura MySQL (índices parciais → funcionais, CHECKs, collation, `READ COMMITTED`);
+- [ ] etapa 5 — 18 triggers e referências `OCO-`/`PEN-` no MySQL, com testes de integridade nos dois bancos;
+- [ ] etapa 6 — travas de concorrência portáveis + job MySQL no CI;
+- [ ] etapa 7 — guia do `README.md` (clonar a `dev`, instalar, MySQL, migrations, Laravel, Vue, testes, PR), validado do zero sem Docker e sem Supabase.
+
 ## Fase 13 — Teste de carga do dia 3
 
 - [ ] degraus de 50, 100, 200 e 300 usuários concorrentes;

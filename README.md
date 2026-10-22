@@ -155,13 +155,58 @@ O contrato completo da API está em [`back/routes/api.php`](back/routes/api.php)
 
 ## Banco de dados
 
-- PostgreSQL 17, com todas as tabelas no schema `hacklab` (nunca `public`).
-- Bancos: `hacklab_dev` (desenvolvimento) e `hacklab_test` (testes automatizados, recriado a cada execução).
-- Porta na máquina local: `127.0.0.1:5442`, usuário e senha `hacklab`/`hacklab` (só desenvolvimento).
-- A estrutura vem só das migrations do Laravel (32 hoje). Não crie tabelas à mão nem pelo painel do Supabase.
-- No ambiente de testes, o backend recusa qualquer banco cujo nome não termine em `_test` e qualquer host do Supabase.
+- **Produção:** PostgreSQL 17 (Supabase), com todas as tabelas no schema `hacklab` (nunca `public`). O PostgreSQL é a referência: o CI testa nele.
+- **Desenvolvimento local da equipe:** MySQL 8 instalado na máquina, sem Docker (em preparação, ver abaixo). Alternativa: PostgreSQL 17 no Docker.
+- **Bancos:**
+  - `hacklab_dev`: desenvolvimento;
+  - `hacklab_test`: testes automatizados, recriado a cada execução.
+- **Estrutura:** vem só das migrations do Laravel (36 hoje). Não crie tabelas à mão nem pelo painel do Supabase.
+- **Proteção:** no ambiente de testes, o backend recusa qualquer banco cujo nome não termine em `_test` e qualquer host do Supabase.
+
+## Como a equipe trabalha (branches, Pull Requests e CI)
+
+```text
+feature/minha-tarefa  ──PR──▶  dev  ──PR──▶  main (produção)
+```
+
+- **`main`:** é a produção (Render + Netlify + Supabase). Ninguém faz push direto; só entra por PR aprovado com o CI verde.
+- **`dev`:** é onde a equipe integra o trabalho. Não publica nada.
+- **Para cada tarefa:**
+  1. `git switch dev && git pull`;
+  2. `git switch -c feature/nome-curto` (ou `fix/...` para correção);
+  3. faça commits pequenos;
+  4. `git push -u origin feature/nome-curto`;
+  5. abra um Pull Request **para a `dev`**.
+- **CI:** o GitHub Actions roda sozinho em todo PR. Ele faz:
+  - os testes do backend em **PostgreSQL 17**, as migrations do zero e o Pint;
+  - os testes e o build do front.
+
+  Com o CI vermelho, o PR não entra.
+- **Segredos:** nunca commite `.env`, senhas, tokens nem dados de produção.
 
 ## Desenvolvimento local
+
+> **Em preparação (HACKLAB-DEV-001):** o guia para rodar **sem Docker, com o MySQL 8 das máquinas do Senac** entra aqui quando as migrations do MySQL estiverem prontas e o passo a passo tiver sido validado do zero numa máquina sem Docker e sem acesso ao Supabase. Até lá, use o Docker abaixo.
+>
+> O guia vai cobrir:
+> 1. **Conferir o ambiente:**
+>    - `SELECT VERSION();` no MySQL Server 8.0: precisa ser `8.0.19` ou maior e não pode aparecer "MariaDB";
+>    - o MySQL/MariaDB do XAMPP deve ficar **parado**, porque usa a mesma porta 3306;
+>    - `php -v` (8.2 ou maior; recomendado 8.3) e `php -m` com `pdo_mysql`, `mbstring`, `intl`, `zip`, `bcmath`, `fileinfo` e `openssl`. O PHP do XAMPP serve se tiver essas extensões;
+>    - `composer --version` (2.x) e `node -v` (20 ou maior).
+> 2. **Clonar o projeto:** `git clone`, depois `git switch dev`.
+> 3. **Criar os bancos no MySQL:**
+>    - `hacklab_dev` e `hacklab_test`, com `utf8mb4` e collation `utf8mb4_0900_as_cs`;
+>    - um usuário próprio, sem root, com permissão para criar triggers.
+> 4. **Backend:**
+>    - `cd back`, `composer install`;
+>    - `.env` a partir do `.env.example`, com `DB_CONNECTION=mysql`, porta 3306 e o usuário criado;
+>    - `php artisan key:generate`;
+>    - `php artisan migrate --seed`;
+>    - `php artisan serve`.
+> 5. **Frontend:** `cd front`, `npm install`, `npm run dev`. Acesse em `http://localhost:5174`.
+> 6. **Testes:** `php artisan test` (no `hacklab_test`), `vendor/bin/pint --test` e `npm run test`.
+> 7. **Enviar o trabalho:** branch `feature/...` a partir da `dev`, depois PR para a `dev`. O CI testa em PostgreSQL 17 e decide.
 
 Pré-requisitos:
 - Docker Desktop (Windows/macOS) ou Docker Engine com Compose (Linux);
