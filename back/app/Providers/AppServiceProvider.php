@@ -8,10 +8,12 @@ use App\Integrations\EventPlatform\EventPlatformProvider;
 use App\Support\Database\CaseInsensitiveSearch;
 use App\Support\Database\DatabaseEnvironmentGuard;
 use App\Support\Database\DestructiveCommandGuard;
+use App\Support\Database\Dialect;
 use App\Support\Http\ProxyConfiguration;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Database\Events\ConnectionEstablished;
+use Illuminate\Database\Events\MigrationsStarted;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
@@ -47,6 +49,13 @@ class AppServiceProvider extends ServiceProvider
     {
         Event::listen(function (ConnectionEstablished $event): void {
             $this->app->make(DatabaseEnvironmentGuard::class)->check($event->connection);
+        });
+
+        // MySQL local (HACKLAB-DEV-001): antes de qualquer migration, recusa MariaDB e MySQL anterior a 8.0.19.
+        Event::listen(function (MigrationsStarted $event): void {
+            if (Dialect::isMysql()) {
+                Dialect::ensureSupportedMysql();
+            }
         });
 
         // Comandos que apagam o banco só em banco de testes ("_test"): protege o hacklab_dev e a produção.

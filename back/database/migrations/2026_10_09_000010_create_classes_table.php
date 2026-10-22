@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,9 @@ return new class extends Migration
             $table->unique(['id', 'event_id']);
         });
 
-        DB::statement('create unique index classes_event_name_unique on classes (event_id, lower(name))');
+        DB::statement(Dialect::isMysql()
+            ? 'create unique index classes_event_name_unique on classes (event_id, (lower(name)))'
+            : 'create unique index classes_event_name_unique on classes (event_id, lower(name))');
     }
 
     public function down(): void

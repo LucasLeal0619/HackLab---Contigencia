@@ -17,6 +17,10 @@ class CaseInsensitiveSearchTest extends DatabaseTestCase
 {
     public function test_postgresql_sql_is_identical_to_the_previous_ilike_operator(): void
     {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('Compara o SQL do PostgreSQL; no MySQL vale o teste da collation abaixo.');
+        }
+
         $previous = DB::table('people')->where('full_name', 'ilike', '%a%')->orWhere('people.email', 'ilike', '%a%')->toSql();
         $current = DB::table('people')->whereILike('full_name', '%a%')->orWhereILike('people.email', '%a%')->toSql();
 

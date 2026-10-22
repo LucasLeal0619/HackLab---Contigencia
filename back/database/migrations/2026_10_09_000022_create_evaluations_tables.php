@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Database\Dialect;
+use App\Support\Database\MysqlParity;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +58,13 @@ return new class extends Migration
             $table->foreign(['criterion_id', 'event_id'])->references(['id', 'event_id'])->on('evaluation_criteria')->restrictOnDelete();
             $table->index('criterion_id');
         });
+
+        if (Dialect::isMysql()) {
+            MysqlParity::pending('evaluation_scores_guard');
+            MysqlParity::pending('evaluations_guard');
+
+            return;
+        }
 
         DB::unprepared(<<<'SQL'
             create or replace function evaluation_scores_guard() returns trigger language plpgsql as $$
@@ -118,7 +127,9 @@ return new class extends Migration
     {
         Schema::dropIfExists('evaluation_scores');
         Schema::dropIfExists('evaluations');
-        DB::unprepared('drop function if exists evaluation_scores_guard()');
-        DB::unprepared('drop function if exists evaluations_guard()');
+        if (! Dialect::isMysql()) {
+            DB::unprepared('drop function if exists evaluation_scores_guard()');
+            DB::unprepared('drop function if exists evaluations_guard()');
+        }
     }
 };

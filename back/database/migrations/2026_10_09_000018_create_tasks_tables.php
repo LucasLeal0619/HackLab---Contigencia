@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Database\Dialect;
+use App\Support\Database\MysqlParity;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Schema\Blueprint;
@@ -14,12 +16,21 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('create sequence if not exists tasks_reference_seq');
+        // MySQL não tem sequence: a referência vem do trigger tasks_reference_default (contador em reference_counters).
+        if (! Dialect::isMysql()) {
+            DB::statement('create sequence if not exists tasks_reference_seq');
+        }
 
         Schema::create('tasks', function (Blueprint $table) {
             $table->id();
             $table->foreignId('event_id')->constrained()->restrictOnDelete();
-            $table->string('reference', 20)->default(new Expression("next_reference('PEN', 'tasks_reference_seq')"))->unique();
+            $reference = $table->string('reference', 20);
+            if (Dialect::isMysql()) {
+                $reference->default(''); // trocado pelo trigger; vazio reprova o CHECK de formato
+            } else {
+                $reference->default(new Expression("next_reference('PEN', 'tasks_reference_seq')"));
+            }
+            $reference->unique();
             $table->string('title');
             $table->text('description');
             $table->unsignedBigInteger('origin_sector_id');
@@ -45,10 +56,30 @@ return new class extends Migration
             $table->index('due_at');
         });
 
-        DB::statement('alter sequence tasks_reference_seq owned by tasks.reference');
+        if (Dialect::isMysql()) {
+            // Equivalente a next_reference('PEN', ...): pelo menos 4 dígitos, sem truncar acima de 9999.
+            // FOR UPDATE trava a linha do contador até o fim da transação: duas criações simultâneas nunca
+            // recebem o mesmo número. Rollback devolve o número (no PostgreSQL a sequence deixa um buraco).
+            DB::unprepared(<<<'SQL'
+                create trigger tasks_reference_default before insert on tasks for each row
+                begin
+                    declare n bigint unsigned;
+                    if new.reference is null or new.reference = '' then
+                        select counter_value + 1 into n from reference_counters where prefix = 'PEN' for update;
+                        update reference_counters set counter_value = n where prefix = 'PEN';
+                        set new.reference = concat('PEN-', lpad(n, greatest(4, char_length(n)), '0'));
+                    end if;
+                end
+                SQL);
+        } else {
+            DB::statement('alter sequence tasks_reference_seq owned by tasks.reference');
+        }
         DB::statement("alter table tasks add constraint tasks_status_check check (status in ('PENDING', 'IN_PROGRESS', 'COMPLETED'))");
         DB::statement("alter table tasks add constraint tasks_priority_check check (priority in ('LOW', 'MEDIUM', 'HIGH', 'URGENT'))");
-        DB::statement("alter table tasks add constraint tasks_reference_check check (reference ~ '^PEN-[0-9]{4,}$')");
+        DB::statement(Dialect::isMysql()
+            // 'c' = regex sensível a maiúsculas, como o "~" do PostgreSQL.
+            ? "alter table tasks add constraint tasks_reference_check check (regexp_like(reference, '^PEN-[0-9]{4,}$', 'c'))"
+            : "alter table tasks add constraint tasks_reference_check check (reference ~ '^PEN-[0-9]{4,}$')");
         DB::statement("alter table tasks add constraint tasks_resolved_at_check check ((status = 'COMPLETED') = (resolved_at is not null))");
 
         Schema::create('task_sectors', function (Blueprint $table) {
@@ -75,7 +106,11 @@ return new class extends Migration
         });
 
         DB::statement("alter table task_interactions add constraint task_interactions_type_check check (type in ('CREATED', 'UPDATED', 'COMMENT', 'STATUS_CHANGED', 'FORWARDED', 'ASSIGNEE_CHANGED', 'PRIORITY_CHANGED', 'DUE_CHANGED', 'SECTOR_ADDED', 'SECTOR_REMOVED', 'COMPLETED', 'RESOLVED', 'REOPENED', 'TASK_GENERATED'))");
-        DB::unprepared('create trigger task_interactions_append_only before update or delete on task_interactions for each row execute function forbid_update_delete()');
+        if (Dialect::isMysql()) {
+            MysqlParity::pending('task_interactions_append_only');
+        } else {
+            DB::unprepared('create trigger task_interactions_append_only before update or delete on task_interactions for each row execute function forbid_update_delete()');
+        }
     }
 
     public function down(): void

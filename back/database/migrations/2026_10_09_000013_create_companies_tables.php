@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -37,9 +38,16 @@ return new class extends Migration
 
         DB::statement("alter table companies add constraint companies_type_check check (type in ('PARTICIPANT', 'PARTNER', 'SPONSOR', 'SUPPORT', 'OTHER'))");
         DB::statement("alter table companies add constraint companies_status_check check (status in ('DRAFT', 'CONFIRMED', 'INACTIVE'))");
-        DB::statement("alter table companies add constraint companies_document_normalized_check check (document is null or document ~ '^[A-Z0-9]+$')");
-        DB::statement('create unique index companies_event_name_unique on companies (event_id, lower(name))');
-        DB::statement('create unique index companies_event_document_unique on companies (event_id, document) where document is not null');
+        if (Dialect::isMysql()) {
+            // 'c' = regex sensível a maiúsculas, como o "~" do PostgreSQL. NULL não conflita: "where document is not null" é implícito.
+            DB::statement("alter table companies add constraint companies_document_normalized_check check (document is null or regexp_like(document, '^[A-Z0-9]+$', 'c'))");
+            DB::statement('create unique index companies_event_name_unique on companies (event_id, (lower(name)))');
+            DB::statement('create unique index companies_event_document_unique on companies (event_id, document)');
+        } else {
+            DB::statement("alter table companies add constraint companies_document_normalized_check check (document is null or document ~ '^[A-Z0-9]+$')");
+            DB::statement('create unique index companies_event_name_unique on companies (event_id, lower(name))');
+            DB::statement('create unique index companies_event_document_unique on companies (event_id, document) where document is not null');
+        }
 
         Schema::create('company_representatives', function (Blueprint $table) {
             $table->id();
@@ -56,7 +64,9 @@ return new class extends Migration
         });
 
         // No máximo um representante principal ativo por empresa.
-        DB::statement('create unique index company_representatives_one_primary on company_representatives (company_id) where is_primary and active');
+        DB::statement(Dialect::isMysql()
+            ? 'create unique index company_representatives_one_primary on company_representatives ((if(is_primary and active, company_id, null)))'
+            : 'create unique index company_representatives_one_primary on company_representatives (company_id) where is_primary and active');
     }
 
     public function down(): void

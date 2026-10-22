@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -36,6 +37,21 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (Dialect::isMysql()) {
+            // MySQL não apaga índice usado por chave estrangeira: as chaves saem antes dos índices.
+            Schema::table('audit_logs', function (Blueprint $table) {
+                $table->dropForeign(['event_id']);
+                $table->dropForeign(['actor_sector_id']);
+                $table->dropIndex(['event_id', 'created_at']);
+                $table->dropIndex(['module', 'created_at']);
+                $table->dropIndex(['actor_user_id', 'created_at']);
+                $table->dropIndex(['actor_sector_id', 'created_at']);
+                $table->dropColumn(['event_id', 'actor_sector_id', 'actor_name', 'actor_email', 'actor_role_code', 'actor_role_name', 'actor_sector_name', 'entity_label']);
+            });
+
+            return;
+        }
+
         Schema::table('audit_logs', function (Blueprint $table) {
             $table->dropIndex(['event_id', 'created_at']);
             $table->dropIndex(['module', 'created_at']);

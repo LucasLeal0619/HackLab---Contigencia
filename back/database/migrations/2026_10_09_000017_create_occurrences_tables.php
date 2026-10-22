@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Database\Dialect;
+use App\Support\Database\MysqlParity;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Schema\Blueprint;
@@ -14,12 +16,21 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('create sequence if not exists occurrences_reference_seq');
+        // MySQL não tem sequence: a referência vem do trigger occurrences_reference_default (contador em reference_counters).
+        if (! Dialect::isMysql()) {
+            DB::statement('create sequence if not exists occurrences_reference_seq');
+        }
 
         Schema::create('occurrences', function (Blueprint $table) {
             $table->id();
             $table->foreignId('event_id')->constrained()->restrictOnDelete();
-            $table->string('reference', 20)->default(new Expression("next_reference('OCO', 'occurrences_reference_seq')"))->unique();
+            $reference = $table->string('reference', 20);
+            if (Dialect::isMysql()) {
+                $reference->default(''); // trocado pelo trigger; vazio reprova o CHECK de formato
+            } else {
+                $reference->default(new Expression("next_reference('OCO', 'occurrences_reference_seq')"));
+            }
+            $reference->unique();
             $table->string('title');
             $table->text('description');
             $table->string('category', 20);
@@ -51,11 +62,31 @@ return new class extends Migration
             $table->index('team_id');
         });
 
-        DB::statement('alter sequence occurrences_reference_seq owned by occurrences.reference');
+        if (Dialect::isMysql()) {
+            // Equivalente a next_reference('OCO', ...): pelo menos 4 dígitos, sem truncar acima de 9999.
+            // FOR UPDATE trava a linha do contador até o fim da transação: duas criações simultâneas nunca
+            // recebem o mesmo número. Rollback devolve o número (no PostgreSQL a sequence deixa um buraco).
+            DB::unprepared(<<<'SQL'
+                create trigger occurrences_reference_default before insert on occurrences for each row
+                begin
+                    declare n bigint unsigned;
+                    if new.reference is null or new.reference = '' then
+                        select counter_value + 1 into n from reference_counters where prefix = 'OCO' for update;
+                        update reference_counters set counter_value = n where prefix = 'OCO';
+                        set new.reference = concat('OCO-', lpad(n, greatest(4, char_length(n)), '0'));
+                    end if;
+                end
+                SQL);
+        } else {
+            DB::statement('alter sequence occurrences_reference_seq owned by occurrences.reference');
+        }
         DB::statement("alter table occurrences add constraint occurrences_status_check check (status in ('OPEN', 'IN_PROGRESS', 'RESOLVED'))");
         DB::statement("alter table occurrences add constraint occurrences_priority_check check (priority in ('LOW', 'MEDIUM', 'HIGH', 'URGENT'))");
         DB::statement("alter table occurrences add constraint occurrences_category_check check (category in ('TECHNOLOGY', 'INFRASTRUCTURE', 'PRODUCTION', 'PARTICIPANT', 'TEAM', 'COMPANY', 'ORGANIZATION', 'OTHER'))");
-        DB::statement("alter table occurrences add constraint occurrences_reference_check check (reference ~ '^OCO-[0-9]{4,}$')");
+        DB::statement(Dialect::isMysql()
+            // 'c' = regex sensível a maiúsculas, como o "~" do PostgreSQL.
+            ? "alter table occurrences add constraint occurrences_reference_check check (regexp_like(reference, '^OCO-[0-9]{4,}$', 'c'))"
+            : "alter table occurrences add constraint occurrences_reference_check check (reference ~ '^OCO-[0-9]{4,}$')");
         DB::statement("alter table occurrences add constraint occurrences_resolved_at_check check ((status = 'RESOLVED') = (resolved_at is not null))");
 
         Schema::create('occurrence_sectors', function (Blueprint $table) {
@@ -82,7 +113,11 @@ return new class extends Migration
         });
 
         DB::statement("alter table occurrence_interactions add constraint occurrence_interactions_type_check check (type in ('CREATED', 'UPDATED', 'COMMENT', 'STATUS_CHANGED', 'FORWARDED', 'ASSIGNEE_CHANGED', 'PRIORITY_CHANGED', 'DUE_CHANGED', 'SECTOR_ADDED', 'SECTOR_REMOVED', 'COMPLETED', 'RESOLVED', 'REOPENED', 'TASK_GENERATED'))");
-        DB::unprepared('create trigger occurrence_interactions_append_only before update or delete on occurrence_interactions for each row execute function forbid_update_delete()');
+        if (Dialect::isMysql()) {
+            MysqlParity::pending('occurrence_interactions_append_only');
+        } else {
+            DB::unprepared('create trigger occurrence_interactions_append_only before update or delete on occurrence_interactions for each row execute function forbid_update_delete()');
+        }
     }
 
     public function down(): void

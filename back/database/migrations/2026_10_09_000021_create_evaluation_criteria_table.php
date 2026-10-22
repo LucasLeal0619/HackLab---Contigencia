@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,9 @@ return new class extends Migration
         DB::statement('alter table evaluation_criteria add constraint evaluation_criteria_range_check check (max_score > min_score)');
         DB::statement('alter table evaluation_criteria add constraint evaluation_criteria_weight_check check (weight > 0)');
         DB::statement('alter table evaluation_criteria add constraint evaluation_criteria_sort_order_check check (sort_order >= 1)');
-        DB::statement('create unique index evaluation_criteria_event_name_unique on evaluation_criteria (event_id, lower(name))');
+        DB::statement(Dialect::isMysql()
+            ? 'create unique index evaluation_criteria_event_name_unique on evaluation_criteria (event_id, (lower(name)))'
+            : 'create unique index evaluation_criteria_event_name_unique on evaluation_criteria (event_id, lower(name))');
     }
 
     public function down(): void

@@ -54,11 +54,15 @@ return [
             'password' => env('DB_PASSWORD', ''),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
-            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            // Desenvolvimento local da equipe (HACKLAB-DEV-001): texto comparado como no PostgreSQL — diferencia
+            // maiúsculas e acentos (as_cs); busca sem maiúsculas é explícita (whereILike). Exige MySQL 8.0.19+.
+            'collation' => env('DB_COLLATION', 'utf8mb4_0900_as_cs'),
+            // Mesmo isolamento do PostgreSQL: cada comando enxerga o que já foi confirmado (regras de integridade).
+            'isolation_level' => 'READ COMMITTED',
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
-            'engine' => null,
+            'engine' => 'InnoDB',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],

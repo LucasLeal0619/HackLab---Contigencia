@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,9 @@ return new class extends Migration
         });
 
         // Nome único por evento, sem diferença de maiúsculas.
-        DB::statement('create unique index sectors_event_name_unique on sectors (event_id, lower(name))');
+        DB::statement(Dialect::isMysql()
+            ? 'create unique index sectors_event_name_unique on sectors (event_id, (lower(name)))'
+            : 'create unique index sectors_event_name_unique on sectors (event_id, lower(name))');
     }
 
     public function down(): void

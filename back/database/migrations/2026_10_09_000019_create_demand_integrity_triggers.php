@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Database\Dialect;
+use App\Support\Database\MysqlParity;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -13,6 +15,16 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Dialect::isMysql()) {
+            MysqlParity::pending('tasks_immutable_fields');
+            MysqlParity::pending('occurrences_immutable_fields');
+            MysqlParity::pending('tasks_assignee_coherent');
+            MysqlParity::pending('occurrences_assignee_coherent');
+            MysqlParity::pending('users_open_assignments_guard');
+
+            return;
+        }
+
         DB::unprepared(<<<'SQL'
             create or replace function tasks_immutable_fields() returns trigger language plpgsql as $$
             begin
@@ -99,6 +111,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (Dialect::isMysql()) {
+            return;
+        }
+
         DB::unprepared(<<<'SQL'
             drop trigger if exists users_open_assignments_guard on users;
             drop trigger if exists occurrences_assignee_coherent on occurrences;

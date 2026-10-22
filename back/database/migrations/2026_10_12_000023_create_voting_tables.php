@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Database\Dialect;
+use App\Support\Database\MysqlParity;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -44,8 +46,14 @@ return new class extends Migration
                 or (status = 'CANCELLED' and cancelled_at is not null and closed_at is null)
             )
             SQL);
-        DB::statement('create unique index voting_sessions_event_name_unique on voting_sessions (event_id, lower(name))');
-        DB::statement("create unique index voting_sessions_one_open_per_event on voting_sessions (event_id) where status = 'OPEN'");
+        if (Dialect::isMysql()) {
+            DB::statement('create unique index voting_sessions_event_name_unique on voting_sessions (event_id, (lower(name)))');
+            // Índice funcional: só a sessão OPEN entra (as demais viram NULL, que não conflita).
+            DB::statement("create unique index voting_sessions_one_open_per_event on voting_sessions ((if(status = 'OPEN', event_id, null)))");
+        } else {
+            DB::statement('create unique index voting_sessions_event_name_unique on voting_sessions (event_id, lower(name))');
+            DB::statement("create unique index voting_sessions_one_open_per_event on voting_sessions (event_id) where status = 'OPEN'");
+        }
 
         Schema::create('voting_session_teams', function (Blueprint $table) {
             $table->id();
@@ -91,6 +99,15 @@ return new class extends Migration
             $table->foreign(['team_id', 'event_id'])->references(['id', 'event_id'])->on('teams')->restrictOnDelete();
             $table->index(['voting_session_id', 'team_id']);
         });
+
+        if (Dialect::isMysql()) {
+            MysqlParity::pending('voting_sessions_guard');
+            MysqlParity::pending('voting_session_teams_guard');
+            MysqlParity::pending('voting_eligibilities_guard');
+            MysqlParity::pending('public_votes_guard');
+
+            return;
+        }
 
         DB::unprepared(<<<'SQL'
             create or replace function voting_sessions_guard() returns trigger language plpgsql as $$
@@ -234,8 +251,10 @@ return new class extends Migration
         Schema::dropIfExists('voting_eligibilities');
         Schema::dropIfExists('voting_session_teams');
         Schema::dropIfExists('voting_sessions');
-        DB::unprepared('drop function if exists public_votes_guard()');
-        DB::unprepared('drop function if exists voting_configuration_guard()');
-        DB::unprepared('drop function if exists voting_sessions_guard()');
+        if (! Dialect::isMysql()) {
+            DB::unprepared('drop function if exists public_votes_guard()');
+            DB::unprepared('drop function if exists voting_configuration_guard()');
+            DB::unprepared('drop function if exists voting_sessions_guard()');
+        }
     }
 };

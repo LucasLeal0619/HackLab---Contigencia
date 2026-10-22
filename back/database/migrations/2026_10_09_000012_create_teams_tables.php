@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -32,8 +33,14 @@ return new class extends Migration
         });
 
         DB::statement("alter table teams add constraint teams_status_check check (status in ('ACTIVE', 'INACTIVE'))");
-        DB::statement('create unique index teams_event_name_unique on teams (event_id, lower(name))');
-        DB::statement('create unique index teams_event_code_unique on teams (event_id, lower(code)) where code is not null');
+        if (Dialect::isMysql()) {
+            // MySQL não tem índice parcial: NULL nunca conflita em índice único, então "where code is not null" é implícito.
+            DB::statement('create unique index teams_event_name_unique on teams (event_id, (lower(name)))');
+            DB::statement('create unique index teams_event_code_unique on teams (event_id, (lower(code)))');
+        } else {
+            DB::statement('create unique index teams_event_name_unique on teams (event_id, lower(name))');
+            DB::statement('create unique index teams_event_code_unique on teams (event_id, lower(code)) where code is not null');
+        }
 
         Schema::create('team_members', function (Blueprint $table) {
             $table->id();
@@ -51,7 +58,10 @@ return new class extends Migration
             $table->index('participant_id');
         });
 
-        DB::statement('create unique index team_members_one_active_per_participant on team_members (participant_id) where active');
+        DB::statement(Dialect::isMysql()
+            // Índice funcional: só linhas ativas entram (as demais viram NULL, que não conflita).
+            ? 'create unique index team_members_one_active_per_participant on team_members ((if(active, participant_id, null)))'
+            : 'create unique index team_members_one_active_per_participant on team_members (participant_id) where active');
         DB::statement('alter table team_members add constraint team_members_active_left_check check ((active and left_at is null) or (not active and left_at is not null))');
         DB::statement('alter table team_members add constraint team_members_period_check check (left_at is null or joined_at is null or left_at >= joined_at)');
     }

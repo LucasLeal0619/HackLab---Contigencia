@@ -20,9 +20,10 @@ class HealthTest extends TestCase
 
     public function test_health_returns_503_without_leaking_details_when_database_is_down(): void
     {
-        // Porta sem PostgreSQL: a conexão falha na hora.
-        config(['database.connections.pgsql.host' => '127.0.0.1', 'database.connections.pgsql.port' => 1]);
-        DB::purge('pgsql');
+        // Porta sem banco: a conexão falha na hora (a conexão padrão: PostgreSQL ou o MySQL local).
+        $connection = config('database.default');
+        config(["database.connections.{$connection}.host" => '127.0.0.1', "database.connections.{$connection}.port" => 1]);
+        DB::purge($connection);
 
         $response = $this->getJson('/api/v1/health')
             ->assertStatus(503)

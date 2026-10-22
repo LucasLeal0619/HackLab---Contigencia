@@ -96,13 +96,40 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 
 | Etapa | Situação |
 |---|---|
-| 1. Documentação (esta seção, `CLAUDE.md`) | em PR para a `dev` |
-| 2. Código portável (`ilike`, `regexp_replace`, erro de duplicidade) | em PR para a `dev` (#3), sem mudança no SQL do PostgreSQL |
-| 3. Referência do schema PostgreSQL + teste de equivalência | pendente |
-| 4. Migrations: estrutura MySQL (índices, CHECKs, collation) | pendente; depende de confirmar a versão do MySQL nas máquinas do Senac |
-| 5. Triggers e referências no MySQL, com testes nos dois bancos | pendente |
+| 1. Documentação (esta seção, `CLAUDE.md`) | na `dev` (#4) |
+| 2. Código portável (`ilike`, `regexp_replace`, erro de duplicidade) | na `dev` (#3), sem mudança no SQL do PostgreSQL |
+| 3. Referência do schema PostgreSQL + teste de equivalência | na `dev` (#5) |
+| 4. Migrations: estrutura MySQL (índices, CHECKs, collation, versão, `READ COMMITTED`) + referências `OCO-`/`PEN-` | em PR para a `dev` |
+| 5. Triggers no MySQL (18 + 1 de tabela removida), com testes nos dois bancos | pendente (`MysqlParity::PENDING`) |
 | 6. Travas de concorrência + job MySQL no CI | pendente |
 | 7. Guia do `README.md` validado do zero, sem Docker | pendente |
+
+**Como o caminho MySQL das migrations funciona (etapa 4):**
+- **Estrutura:** cada recurso do PostgreSQL ganha `if (Dialect::isMysql()) { equivalente } else { SQL original }`. O teste da referência (`tests/Fixtures/pgsql-schema.json`) prova que o PostgreSQL não mudou.
+- **Versão:** antes de qualquer migration no MySQL, o servidor é conferido (`Dialect::ensureSupportedMysql`). MariaDB e MySQL anterior a 8.0.19 são recusados com mensagem clara. O `hacklab:db-check` mostra versão, collation, isolamento e pendências.
+- **Conexão (`config/database.php`):** collation `utf8mb4_0900_as_cs` (diferencia maiúsculas e acentos, como o PostgreSQL), isolamento `READ COMMITTED` e engine InnoDB.
+- **Equivalências:**
+  - índices únicos parciais viram índices funcionais `((if(condição, coluna, null)))`, ou um UNIQUE comum quando a condição era só `is not null`, porque NULL não conflita;
+  - `lower(nome)` vira índice funcional `((lower(nome)))`;
+  - CHECK com `~` vira `regexp_like(..., 'c')`;
+  - nomes acima de 64 caracteres usam o mesmo nome cortado que o PostgreSQL gera (63);
+  - padrão JSON `'{}'` vira `(json_object())`;
+  - a coluna `trigger` no CHECK leva crase.
+- **Referências `OCO-0001`/`PEN-0001`:** sem sequence no MySQL. A tabela `reference_counters` e um trigger BEFORE INSERT por tabela geram o mesmo formato, com `SELECT … FOR UPDATE` no contador: criações simultâneas nunca repetem número.
+- **Triggers de regra:** ainda não existem no MySQL. Cada um está registrado nominalmente em `App\Support\Database\MysqlParity::PENDING`. A migration recusa omitir qualquer proteção fora dessa lista, e o teste `MysqlSchemaTest` fica "incompleto" enquanto a lista não zerar.
+- **Testes:** `phpunit.mysql.xml` roda a mesma suíte contra um MySQL real (`DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD` do ambiente, banco `hacklab_test`).
+
+**Diferenças conhecidas entre MySQL e PostgreSQL:**
+
+| Ponto | PostgreSQL | MySQL local | Efeito |
+|---|---|---|---|
+| Schema | `hacklab` dentro do banco | o próprio banco | nenhum para o código |
+| Referência após rollback | a sequence pula o número | o contador volta junto | só a numeração; o formato é igual |
+| Tabela extra | sequences | `reference_counters` | só no MySQL |
+| `timestampTz` | `timestamptz` | `timestamp` (UTC, até 2038) | só no desenvolvimento |
+| Erro de regra (trigger) | SQLSTATE 23514/P0001 | 45000 (etapa 5) | as mensagens são as mesmas |
+| `UPDATE OF coluna` nos triggers | dispara com a coluna no SET | dispara quando o valor muda (etapa 5) | igual com o Eloquent, que só envia o que mudou |
+| Travas `pg_advisory_xact_lock` | sim | ainda não (etapa 6) | sync, webhook e jurados automáticos da Even3 não rodam no MySQL até a etapa 6 |
 
 **Ambiente do Senac (confirmado em 22/10/2026):** as máquinas usam **MySQL Server 8.0**, que é o banco-alvo do desenvolvimento local. Na máquina de referência, a versão completa é a **8.0.46** (serviço `MySQL80`, porta 3306).
 - Muitas máquinas também têm o **XAMPP**, que traz um **MariaDB 10.4** próprio. Ele **não é usado** e deve ficar parado: usa a mesma porta 3306 e não é compatível. Do XAMPP, só o PHP pode servir.

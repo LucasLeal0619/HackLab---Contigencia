@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Database\Dialect;
+use App\Support\Database\MysqlParity;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +37,12 @@ return new class extends Migration
             $table->index(['module', 'entity_type', 'entity_id']);
         });
 
+        if (Dialect::isMysql()) {
+            MysqlParity::pending('audit_logs_no_update_delete');
+
+            return;
+        }
+
         DB::unprepared(<<<'SQL'
             create or replace function audit_logs_immutable() returns trigger language plpgsql as $$
             begin
@@ -51,6 +59,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('audit_logs');
-        DB::unprepared('drop function if exists audit_logs_immutable()');
+        if (! Dialect::isMysql()) {
+            DB::unprepared('drop function if exists audit_logs_immutable()');
+        }
     }
 };
