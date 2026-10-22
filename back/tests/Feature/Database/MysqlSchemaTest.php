@@ -10,6 +10,7 @@ use App\Models\Sector;
 use App\Models\Task;
 use App\Support\Database\Dialect;
 use App\Support\Database\MysqlParity;
+use App\Support\Database\MysqlTrigger;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -169,15 +170,50 @@ class MysqlSchemaTest extends DatabaseTestCase
         $this->assertSame(0, DB::table('occurrences')->where('reference', 'not regexp', '^OCO-[0-9]{4,}$')->count());
     }
 
-    public function test_postgresql_protections_still_pending_in_mysql_are_listed_explicitly(): void
+    /**
+     * Paridade (etapa 5): cada trigger da referência do PostgreSQL tem equivalente MySQL na mesma tabela, no mesmo
+     * momento (BEFORE) e para os mesmos eventos — "insert or update or delete" vira <nome>_ins/_upd/_del.
+     */
+    public function test_every_postgresql_trigger_has_a_mysql_equivalent(): void
     {
-        $triggers = array_map(fn ($r) => $r->t, DB::select('select trigger_name as t from information_schema.triggers where trigger_schema = database()'));
-        sort($triggers);
+        $this->assertSame([], MysqlParity::PENDING, 'Ainda há proteções do PostgreSQL sem equivalente MySQL.');
 
-        $this->assertSame(['occurrences_reference_default', 'tasks_reference_default'], $triggers);
-        $this->assertSame([], array_intersect(MysqlParity::PENDING, $triggers), 'Trigger implementado: remova-o de MysqlParity::PENDING.');
+        $mysql = [];
+        foreach (DB::select('select trigger_name as n, event_object_table as t, event_manipulation as e, action_timing as w from information_schema.triggers where trigger_schema = database()') as $row) {
+            $mysql[$row->n] = [$row->t, strtolower($row->e), $row->w];
+        }
 
-        $this->markTestIncomplete(count(MysqlParity::PENDING).' proteções do PostgreSQL ainda sem equivalente MySQL (etapa 5): '.implode(', ', MysqlParity::PENDING));
+        $reference = json_decode(file_get_contents(base_path('tests/Fixtures/pgsql-schema.json')), true);
+        $expected = [];
+        foreach ($reference['triggers'] as $trigger) {
+            $this->assertMatchesRegularExpression('/ BEFORE .+ ON \w+ FOR EACH ROW /', $trigger['definition']);
+            preg_match('/ BEFORE (.+) ON (\w+) FOR EACH ROW /', $trigger['definition'], $m);
+            $events = array_map(fn ($e) => strtolower(strtok(trim($e), ' ')), explode(' OR ', $m[1]));
+
+            foreach ($events as $event) {
+                $name = count($events) === 1 ? $trigger['trigger_name'] : $trigger['trigger_name'].MysqlTrigger::SUFFIX[$event];
+                $expected[] = $name;
+                $this->assertArrayHasKey($name, $mysql, "Trigger {$trigger['trigger_name']} ({$event}) sem equivalente MySQL.");
+                $this->assertSame([$m[2], $event, 'BEFORE'], $mysql[$name], "{$name}: tabela, evento ou momento diferente do PostgreSQL.");
+            }
+        }
+
+        $this->assertCount(18, $reference['triggers']);
+        // Só no MySQL: os geradores de referência (no PostgreSQL são o valor padrão com next_reference()).
+        $this->assertEqualsCanonicalizing(['occurrences_reference_default', 'tasks_reference_default'], array_values(array_diff(array_keys($mysql), $expected)));
+    }
+
+    public function test_trigger_order_follows_postgresql_alphabetical_order(): void
+    {
+        $order = fn (string $table) => array_map(fn ($r) => $r->n, DB::select(
+            "select trigger_name as n from information_schema.triggers where trigger_schema = database() and event_object_table = ? and event_manipulation = 'UPDATE' order by action_order",
+            [$table],
+        ));
+
+        $this->assertSame(['tasks_assignee_coherent_upd', 'tasks_immutable_fields'], $order('tasks'));
+        $this->assertSame(['occurrences_assignee_coherent_upd', 'occurrences_immutable_fields'], $order('occurrences'));
+        $this->assertSame(['users_open_assignments_guard', 'users_sector_matches_role_upd'], $order('users'));
+        $this->assertSame(['evaluations_guard', 'evaluations_results_lock'], $order('evaluations'));
     }
 
     private function assertDatabaseRefuses(callable $statement): void

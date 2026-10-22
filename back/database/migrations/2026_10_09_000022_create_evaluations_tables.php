@@ -1,7 +1,7 @@
 <?php
 
 use App\Support\Database\Dialect;
-use App\Support\Database\MysqlParity;
+use App\Support\Database\MysqlTrigger;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -60,8 +60,7 @@ return new class extends Migration
         });
 
         if (Dialect::isMysql()) {
-            MysqlParity::pending('evaluation_scores_guard');
-            MysqlParity::pending('evaluations_guard');
+            $this->createMysqlTriggers();
 
             return;
         }
@@ -120,6 +119,45 @@ return new class extends Migration
                 for each row execute function evaluation_scores_guard();
             create trigger evaluations_guard before update on evaluations
                 for each row execute function evaluations_guard();
+            SQL);
+    }
+
+    /**
+     * Equivalentes MySQL (HACKLAB-DEV-001) de evaluation_scores_guard e evaluations_guard.
+     */
+    private function createMysqlTriggers(): void
+    {
+        $submitted = <<<'SQL'
+            if eval_status = 'SUBMITTED' then
+                signal sqlstate '45000' set message_text = 'evaluation_scores: avaliação enviada não tem notas alteradas';
+            end if;
+            SQL;
+        $range = <<<'SQL'
+            select min_score, max_score into min_v, max_v from evaluation_criteria where id = new.criterion_id;
+            if new.score < min_v or new.score > max_v then
+                set msg = concat('evaluation_scores: nota ', new.score, ' fora da faixa do critério (', min_v, ' a ', max_v, ')');
+                signal sqlstate '45000' set message_text = msg;
+            end if;
+            SQL;
+        $declare = "declare eval_status varchar(32);\ndeclare min_v decimal(8, 2);\ndeclare max_v decimal(8, 2);\ndeclare msg varchar(255);\n";
+
+        foreach (['insert', 'update'] as $event) {
+            MysqlTrigger::create('evaluation_scores_guard'.MysqlTrigger::SUFFIX[$event], $event, 'evaluation_scores', $declare
+                ."select status into eval_status from evaluations where id = new.evaluation_id;\n{$submitted}\n{$range}");
+        }
+        MysqlTrigger::create('evaluation_scores_guard_del', 'delete', 'evaluation_scores',
+            "declare eval_status varchar(32);\nselect status into eval_status from evaluations where id = old.evaluation_id;\n{$submitted}");
+
+        MysqlTrigger::create('evaluations_guard', 'update', 'evaluations', <<<'SQL'
+            if new.juror_id <> old.juror_id or new.team_id <> old.team_id or new.event_id <> old.event_id then
+                signal sqlstate '45000' set message_text = 'evaluations: jurado, equipe e evento não mudam';
+            end if;
+            if old.status = 'SUBMITTED' and new.status = 'DRAFT' then
+                signal sqlstate '45000' set message_text = 'evaluations: avaliação enviada não volta para rascunho (use a revisão)';
+            end if;
+            if old.status = 'SUBMITTED' and new.status = 'SUBMITTED' and not (new.comments <=> old.comments) then
+                signal sqlstate '45000' set message_text = 'evaluations: avaliação enviada não tem comentário alterado';
+            end if;
             SQL);
     }
 

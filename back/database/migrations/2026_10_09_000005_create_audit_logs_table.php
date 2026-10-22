@@ -1,7 +1,7 @@
 <?php
 
 use App\Support\Database\Dialect;
-use App\Support\Database\MysqlParity;
+use App\Support\Database\MysqlTrigger;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +38,11 @@ return new class extends Migration
         });
 
         if (Dialect::isMysql()) {
-            MysqlParity::pending('audit_logs_no_update_delete');
+            // audit_logs_no_update_delete: somente inserção.
+            foreach (['update' => 'UPDATE', 'delete' => 'DELETE'] as $event => $op) {
+                MysqlTrigger::create('audit_logs_no_update_delete'.MysqlTrigger::SUFFIX[$event], $event, 'audit_logs',
+                    MysqlTrigger::fail("audit_logs é somente inserção ({$op} recusado)"));
+            }
 
             return;
         }

@@ -1,7 +1,7 @@
 <?php
 
 use App\Support\Database\Dialect;
-use App\Support\Database\MysqlParity;
+use App\Support\Database\MysqlTrigger;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -52,7 +52,7 @@ return new class extends Migration
             : "create unique index account_access_grants_one_pending on account_access_grants (person_id) where status = 'PENDING'");
 
         if (Dialect::isMysql()) {
-            MysqlParity::pending('account_access_grants_role_rules');
+            $this->createMysqlRoleRulesTriggers();
         } else {
             $this->createPostgresRoleRulesTrigger();
         }
@@ -93,6 +93,32 @@ return new class extends Migration
                 before insert or update of role_id, sector_id on account_access_grants
                 for each row execute function account_access_grants_role_rules();
             SQL);
+    }
+
+    /**
+     * Equivalente MySQL (HACKLAB-DEV-001) de account_access_grants_role_rules. A tabela sai na 000032.
+     */
+    private function createMysqlRoleRulesTriggers(): void
+    {
+        $rule = <<<'SQL'
+            select code into role_code from roles where id = new.role_id;
+            if role_code not in ('MANAGER', 'EDITOR', 'CONSULTANT') then
+                set msg = concat('Liberação de acesso não aceita o perfil ', coalesce(role_code, '<NULL>'), '.');
+                signal sqlstate '45000' set message_text = msg;
+            end if;
+            if role_code in ('MANAGER', 'EDITOR') and new.sector_id is null then
+                set msg = concat('Perfil ', role_code, ' exige setor na liberação de acesso.');
+                signal sqlstate '45000' set message_text = msg;
+            end if;
+            if role_code = 'CONSULTANT' and new.sector_id is not null then
+                signal sqlstate '45000' set message_text = 'Perfil CONSULTANT não tem setor.';
+            end if;
+            SQL;
+        $declare = "declare role_code varchar(32);\ndeclare msg varchar(255);\n";
+
+        MysqlTrigger::create('account_access_grants_role_rules_ins', 'insert', 'account_access_grants', $declare.$rule);
+        MysqlTrigger::create('account_access_grants_role_rules_upd', 'update', 'account_access_grants', $declare
+            ."if not (new.role_id <=> old.role_id) or not (new.sector_id <=> old.sector_id) then\n{$rule}\nend if;");
     }
 
     public function down(): void

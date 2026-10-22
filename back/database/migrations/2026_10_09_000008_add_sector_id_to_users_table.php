@@ -1,7 +1,7 @@
 <?php
 
 use App\Support\Database\Dialect;
-use App\Support\Database\MysqlParity;
+use App\Support\Database\MysqlTrigger;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +20,20 @@ return new class extends Migration
         });
 
         if (Dialect::isMysql()) {
-            MysqlParity::pending('users_sector_matches_role');
+            // users_sector_matches_role: Gestor/Editor exigem setor; os demais perfis não têm setor.
+            $declare = "declare role_code varchar(32);\ndeclare msg varchar(255);\n";
+            $rule = "select code into role_code from roles where id = new.role_id;\n"
+                ."if role_code in ('MANAGER', 'EDITOR') and new.sector_id is null then\n"
+                .MysqlTrigger::failWith("concat('Perfil ', role_code, ' exige setor (users.sector_id).')")."\n"
+                ."end if;\n"
+                ."if role_code not in ('MANAGER', 'EDITOR') and new.sector_id is not null then\n"
+                .MysqlTrigger::failWith("concat('Perfil ', role_code, ' não tem vínculo setorial (users.sector_id deve ser nulo).')")."\n"
+                .'end if;';
+
+            MysqlTrigger::create('users_sector_matches_role_ins', 'insert', 'users', $declare.$rule);
+            // "update of role_id, sector_id": no MySQL, quando um dos dois muda.
+            MysqlTrigger::create('users_sector_matches_role_upd', 'update', 'users', $declare
+                ."if not (new.role_id <=> old.role_id) or not (new.sector_id <=> old.sector_id) then\n{$rule}\nend if;");
 
             return;
         }
@@ -54,7 +67,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (! Dialect::isMysql()) {
+        if (Dialect::isMysql()) {
+            DB::unprepared('drop trigger if exists users_sector_matches_role_ins');
+            DB::unprepared('drop trigger if exists users_sector_matches_role_upd');
+        } else {
             DB::unprepared('drop trigger if exists users_sector_matches_role on users');
             DB::unprepared('drop function if exists users_sector_matches_role()');
         }

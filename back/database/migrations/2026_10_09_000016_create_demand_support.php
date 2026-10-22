@@ -18,7 +18,7 @@ return new class extends Migration
     {
         if (Dialect::isMysql()) {
             // MySQL não tem sequence: um contador por prefixo, incrementado com trava de linha pelo trigger que
-            // preenche a referência (000017/000018). forbid_update_delete vira triggers próprios (MysqlParity).
+            // preenche a referência (000017/000018). forbid_update_delete vira triggers *_append_only_upd/_del.
             DB::statement('create table reference_counters (prefix varchar(8) not null primary key, counter_value bigint unsigned not null default 0) engine=InnoDB');
             DB::statement("insert into reference_counters (prefix, counter_value) values ('OCO', 0), ('PEN', 0)");
         } else {
