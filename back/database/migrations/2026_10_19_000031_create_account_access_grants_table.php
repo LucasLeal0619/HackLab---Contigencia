@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Database\Dialect;
+use App\Support\Database\MysqlParity;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -45,8 +47,22 @@ return new class extends Migration
         DB::statement("alter table account_access_grants add constraint account_access_grants_source_check check (source in ('EVEN3_ORGANIZATION'))");
         DB::statement("alter table account_access_grants add constraint account_access_grants_consumed_check check ((status = 'CONSUMED') = (consumed_at is not null) and (status = 'CONSUMED') = (user_id is not null))");
         DB::statement("alter table account_access_grants add constraint account_access_grants_revoked_check check ((status = 'REVOKED') = (revoked_at is not null))");
-        DB::statement("create unique index account_access_grants_one_pending on account_access_grants (person_id) where status = 'PENDING'");
+        DB::statement(Dialect::isMysql()
+            ? "create unique index account_access_grants_one_pending on account_access_grants ((if(status = 'PENDING', person_id, null)))"
+            : "create unique index account_access_grants_one_pending on account_access_grants (person_id) where status = 'PENDING'");
 
+        if (Dialect::isMysql()) {
+            MysqlParity::pending('account_access_grants_role_rules');
+        } else {
+            $this->createPostgresRoleRulesTrigger();
+        }
+
+        DB::statement('alter table account_activation_tokens drop constraint account_activation_tokens_role_check');
+        DB::statement("alter table account_activation_tokens add constraint account_activation_tokens_role_check check (intended_role in ('JUROR', 'VOTER', 'MANAGER', 'EDITOR', 'CONSULTANT'))");
+    }
+
+    private function createPostgresRoleRulesTrigger(): void
+    {
         DB::unprepared(<<<'SQL'
             create or replace function account_access_grants_role_rules() returns trigger language plpgsql as $$
             declare
@@ -77,9 +93,6 @@ return new class extends Migration
                 before insert or update of role_id, sector_id on account_access_grants
                 for each row execute function account_access_grants_role_rules();
             SQL);
-
-        DB::statement('alter table account_activation_tokens drop constraint account_activation_tokens_role_check');
-        DB::statement("alter table account_activation_tokens add constraint account_activation_tokens_role_check check (intended_role in ('JUROR', 'VOTER', 'MANAGER', 'EDITOR', 'CONSULTANT'))");
     }
 
     public function down(): void
@@ -88,8 +101,10 @@ return new class extends Migration
         DB::statement('alter table account_activation_tokens drop constraint account_activation_tokens_role_check');
         DB::statement("alter table account_activation_tokens add constraint account_activation_tokens_role_check check (intended_role in ('JUROR', 'VOTER'))");
 
-        DB::unprepared('drop trigger if exists account_access_grants_role_rules on account_access_grants');
-        DB::unprepared('drop function if exists account_access_grants_role_rules()');
+        if (! Dialect::isMysql()) {
+            DB::unprepared('drop trigger if exists account_access_grants_role_rules on account_access_grants');
+            DB::unprepared('drop function if exists account_access_grants_role_rules()');
+        }
         Schema::dropIfExists('account_access_grants');
     }
 };

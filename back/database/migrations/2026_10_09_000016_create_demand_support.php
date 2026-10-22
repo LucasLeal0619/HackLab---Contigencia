@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,22 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     public function up(): void
+    {
+        if (Dialect::isMysql()) {
+            // MySQL não tem sequence: um contador por prefixo, incrementado com trava de linha pelo trigger que
+            // preenche a referência (000017/000018). forbid_update_delete vira triggers próprios (MysqlParity).
+            DB::statement('create table reference_counters (prefix varchar(8) not null primary key, counter_value bigint unsigned not null default 0) engine=InnoDB');
+            DB::statement("insert into reference_counters (prefix, counter_value) values ('OCO', 0), ('PEN', 0)");
+        } else {
+            $this->createPostgresFunctions();
+        }
+
+        Schema::table('event_days', function (Blueprint $table) {
+            $table->unique(['id', 'event_id']);
+        });
+    }
+
+    private function createPostgresFunctions(): void
     {
         DB::unprepared(<<<'SQL'
             create or replace function next_reference(prefix text, seq text) returns text language plpgsql as $$
@@ -32,10 +49,6 @@ return new class extends Migration
             end;
             $$;
             SQL);
-
-        Schema::table('event_days', function (Blueprint $table) {
-            $table->unique(['id', 'event_id']);
-        });
     }
 
     public function down(): void
@@ -44,7 +57,11 @@ return new class extends Migration
             $table->dropUnique(['id', 'event_id']);
         });
 
-        DB::unprepared('drop function if exists forbid_update_delete()');
-        DB::unprepared('drop function if exists next_reference(text, text)');
+        if (Dialect::isMysql()) {
+            DB::statement('drop table if exists reference_counters');
+        } else {
+            DB::unprepared('drop function if exists forbid_update_delete()');
+            DB::unprepared('drop function if exists next_reference(text, text)');
+        }
     }
 };

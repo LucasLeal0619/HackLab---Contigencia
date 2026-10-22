@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -30,9 +31,9 @@ return new class extends Migration
             $table->text('note')->nullable();
             $table->timestamps();
 
-            $table->unique(['event_integration_id', 'person_id', 'kind']);
-            $table->foreign(['event_integration_id', 'event_id'])->references(['id', 'event_id'])->on('event_integrations')->restrictOnDelete();
-            $table->index(['event_integration_id', 'kind', 'status']);
+            $table->unique(['event_integration_id', 'person_id', 'kind'], Dialect::isMysql() ? 'integration_reconciliations_event_integration_id_person_id_kind' : null);
+            $table->foreign(['event_integration_id', 'event_id'], Dialect::isMysql() ? 'integration_reconciliations_event_integration_id_event_id_forei' : null)->references(['id', 'event_id'])->on('event_integrations')->restrictOnDelete();
+            $table->index(['event_integration_id', 'kind', 'status'], Dialect::isMysql() ? 'integration_reconciliations_event_integration_id_kind_status_in' : null);
         });
 
         DB::statement("alter table integration_reconciliations add constraint integration_reconciliations_kind_check check (kind in ('JUROR', 'ORGANIZATION', 'COMPANY_GUEST'))");

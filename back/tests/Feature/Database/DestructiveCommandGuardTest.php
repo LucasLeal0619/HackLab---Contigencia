@@ -3,6 +3,7 @@
 namespace Tests\Feature\Database;
 
 use App\Support\Database\DestructiveCommandGuard;
+use App\Support\Database\Dialect;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -56,9 +57,14 @@ class DestructiveCommandGuardTest extends DatabaseTestCase
     {
         $this->assertTrue($this->app->environment('testing'));
         $this->assertSame('hacklab_test', config('database.connections.'.config('database.default').'.database'));
-        $this->assertSame('hacklab', config('database.connections.pgsql.search_path'));
-        $this->assertSame('hacklab_test', DB::scalar('select current_database()'));
-        $this->assertSame('hacklab', DB::scalar('select current_schema()'));
+        if (Dialect::isMysql()) {
+            // MySQL local (HACKLAB-DEV-001): sem schema dentro do banco.
+            $this->assertSame('hacklab_test', DB::scalar('select database()'));
+        } else {
+            $this->assertSame('hacklab', config('database.connections.pgsql.search_path'));
+            $this->assertSame('hacklab_test', DB::scalar('select current_database()'));
+            $this->assertSame('hacklab', DB::scalar('select current_schema()'));
+        }
         $this->assertFalse((bool) config('database.allow_destructive_commands'), 'a suíte não pode depender de HACKLAB_ALLOW_DESTRUCTIVE_DB');
         $this->assertTrue($this->app->make(DestructiveCommandGuard::class)->allowsDestructiveCommands());
     }

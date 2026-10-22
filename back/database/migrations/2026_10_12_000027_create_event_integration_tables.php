@@ -1,6 +1,8 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -61,13 +63,15 @@ return new class extends Migration
             $table->timestampTz('last_seen_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['event_integration_id', 'external_ticket_id']);
+            $table->unique(['event_integration_id', 'external_ticket_id'], Dialect::isMysql() ? 'external_ticket_types_event_integration_id_external_ticket_id_u' : null);
             $table->unique(['id', 'event_id']);
             $table->foreign(['event_integration_id', 'event_id'])->references(['id', 'event_id'])->on('event_integrations')->restrictOnDelete();
         });
 
         DB::statement("alter table external_ticket_types add constraint external_ticket_types_category_check check (internal_category is null or internal_category in ('PARTICIPANT', 'ORGANIZATION', 'COMPANY_GUEST', 'JUROR', 'PUBLIC'))");
-        DB::statement('create index external_ticket_types_name_index on external_ticket_types (event_integration_id, lower(external_name))');
+        DB::statement(Dialect::isMysql()
+            ? 'create index external_ticket_types_name_index on external_ticket_types (event_integration_id, (lower(external_name)))'
+            : 'create index external_ticket_types_name_index on external_ticket_types (event_integration_id, lower(external_name))');
 
         Schema::create('event_registrations', function (Blueprint $table) {
             $table->id();
@@ -104,8 +108,14 @@ return new class extends Migration
         });
 
         DB::statement("alter table event_registrations add constraint event_registrations_status_check check (status in ('PENDING', 'CONFIRMED', 'CANCELLED', 'UNKNOWN'))");
-        DB::statement('create unique index event_registrations_attendee_unique on event_registrations (event_integration_id, external_attendee_id) where external_attendee_id is not null');
-        DB::statement('create unique index event_registrations_registration_unique on event_registrations (event_integration_id, external_registration_id) where external_registration_id is not null');
+        DB::statement(Dialect::isMysql()
+            // NULL não conflita em índice único: o "where ... is not null" é implícito no MySQL.
+            ? 'create unique index event_registrations_attendee_unique on event_registrations (event_integration_id, external_attendee_id)'
+            : 'create unique index event_registrations_attendee_unique on event_registrations (event_integration_id, external_attendee_id) where external_attendee_id is not null');
+        DB::statement(Dialect::isMysql()
+            // NULL não conflita em índice único: o "where ... is not null" é implícito no MySQL.
+            ? 'create unique index event_registrations_registration_unique on event_registrations (event_integration_id, external_registration_id)'
+            : 'create unique index event_registrations_registration_unique on event_registrations (event_integration_id, external_registration_id) where external_registration_id is not null');
 
         Schema::create('integration_webhook_receipts', function (Blueprint $table) {
             $table->id();
@@ -121,12 +131,15 @@ return new class extends Migration
             $table->text('error_message')->nullable();
             $table->timestamps();
 
-            $table->unique(['event_integration_id', 'external_delivery_id']);
+            $table->unique(['event_integration_id', 'external_delivery_id'], Dialect::isMysql() ? 'integration_webhook_receipts_event_integration_id_external_deli' : null);
             $table->index(['status', 'received_at']);
         });
 
         DB::statement("alter table integration_webhook_receipts add constraint integration_webhook_receipts_status_check check (status in ('RECEIVED', 'PROCESSED', 'IGNORED', 'FAILED'))");
-        DB::statement('create unique index integration_webhook_receipts_orphan_unique on integration_webhook_receipts (external_delivery_id) where event_integration_id is null');
+        DB::statement(Dialect::isMysql()
+            // Índice funcional: só recibos sem integração entram.
+            ? 'create unique index integration_webhook_receipts_orphan_unique on integration_webhook_receipts ((if(event_integration_id is null, external_delivery_id, null)))'
+            : 'create unique index integration_webhook_receipts_orphan_unique on integration_webhook_receipts (external_delivery_id) where event_integration_id is null');
 
         Schema::create('attendance_records', function (Blueprint $table) {
             $table->id();
@@ -151,7 +164,10 @@ return new class extends Migration
 
         DB::statement("alter table attendance_records add constraint attendance_records_kind_check check (kind in ('EVENT', 'ACTIVITY'))");
         DB::statement("alter table attendance_records add constraint attendance_records_source_check check (source in ('WEBHOOK', 'API'))");
-        DB::statement('create unique index attendance_records_receipt_unique on attendance_records (webhook_receipt_id) where webhook_receipt_id is not null');
+        DB::statement(Dialect::isMysql()
+            // NULL não conflita em índice único: o "where ... is not null" é implícito no MySQL.
+            ? 'create unique index attendance_records_receipt_unique on attendance_records (webhook_receipt_id)'
+            : 'create unique index attendance_records_receipt_unique on attendance_records (webhook_receipt_id) where webhook_receipt_id is not null');
 
         Schema::create('integration_sync_runs', function (Blueprint $table) {
             $table->id();
@@ -163,7 +179,7 @@ return new class extends Migration
             $table->timestampTz('started_at');
             $table->timestampTz('finished_at')->nullable();
             $table->unsignedInteger('duration_ms')->nullable();
-            $table->jsonb('counters')->default('{}');
+            $table->jsonb('counters')->default(Dialect::isMysql() ? new Expression('(json_object())') : '{}');
             $table->jsonb('warnings')->nullable();
             $table->string('error_code', 64)->nullable();
             $table->text('error_message')->nullable();
@@ -173,10 +189,16 @@ return new class extends Migration
         });
 
         DB::statement("alter table integration_sync_runs add constraint integration_sync_runs_scope_check check (scope in ('EVENT', 'TICKETS', 'ATTENDEES', 'ALL'))");
-        DB::statement("alter table integration_sync_runs add constraint integration_sync_runs_trigger_check check (trigger in ('MANUAL', 'SCHEDULED', 'RECONCILIATION'))");
+        DB::statement(Dialect::isMysql()
+            // "trigger" é palavra reservada no MySQL.
+            ? "alter table integration_sync_runs add constraint integration_sync_runs_trigger_check check (`trigger` in ('MANUAL', 'SCHEDULED', 'RECONCILIATION'))"
+            : "alter table integration_sync_runs add constraint integration_sync_runs_trigger_check check (trigger in ('MANUAL', 'SCHEDULED', 'RECONCILIATION'))");
         DB::statement("alter table integration_sync_runs add constraint integration_sync_runs_status_check check (status in ('RUNNING', 'SUCCESS', 'PARTIAL', 'FAILED'))");
         DB::statement("alter table integration_sync_runs add constraint integration_sync_runs_finished_check check ((status = 'RUNNING') = (finished_at is null))");
-        DB::statement("create unique index integration_sync_runs_one_running on integration_sync_runs (event_integration_id) where status = 'RUNNING'");
+        DB::statement(Dialect::isMysql()
+            // Índice funcional: só o sync RUNNING entra.
+            ? "create unique index integration_sync_runs_one_running on integration_sync_runs ((if(status = 'RUNNING', event_integration_id, null)))"
+            : "create unique index integration_sync_runs_one_running on integration_sync_runs (event_integration_id) where status = 'RUNNING'");
     }
 
     public function down(): void
@@ -187,6 +209,8 @@ return new class extends Migration
         Schema::dropIfExists('event_registrations');
         Schema::dropIfExists('external_ticket_types');
         Schema::dropIfExists('event_integrations');
-        DB::statement('drop index if exists event_days_id_event_unique');
+        DB::statement(Dialect::isMysql()
+            ? 'drop index event_days_id_event_unique on event_days'
+            : 'drop index if exists event_days_id_event_unique');
     }
 };

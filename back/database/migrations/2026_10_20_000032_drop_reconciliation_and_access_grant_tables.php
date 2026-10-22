@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Database\Dialect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -17,8 +18,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::unprepared('drop trigger if exists account_access_grants_role_rules on account_access_grants');
-        DB::unprepared('drop function if exists account_access_grants_role_rules()');
+        if (! Dialect::isMysql()) {
+            DB::unprepared('drop trigger if exists account_access_grants_role_rules on account_access_grants');
+            DB::unprepared('drop function if exists account_access_grants_role_rules()');
+        }
         Schema::dropIfExists('account_access_grants');
         Schema::dropIfExists('integration_reconciliations');
 

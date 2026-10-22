@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Database\Dialect;
+use App\Support\Database\MysqlParity;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +18,12 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->foreignId('sector_id')->nullable()->after('role_id')->index()->constrained()->restrictOnDelete();
         });
+
+        if (Dialect::isMysql()) {
+            MysqlParity::pending('users_sector_matches_role');
+
+            return;
+        }
 
         DB::unprepared(<<<'SQL'
             create or replace function users_sector_matches_role() returns trigger language plpgsql as $$
@@ -46,8 +54,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::unprepared('drop trigger if exists users_sector_matches_role on users');
-        DB::unprepared('drop function if exists users_sector_matches_role()');
+        if (! Dialect::isMysql()) {
+            DB::unprepared('drop trigger if exists users_sector_matches_role on users');
+            DB::unprepared('drop function if exists users_sector_matches_role()');
+        }
 
         Schema::table('users', function (Blueprint $table) {
             $table->dropConstrainedForeignId('sector_id');

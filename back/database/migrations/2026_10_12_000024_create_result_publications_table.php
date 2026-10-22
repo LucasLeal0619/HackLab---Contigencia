@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\Database\Dialect;
+use App\Support\Database\MysqlParity;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +47,17 @@ return new class extends Migration
                 or (status = 'REVOKED' and revoked_at is not null and revoked_by_user_id is not null and revoke_reason is not null)
             )
             SQL);
-        DB::statement("create unique index result_publications_one_published_per_event on result_publications (event_id) where status = 'PUBLISHED'");
+        DB::statement(Dialect::isMysql()
+            ? "create unique index result_publications_one_published_per_event on result_publications ((if(status = 'PUBLISHED', event_id, null)))"
+            : "create unique index result_publications_one_published_per_event on result_publications (event_id) where status = 'PUBLISHED'");
+
+        if (Dialect::isMysql()) {
+            MysqlParity::pending('result_publications_guard');
+            MysqlParity::pending('juror_team_assignments_results_lock');
+            MysqlParity::pending('evaluations_results_lock');
+
+            return;
+        }
 
         DB::unprepared(<<<'SQL'
             create or replace function result_publications_guard() returns trigger language plpgsql as $$
@@ -107,6 +119,12 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (Dialect::isMysql()) {
+            Schema::dropIfExists('result_publications');
+
+            return;
+        }
+
         DB::unprepared('drop trigger if exists evaluations_results_lock on evaluations');
         DB::unprepared('drop trigger if exists juror_team_assignments_results_lock on juror_team_assignments');
         Schema::dropIfExists('result_publications');
