@@ -10,7 +10,7 @@ use App\Models\Person;
 use App\Models\Role;
 use App\Models\User;
 use App\Notifications\AccountActivationNotification;
-use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -120,13 +120,10 @@ class AccountActivationService
 
                 return $user->load('person', 'role');
             });
-        } catch (QueryException $e) {
+        } catch (UniqueConstraintViolationException) {
             // Última linha de defesa: users.person_id/users.email únicos (corrida improvável depois dos locks).
-            if ($e->getCode() === '23505') {
-                throw $this->invalid();
-            }
-
-            throw $e;
+            // A exceção do Laravel cobre PostgreSQL (23505) e MySQL (1062).
+            throw $this->invalid();
         }
 
         return $user ?? throw $this->invalid();
