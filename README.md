@@ -155,13 +155,38 @@ O contrato completo da API está em [`back/routes/api.php`](back/routes/api.php)
 
 ## Banco de dados
 
-- PostgreSQL 17, com todas as tabelas no schema `hacklab` (nunca `public`).
-- Bancos: `hacklab_dev` (desenvolvimento) e `hacklab_test` (testes automatizados, recriado a cada execução).
-- Porta na máquina local: `127.0.0.1:5442`, usuário e senha `hacklab`/`hacklab` (só desenvolvimento).
-- A estrutura vem só das migrations do Laravel (32 hoje). Não crie tabelas à mão nem pelo painel do Supabase.
-- No ambiente de testes, o backend recusa qualquer banco cujo nome não termine em `_test` e qualquer host do Supabase.
+- **Produção:** PostgreSQL 17 (Supabase), com todas as tabelas no schema `hacklab` (nunca `public`). O PostgreSQL é a referência: o CI testa nele.
+- **Desenvolvimento local da equipe:** MySQL 8 instalado na máquina, sem Docker (em preparação, ver abaixo). Alternativa: PostgreSQL 17 no Docker.
+- **Bancos:**
+  - `hacklab_dev`: desenvolvimento;
+  - `hacklab_test`: testes automatizados, recriado a cada execução.
+- **Estrutura:** vem só das migrations do Laravel (36 hoje). Não crie tabelas à mão nem pelo painel do Supabase.
+- **Proteção:** no ambiente de testes, o backend recusa qualquer banco cujo nome não termine em `_test` e qualquer host do Supabase.
+
+## Como a equipe trabalha (branches, Pull Requests e CI)
+
+```text
+feature/minha-tarefa  ──PR──▶  dev  ──PR──▶  main (produção)
+```
+
+- **`main`:** é a produção (Render + Netlify + Supabase). Ninguém faz push direto; só entra por PR aprovado com o CI verde.
+- **`dev`:** é onde a equipe integra o trabalho. Não publica nada.
+- **Para cada tarefa:**
+  1. `git switch dev && git pull`;
+  2. `git switch -c feature/nome-curto` (ou `fix/...` para correção);
+  3. faça commits pequenos;
+  4. `git push -u origin feature/nome-curto`;
+  5. abra um Pull Request **para a `dev`**.
+- **CI:** o GitHub Actions roda sozinho em todo PR. Ele faz:
+  - os testes do backend em **PostgreSQL 17**, as migrations do zero e o Pint;
+  - os testes e o build do front.
+
+  Com o CI vermelho, o PR não entra.
+- **Segredos:** nunca commite `.env`, senhas, tokens nem dados de produção.
 
 ## Desenvolvimento local
+
+> **Em preparação (HACKLAB-DEV-001):** o guia para rodar **sem Docker, com MySQL 8 local** (PHP, Composer, Node e MySQL instalados no Windows) entra aqui quando as migrations do MySQL estiverem prontas e o passo a passo tiver sido validado do zero numa máquina sem Docker. Até lá, use o Docker abaixo.
 
 Pré-requisitos:
 - Docker Desktop (Windows/macOS) ou Docker Engine com Compose (Linux);
