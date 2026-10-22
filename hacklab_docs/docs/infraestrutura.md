@@ -104,7 +104,12 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 | 6. Travas de concorrência + job MySQL no CI | pendente |
 | 7. Guia do `README.md` validado do zero, sem Docker | pendente |
 
-Máquina de referência verificada em 22/10/2026: MySQL Community Server **8.0.46** (atende) e MariaDB 10.4 do XAMPP instalado e parado (não usar). As máquinas do Senac ainda precisam ser confirmadas.
+**Ambiente do Senac (confirmado em 22/10/2026):** as máquinas usam **MySQL Server 8.0**, que é o banco-alvo do desenvolvimento local. Na máquina de referência, a versão completa é a **8.0.46** (serviço `MySQL80`, porta 3306).
+- Muitas máquinas também têm o **XAMPP**, que traz um **MariaDB 10.4** próprio. Ele **não é usado** e deve ficar parado: usa a mesma porta 3306 e não é compatível. Do XAMPP, só o PHP pode servir.
+- A versão é conferida antes de qualquer SQL específico do MySQL:
+  - versão completa `>= 8.0.19` e sem "MariaDB";
+  - as migrations MySQL recusam rodar fora disso, com uma mensagem clara (etapa 4);
+  - o `hacklab:db-check` mostra a versão.
 
 ### 2.3 Branches, PRs e CI
 
@@ -120,7 +125,7 @@ feature/* ou fix/*  ──PR──▶  dev  ──PR──▶  main
   - **Frontend (Vue + Vite):** testes e build.
   - Não usa segredos nem serviços de produção, e não faz deploy.
 - **Proteção recomendada da `main`:** PR obrigatório, os dois checks obrigatórios e nada de push direto nem force-push.
-- **Previews:** desligar os Deploy Previews do Netlify. O `netlify.toml` aponta para a API de produção.
+- **Previews:** os Deploy Previews e Branch deploys do Netlify estão desligados desde 22/10/2026, porque o `netlify.toml` aponta para a API de produção.
 
 ## 3. Produção
 

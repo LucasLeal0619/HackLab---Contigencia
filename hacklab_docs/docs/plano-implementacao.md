@@ -541,7 +541,9 @@ Decisão e regras em `infraestrutura.md` §2.2 e §2.3. A produção (PostgreSQL
 - [ ] CI na `main` (PR #2, só `ci.yml`, aguardando autorização) + proteção da `main` (PR e checks obrigatórios);
 - [ ] etapa 1 — documentação (`CLAUDE.md`, `infraestrutura.md`, `README.md`);
 - [ ] etapa 2 — código portável sem mudar o PostgreSQL (PR #3);
-- [ ] confirmar a versão do MySQL nas máquinas do Senac (8.0.19+, não MariaDB);
+- [x] banco-alvo confirmado (22/10/2026): MySQL Server 8.0 nas máquinas do Senac. O MariaDB do XAMPP não é usado;
+- [ ] verificação automática da versão completa (`>= 8.0.19`, sem MariaDB) antes do SQL específico do MySQL (etapa 4) e no `hacklab:db-check`;
+- [x] Netlify: Production branch `main`, Branch deploys e Deploy Previews desligados (22/10/2026);
 - [ ] etapa 3 — referência do schema PostgreSQL capturada **antes** das mudanças + teste de equivalência;
 - [ ] etapa 4 — migrations: estrutura MySQL (índices parciais → funcionais, CHECKs, collation, `READ COMMITTED`);
 - [ ] etapa 5 — 18 triggers e referências `OCO-`/`PEN-` no MySQL, com testes de integridade nos dois bancos;
