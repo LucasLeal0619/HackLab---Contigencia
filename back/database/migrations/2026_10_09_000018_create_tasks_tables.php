@@ -1,7 +1,7 @@
 <?php
 
 use App\Support\Database\Dialect;
-use App\Support\Database\MysqlParity;
+use App\Support\Database\MysqlTrigger;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Schema\Blueprint;
@@ -107,7 +107,11 @@ return new class extends Migration
 
         DB::statement("alter table task_interactions add constraint task_interactions_type_check check (type in ('CREATED', 'UPDATED', 'COMMENT', 'STATUS_CHANGED', 'FORWARDED', 'ASSIGNEE_CHANGED', 'PRIORITY_CHANGED', 'DUE_CHANGED', 'SECTOR_ADDED', 'SECTOR_REMOVED', 'COMPLETED', 'RESOLVED', 'REOPENED', 'TASK_GENERATED'))");
         if (Dialect::isMysql()) {
-            MysqlParity::pending('task_interactions_append_only');
+            // task_interactions_append_only (forbid_update_delete): somente inserção.
+            foreach (['update' => 'UPDATE', 'delete' => 'DELETE'] as $event => $op) {
+                MysqlTrigger::create('task_interactions_append_only'.MysqlTrigger::SUFFIX[$event], $event, 'task_interactions',
+                    MysqlTrigger::fail("task_interactions é somente inserção ({$op} recusado)"));
+            }
         } else {
             DB::unprepared('create trigger task_interactions_append_only before update or delete on task_interactions for each row execute function forbid_update_delete()');
         }

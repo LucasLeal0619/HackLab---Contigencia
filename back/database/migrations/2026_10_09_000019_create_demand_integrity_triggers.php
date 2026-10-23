@@ -1,7 +1,7 @@
 <?php
 
 use App\Support\Database\Dialect;
-use App\Support\Database\MysqlParity;
+use App\Support\Database\MysqlTrigger;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -16,11 +16,7 @@ return new class extends Migration
     public function up(): void
     {
         if (Dialect::isMysql()) {
-            MysqlParity::pending('tasks_immutable_fields');
-            MysqlParity::pending('occurrences_immutable_fields');
-            MysqlParity::pending('tasks_assignee_coherent');
-            MysqlParity::pending('occurrences_assignee_coherent');
-            MysqlParity::pending('users_open_assignments_guard');
+            $this->createMysqlTriggers();
 
             return;
         }
@@ -109,9 +105,81 @@ return new class extends Migration
             SQL);
     }
 
+    /**
+     * Equivalentes MySQL (HACKLAB-DEV-001). No "before update", a ordem é a do PostgreSQL (alfabética):
+     * *_assignee_coherent antes de *_immutable_fields; users_open_assignments_guard antes de users_sector_matches_role.
+     */
+    private function createMysqlTriggers(): void
+    {
+        // demand_assignee_coherent: responsável individual precisa ser usuário ativo do setor responsável.
+        foreach (['tasks', 'occurrences'] as $table) {
+            $rule = <<<SQL
+                if new.assigned_user_id is not null and new.status not in ('COMPLETED', 'RESOLVED') then
+                    if not exists (
+                        select 1 from users u
+                        where u.id = new.assigned_user_id and u.status = 'ACTIVE' and u.sector_id = new.responsible_sector_id
+                    ) then
+                        signal sqlstate '45000' set message_text = '{$table}: responsável individual precisa ser usuário ativo do setor responsável';
+                    end if;
+                end if;
+                SQL;
+
+            MysqlTrigger::create("{$table}_assignee_coherent_ins", 'insert', $table, $rule);
+            // "update of assigned_user_id, responsible_sector_id, status": no MySQL, quando um deles muda.
+            MysqlTrigger::create("{$table}_assignee_coherent_upd", 'update', $table, <<<SQL
+                if not (new.assigned_user_id <=> old.assigned_user_id)
+                    or not (new.responsible_sector_id <=> old.responsible_sector_id)
+                    or not (new.status <=> old.status) then
+                {$rule}
+                end if;
+                SQL);
+        }
+
+        MysqlTrigger::create('tasks_immutable_fields', 'update', 'tasks', <<<'SQL'
+            if new.reference <> old.reference
+                or new.event_id <> old.event_id
+                or new.origin_sector_id <> old.origin_sector_id
+                or not (new.source_occurrence_id <=> old.source_occurrence_id) then
+                signal sqlstate '45000' set message_text = 'tasks: referência, evento, origem e ocorrência de origem não mudam';
+            end if;
+            SQL, 'follows tasks_assignee_coherent_upd');
+
+        MysqlTrigger::create('occurrences_immutable_fields', 'update', 'occurrences', <<<'SQL'
+            if new.reference <> old.reference
+                or new.event_id <> old.event_id
+                or new.origin_sector_id <> old.origin_sector_id then
+                signal sqlstate '45000' set message_text = 'occurrences: referência, evento e origem não mudam';
+            end if;
+            SQL, 'follows occurrences_assignee_coherent_upd');
+
+        MysqlTrigger::create('users_open_assignments_guard', 'update', 'users', <<<'SQL'
+            if not (new.sector_id <=> old.sector_id) or new.status <> old.status then
+                if exists (
+                    select 1 from tasks t
+                    where t.assigned_user_id = new.id and t.status <> 'COMPLETED'
+                      and (new.status <> 'ACTIVE' or not (t.responsible_sector_id <=> new.sector_id))
+                ) or exists (
+                    select 1 from occurrences o
+                    where o.assigned_user_id = new.id and o.status <> 'RESOLVED'
+                      and (new.status <> 'ACTIVE' or not (o.responsible_sector_id <=> new.sector_id))
+                ) then
+                    signal sqlstate '45000' set message_text = 'users: usuário tem pendência/ocorrência aberta atribuída; reatribua antes de mudar setor ou inativar';
+                end if;
+            end if;
+            SQL, 'precedes users_sector_matches_role_upd');
+    }
+
     public function down(): void
     {
         if (Dialect::isMysql()) {
+            foreach ([
+                'users_open_assignments_guard', 'occurrences_immutable_fields', 'tasks_immutable_fields',
+                'occurrences_assignee_coherent_ins', 'occurrences_assignee_coherent_upd',
+                'tasks_assignee_coherent_ins', 'tasks_assignee_coherent_upd',
+            ] as $trigger) {
+                DB::unprepared("drop trigger if exists {$trigger}");
+            }
+
             return;
         }
 

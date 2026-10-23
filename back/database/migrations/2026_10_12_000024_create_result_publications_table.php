@@ -1,7 +1,7 @@
 <?php
 
 use App\Support\Database\Dialect;
-use App\Support\Database\MysqlParity;
+use App\Support\Database\MysqlTrigger;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -52,9 +52,7 @@ return new class extends Migration
             : "create unique index result_publications_one_published_per_event on result_publications (event_id) where status = 'PUBLISHED'");
 
         if (Dialect::isMysql()) {
-            MysqlParity::pending('result_publications_guard');
-            MysqlParity::pending('juror_team_assignments_results_lock');
-            MysqlParity::pending('evaluations_results_lock');
+            $this->createMysqlTriggers();
 
             return;
         }
@@ -117,9 +115,53 @@ return new class extends Migration
             SQL);
     }
 
+    /**
+     * Equivalentes MySQL (HACKLAB-DEV-001) de result_publications_guard e technical_results_lock_guard.
+     */
+    private function createMysqlTriggers(): void
+    {
+        MysqlTrigger::create('result_publications_guard_del', 'delete', 'result_publications',
+            MysqlTrigger::fail('result_publications: publicação é histórica (revogue, não apague)'));
+
+        MysqlTrigger::create('result_publications_guard_ins', 'insert', 'result_publications', <<<'SQL'
+            if not exists (select 1 from voting_sessions where id = new.voting_session_id and status = 'CLOSED') then
+                signal sqlstate '45000' set message_text = 'result_publications: a sessão de votação selecionada precisa estar CLOSED';
+            end if;
+            SQL);
+
+        MysqlTrigger::create('result_publications_guard_upd', 'update', 'result_publications', <<<'SQL'
+            if new.event_id <> old.event_id or new.voting_session_id <> old.voting_session_id
+                or new.version <> old.version or new.snapshot <> old.snapshot
+                or new.published_by_user_id <> old.published_by_user_id or new.published_at <> old.published_at then
+                signal sqlstate '45000' set message_text = 'result_publications: snapshot e dados da publicação são imutáveis';
+            end if;
+            if old.status = 'REVOKED' then
+                signal sqlstate '45000' set message_text = 'result_publications: publicação revogada é definitiva';
+            end if;
+            SQL);
+
+        // technical_results_lock_guard: resultado publicado congela o conjunto técnico contado.
+        $locked = fn (string $table) => <<<SQL
+            if exists (select 1 from result_publications where event_id = new.event_id and status = 'PUBLISHED') then
+                signal sqlstate '45000' set message_text = '{$table}: resultado publicado; revogue a publicação antes de alterar o resultado técnico';
+            end if;
+            SQL;
+        foreach (['insert', 'update'] as $event) {
+            MysqlTrigger::create('juror_team_assignments_results_lock'.MysqlTrigger::SUFFIX[$event], $event, 'juror_team_assignments',
+                $locked('juror_team_assignments'));
+        }
+        // Em evaluations só a troca de status conta; roda depois de evaluations_guard (ordem do PostgreSQL).
+        MysqlTrigger::create('evaluations_results_lock', 'update', 'evaluations',
+            "if not (new.status <=> old.status) then\n".$locked('evaluations')."\nend if;", 'follows evaluations_guard');
+    }
+
     public function down(): void
     {
         if (Dialect::isMysql()) {
+            // Os triggers de result_publications saem com a tabela; os das outras tabelas, explicitamente.
+            foreach (['evaluations_results_lock', 'juror_team_assignments_results_lock_ins', 'juror_team_assignments_results_lock_upd'] as $trigger) {
+                DB::unprepared("drop trigger if exists {$trigger}");
+            }
             Schema::dropIfExists('result_publications');
 
             return;

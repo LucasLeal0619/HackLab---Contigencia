@@ -99,8 +99,8 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 | 1. Documentação (esta seção, `CLAUDE.md`) | na `dev` (#4) |
 | 2. Código portável (`ilike`, `regexp_replace`, erro de duplicidade) | na `dev` (#3), sem mudança no SQL do PostgreSQL |
 | 3. Referência do schema PostgreSQL + teste de equivalência | na `dev` (#5) |
-| 4. Migrations: estrutura MySQL (índices, CHECKs, collation, versão, `READ COMMITTED`) + referências `OCO-`/`PEN-` | em PR para a `dev` |
-| 5. Triggers no MySQL (18 + 1 de tabela removida), com testes nos dois bancos | pendente (`MysqlParity::PENDING`) |
+| 4. Migrations: estrutura MySQL (índices, CHECKs, collation, versão, `READ COMMITTED`) + referências `OCO-`/`PEN-` | na `dev` (#6) |
+| 5. Triggers no MySQL (18 + 1 de tabela removida), com testes nos dois bancos | em PR para a `dev`; `MysqlParity::PENDING` vazia |
 | 6. Travas de concorrência + job MySQL no CI | pendente |
 | 7. Guia do `README.md` validado do zero, sem Docker | pendente |
 
@@ -116,7 +116,11 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
   - padrão JSON `'{}'` vira `(json_object())`;
   - a coluna `trigger` no CHECK leva crase.
 - **Referências `OCO-0001`/`PEN-0001`:** sem sequence no MySQL. A tabela `reference_counters` e um trigger BEFORE INSERT por tabela geram o mesmo formato, com `SELECT … FOR UPDATE` no contador: criações simultâneas nunca repetem número.
-- **Triggers de regra:** ainda não existem no MySQL. Cada um está registrado nominalmente em `App\Support\Database\MysqlParity::PENDING`. A migration recusa omitir qualquer proteção fora dessa lista, e o teste `MysqlSchemaTest` fica "incompleto" enquanto a lista não zerar.
+- **Triggers de regra (etapa 5):** os 19 triggers do PostgreSQL têm equivalente MySQL (`App\Support\Database\MysqlTrigger`).
+  - **Divisão por evento:** um trigger por evento. O "insert or update or delete" do PostgreSQL vira `<nome>_ins`/`_upd`/`_del`; o de um evento só mantém o nome. São 36 triggers MySQL para os 18 ativos, mais os 2 de referência.
+  - **Mesmas regras e mensagens:** `raise exception` vira `SIGNAL SQLSTATE '45000'` com a mesma mensagem; `is distinct from` vira `not (a <=> b)`; o `for share` na sessão de votação foi mantido.
+  - **Mesma ordem:** a ordem alfabética do PostgreSQL entre triggers do mesmo momento é fixada com `FOLLOWS`/`PRECEDES`.
+  - **Prova:** o teste de paridade (`MysqlSchemaTest`) lê cada trigger da referência do PostgreSQL e exige o equivalente na mesma tabela, no mesmo momento e para os mesmos eventos. `MysqlParity::PENDING` está vazia; uma proteção nova no PostgreSQL só pode entrar nela de passagem.
 - **Testes:** `phpunit.mysql.xml` roda a mesma suíte contra um MySQL real (`DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD` do ambiente, banco `hacklab_test`).
 
 **Diferenças conhecidas entre MySQL e PostgreSQL:**
@@ -127,8 +131,9 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 | Referência após rollback | a sequence pula o número | o contador volta junto | só a numeração; o formato é igual |
 | Tabela extra | sequences | `reference_counters` | só no MySQL |
 | `timestampTz` | `timestamptz` | `timestamp` (UTC, até 2038) | só no desenvolvimento |
-| Erro de regra (trigger) | SQLSTATE 23514/P0001 | 45000 (etapa 5) | as mensagens são as mesmas |
-| `UPDATE OF coluna` nos triggers | dispara com a coluna no SET | dispara quando o valor muda (etapa 5) | igual com o Eloquent, que só envia o que mudou |
+| Erro de regra (trigger) | SQLSTATE 23514/P0001 | 45000 | as mensagens são as mesmas; nenhum código depende do SQLSTATE |
+| `UPDATE OF coluna` nos triggers | dispara com a coluna no SET | dispara quando o valor muda | igual com o Eloquent, que só envia o que mudou |
+| Nome dos triggers | um por tabela, vários eventos | `<nome>_ins`/`_upd`/`_del` | o teste de paridade mapeia |
 | Travas `pg_advisory_xact_lock` | sim | ainda não (etapa 6) | sync, webhook e jurados automáticos da Even3 não rodam no MySQL até a etapa 6 |
 
 **Ambiente do Senac (confirmado em 22/10/2026):** as máquinas usam **MySQL Server 8.0**, que é o banco-alvo do desenvolvimento local. Na máquina de referência, a versão completa é a **8.0.46** (serviço `MySQL80`, porta 3306).
