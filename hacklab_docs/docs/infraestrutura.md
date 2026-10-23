@@ -101,7 +101,7 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 | 3. Referência do schema PostgreSQL + teste de equivalência | na `dev` (#5) |
 | 4. Migrations: estrutura MySQL (índices, CHECKs, collation, versão, `READ COMMITTED`) + referências `OCO-`/`PEN-` | na `dev` (#6) |
 | 5. Triggers no MySQL (18 + 1 de tabela removida), com testes nos dois bancos | na `dev` (#7); `MysqlParity::PENDING` vazia |
-| 6. Travas de concorrência + concorrência real no MySQL + job MySQL no CI | em PR para a `dev` |
+| 6. Travas de concorrência + concorrência real no MySQL + job MySQL no CI | **concluída** na `dev` (#8, 23/10/2026) |
 | 7. Guia do `README.md` validado do zero, sem Docker | pendente |
 
 **Como o caminho MySQL das migrations funciona (etapa 4):**
