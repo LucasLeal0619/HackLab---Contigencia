@@ -59,6 +59,9 @@ return [
             'collation' => env('DB_COLLATION', 'utf8mb4_0900_as_cs'),
             // Mesmo isolamento do PostgreSQL: cada comando enxerga o que já foi confirmado (regras de integridade).
             'isolation_level' => 'READ COMMITTED',
+            // Sessão em UTC, como o app (config/app.php) e a produção: sem isto o MySQL usa o fuso do Windows
+            // (UTC−3 no Brasil) e converte literais com offset ("…+00:00") nos filtros por data/hora.
+            'timezone' => '+00:00',
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,

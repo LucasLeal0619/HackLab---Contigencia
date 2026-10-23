@@ -88,7 +88,7 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 - **Requisitos:**
   - MySQL **8.0.19+**, recomendado o **8.4 LTS**;
   - **MariaDB (XAMPP) não serve**: não tem os índices funcionais nem o mesmo `SIGNAL` do MySQL;
-  - conexão em `READ COMMITTED` e collation `utf8mb4_0900_as_cs` (diferencia maiúsculas e acentos, como o PostgreSQL);
+  - conexão em `READ COMMITTED`, sessão em UTC (`time_zone = '+00:00'`, como o app) e collation `utf8mb4_0900_as_cs` (diferencia maiúsculas e acentos, como o PostgreSQL);
   - permissão para criar triggers.
 - **Busca textual:** sempre por `whereILike`/`orWhereILike` (`App\Support\Database\CaseInsensitiveSearch`). No PostgreSQL vira `::text ilike`, o SQL de sempre. No MySQL vira `collate utf8mb4_0900_as_ci like`. Nos dois bancos, a busca não diferencia maiúsculas e diferencia acentos.
 
@@ -102,12 +102,12 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 | 4. Migrations: estrutura MySQL (índices, CHECKs, collation, versão, `READ COMMITTED`) + referências `OCO-`/`PEN-` | na `dev` (#6) |
 | 5. Triggers no MySQL (18 + 1 de tabela removida), com testes nos dois bancos | na `dev` (#7); `MysqlParity::PENDING` vazia |
 | 6. Travas de concorrência + concorrência real no MySQL + job MySQL no CI | **concluída** na `dev` (#8, 23/10/2026) |
-| 7. Guia do `README.md` validado do zero, sem Docker | pendente |
+| 7. Guia do `README.md` validado do zero, sem Docker | em PR para a `dev`; validado em ambiente equivalente; validação presencial numa máquina do Senac **pendente** |
 
 **Como o caminho MySQL das migrations funciona (etapa 4):**
 - **Estrutura:** cada recurso do PostgreSQL ganha `if (Dialect::isMysql()) { equivalente } else { SQL original }`. O teste da referência (`tests/Fixtures/pgsql-schema.json`) prova que o PostgreSQL não mudou.
 - **Versão:** antes de qualquer migration no MySQL, o servidor é conferido (`Dialect::ensureSupportedMysql`). MariaDB e MySQL anterior a 8.0.19 são recusados com mensagem clara. O `hacklab:db-check` mostra versão, collation, isolamento e pendências.
-- **Conexão (`config/database.php`):** collation `utf8mb4_0900_as_cs` (diferencia maiúsculas e acentos, como o PostgreSQL), isolamento `READ COMMITTED` e engine InnoDB.
+- **Conexão (`config/database.php`):** collation `utf8mb4_0900_as_cs` (diferencia maiúsculas e acentos, como o PostgreSQL), isolamento `READ COMMITTED`, sessão em UTC (`'timezone' => '+00:00'`: sem isto o MySQL usa o fuso do Windows, UTC−3 no Brasil, e desloca os filtros por data/hora com offset) e engine InnoDB.
 - **Equivalências:**
   - índices únicos parciais viram índices funcionais `((if(condição, coluna, null)))`, ou um UNIQUE comum quando a condição era só `is not null`, porque NULL não conflita;
   - `lower(nome)` vira índice funcional `((lower(nome)))`;
@@ -153,15 +153,16 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
   - as migrations MySQL recusam rodar fora disso, com uma mensagem clara (etapa 4);
   - o `hacklab:db-check` mostra a versão.
 
-### 2.3 Branches, PRs e CI
+### 2.3 Branches, integração e CI
 
 ```text
-feature/* ou fix/*  ──PR──▶  dev  ──PR──▶  main
+feature/* ou fix/*  ──git push──▶  GitHub  ──(Claude Code integra)──▶  dev  ──(publicação autorizada)──▶  main
 ```
 
 - **`main`:** produção. O Render (Root Directory `back`) e o Netlify (Base directory `front`) publicam só a `main`. Mudanças fora desses diretórios, como `.github/`, não disparam build nem deploy.
 - **`dev`:** integração da equipe. Não publica nada.
-- **`feature/*` e `fix/*`:** saem da `dev` e voltam por PR.
+- **`feature/*` e `fix/*`:** criadas pelos integrantes a partir da `dev` e enviadas com `git push`. Os integrantes não abrem PR: a integração técnica na `dev` (conflitos, compatibilidade MySQL/PostgreSQL, testes) é do Claude Code, com autorização do responsável (`CLAUDE.md` §5.6.1).
+- **Ambiente local de referência:** Windows, PHP 8.2+, Composer 2, Node 22 e MySQL Server 8.0.19+, sem Docker (guia no `README.md`). Scripts: `back/scripts/windows/criar-bancos-mysql.sql` (bancos, usuário, `log_bin_trust_function_creators`) e `back/scripts/windows/verificar-ambiente.ps1` (pré-requisitos e portas).
 - **CI (`.github/workflows/ci.yml`):** roda em todo PR para `dev` e `main`, em dois jobs separados:
   - **Backend (Laravel + PostgreSQL 17):** migrations do zero, `hacklab:db-check`, Pint e testes;
   - **Frontend (Vue + Vite):** testes e build.
