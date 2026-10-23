@@ -11,6 +11,7 @@ use App\Models\Event;
 use App\Models\EventIntegration;
 use App\Models\EventRegistration;
 use App\Models\User;
+use App\Support\Database\TransactionLock;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -36,7 +37,7 @@ class ParticipantMaterializer
 
         return DB::transaction(function () use ($event, $integration, $actor) {
             // Serializa materializações do mesmo evento; o unique(event_id, person_id) é a última barreira.
-            DB::select('select pg_advisory_xact_lock(?, ?)', [91004, $event->id]);
+            TransactionLock::acquire(91004, (int) $event->id);
 
             $personIds = EventRegistration::query()
                 ->where('event_registrations.event_id', $event->id)

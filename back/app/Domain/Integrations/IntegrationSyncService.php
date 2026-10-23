@@ -14,6 +14,7 @@ use App\Models\ExternalTicketType;
 use App\Models\IntegrationSyncRun;
 use App\Models\Person;
 use App\Models\User;
+use App\Support\Database\TransactionLock;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -250,7 +251,7 @@ class IntegrationSyncService
         foreach ($people as $personId) {
             try {
                 $created += DB::transaction(function () use ($event, $personId) {
-                    DB::select('select pg_advisory_xact_lock(?, ?)', [91005, $personId]);
+                    TransactionLock::acquire(91005, (int) $personId);
                     if (DB::table('jurors')->where('event_id', $event->id)->where('person_id', $personId)->exists()) {
                         return 0;
                     }

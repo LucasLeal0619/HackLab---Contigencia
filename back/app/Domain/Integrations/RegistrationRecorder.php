@@ -8,6 +8,7 @@ use App\Models\EventIntegration;
 use App\Models\EventRegistration;
 use App\Models\ExternalTicketType;
 use App\Models\Person;
+use App\Support\Database\TransactionLock;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -44,7 +45,7 @@ class RegistrationRecorder
 
     public static function lock(EventIntegration $integration): void
     {
-        DB::select('select pg_advisory_xact_lock(?, ?)', [self::LOCK_CLASS, $integration->id]);
+        TransactionLock::acquire(self::LOCK_CLASS, (int) $integration->id);
     }
 
     /**
