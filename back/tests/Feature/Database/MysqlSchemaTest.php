@@ -52,8 +52,9 @@ class MysqlSchemaTest extends DatabaseTestCase
         $mysql = array_map(fn ($r) => $r->t, DB::select("select table_name as t from information_schema.tables where table_schema = database() and table_type = 'BASE TABLE'"));
 
         $this->assertSame([], array_values(array_diff($reference['tables'], $mysql)), 'Tabelas do PostgreSQL ausentes no MySQL.');
-        // Só no MySQL: o contador das referências (no PostgreSQL são sequences).
-        $this->assertSame(['reference_counters'], array_values(array_diff($mysql, $reference['tables'])));
+        // Só no MySQL: o contador das referências (no PostgreSQL são sequences) e as travas de transação
+        // (no PostgreSQL são pg_advisory_xact_lock).
+        $this->assertEqualsCanonicalizing(['reference_counters', 'transaction_locks'], array_values(array_diff($mysql, $reference['tables'])));
     }
 
     public function test_name_uniques_ignore_case_like_postgresql_lower_index_but_keep_accents(): void

@@ -27,6 +27,12 @@ return new class extends Migration
         // Alvo das FKs compostas de attendance_records.
         DB::statement('create unique index event_days_id_event_unique on event_days (id, event_id)');
 
+        if (Dialect::isMysql()) {
+            // Travas da integração até o fim da transação (App\Support\Database\TransactionLock). No PostgreSQL são
+            // pg_advisory_xact_lock e não precisam de tabela.
+            DB::statement('create table transaction_locks (lock_key varchar(80) not null primary key) engine=InnoDB');
+        }
+
         Schema::create('event_integrations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('event_id')->constrained()->restrictOnDelete();
@@ -209,6 +215,9 @@ return new class extends Migration
         Schema::dropIfExists('event_registrations');
         Schema::dropIfExists('external_ticket_types');
         Schema::dropIfExists('event_integrations');
+        if (Dialect::isMysql()) {
+            DB::statement('drop table if exists transaction_locks');
+        }
         DB::statement(Dialect::isMysql()
             ? 'drop index event_days_id_event_unique on event_days'
             : 'drop index if exists event_days_id_event_unique');

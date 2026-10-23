@@ -12,6 +12,7 @@ use App\Models\AttendanceRecord;
 use App\Models\EventDay;
 use App\Models\EventIntegration;
 use App\Models\IntegrationWebhookReceipt;
+use App\Support\Database\TransactionLock;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -181,7 +182,7 @@ class Even3WebhookService
     private function orphanReceipt(array $data, string $hash): IntegrationWebhookReceipt
     {
         return DB::transaction(function () use ($data, $hash) {
-            DB::select('select pg_advisory_xact_lock(?, hashtext(?))', [91005, (string) $data['delivery_id']]);
+            TransactionLock::acquire(91005, (string) $data['delivery_id']);
 
             $receipt = IntegrationWebhookReceipt::query()->whereNull('event_integration_id')
                 ->where('external_delivery_id', $data['delivery_id'])->first();

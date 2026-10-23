@@ -100,8 +100,8 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 | 2. Código portável (`ilike`, `regexp_replace`, erro de duplicidade) | na `dev` (#3), sem mudança no SQL do PostgreSQL |
 | 3. Referência do schema PostgreSQL + teste de equivalência | na `dev` (#5) |
 | 4. Migrations: estrutura MySQL (índices, CHECKs, collation, versão, `READ COMMITTED`) + referências `OCO-`/`PEN-` | na `dev` (#6) |
-| 5. Triggers no MySQL (18 + 1 de tabela removida), com testes nos dois bancos | em PR para a `dev`; `MysqlParity::PENDING` vazia |
-| 6. Travas de concorrência + job MySQL no CI | pendente |
+| 5. Triggers no MySQL (18 + 1 de tabela removida), com testes nos dois bancos | na `dev` (#7); `MysqlParity::PENDING` vazia |
+| 6. Travas de concorrência + concorrência real no MySQL + job MySQL no CI | em PR para a `dev` |
 | 7. Guia do `README.md` validado do zero, sem Docker | pendente |
 
 **Como o caminho MySQL das migrations funciona (etapa 4):**
@@ -121,7 +121,16 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
   - **Mesmas regras e mensagens:** `raise exception` vira `SIGNAL SQLSTATE '45000'` com a mesma mensagem; `is distinct from` vira `not (a <=> b)`; o `for share` na sessão de votação foi mantido.
   - **Mesma ordem:** a ordem alfabética do PostgreSQL entre triggers do mesmo momento é fixada com `FOLLOWS`/`PRECEDES`.
   - **Prova:** o teste de paridade (`MysqlSchemaTest`) lê cada trigger da referência do PostgreSQL e exige o equivalente na mesma tabela, no mesmo momento e para os mesmos eventos. `MysqlParity::PENDING` está vazia; uma proteção nova no PostgreSQL só pode entrar nela de passagem.
-- **Testes:** `phpunit.mysql.xml` roda a mesma suíte contra um MySQL real (`DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD` do ambiente, banco `hacklab_test`).
+- **Testes:** `phpunit.mysql.xml` roda a mesma suíte contra um MySQL real (`DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD` do ambiente, banco `hacklab_test`). No CI, o job **Backend (Laravel + MySQL 8)** roda essa suíte num MySQL 8.0 em todo PR.
+- **Travas de transação (etapa 6):** `App\Support\Database\TransactionLock::acquire(classe, chave)`.
+  - **PostgreSQL:** `pg_advisory_xact_lock`, o mesmo SQL de antes.
+  - **MySQL:** linha da chave em `transaction_locks` com `insert … on duplicate key update`, que pega trava exclusiva de linha e é solta no commit ou no rollback.
+  - **Por que não `GET_LOCK`:** vale a sessão inteira, e não só a transação.
+  - **Por que não `insert ignore` + `select … for update`:** dá deadlock com 3 ou mais transações disputando uma chave nova (trava compartilhada promovida a exclusiva), problema pego no teste de concorrência real.
+  - **Onde é usada:** inscrições por integração, materialização por evento, webhook órfão por entrega e jurado automático por pessoa.
+- **Concorrência real no MySQL:** `RealConcurrencyTestCase` usa processos PHP separados nos dois bancos.
+  - **Barreira de largada:** `GET_LOCK` do teste; os workers esperam em "User lock", visível na `processlist` do próprio usuário.
+  - **Limpeza:** `TRUNCATE` com as chaves estrangeiras desligadas só durante a limpeza, e contadores de referência zerados.
 
 **Diferenças conhecidas entre MySQL e PostgreSQL:**
 
@@ -134,7 +143,8 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 | Erro de regra (trigger) | SQLSTATE 23514/P0001 | 45000 | as mensagens são as mesmas; nenhum código depende do SQLSTATE |
 | `UPDATE OF coluna` nos triggers | dispara com a coluna no SET | dispara quando o valor muda | igual com o Eloquent, que só envia o que mudou |
 | Nome dos triggers | um por tabela, vários eventos | `<nome>_ins`/`_upd`/`_del` | o teste de paridade mapeia |
-| Travas `pg_advisory_xact_lock` | sim | ainda não (etapa 6) | sync, webhook e jurados automáticos da Even3 não rodam no MySQL até a etapa 6 |
+| Travas de transação | `pg_advisory_xact_lock` | linha em `transaction_locks` (trava exclusiva de linha) | a mesma exclusão mútua; no MySQL a chave fica gravada (uma linha por integração, evento, pessoa ou entrega) |
+| Barreira dos testes de concorrência | advisory lock compartilhado | `GET_LOCK` (exclusivo; cada worker solta na hora) | os workers partem praticamente juntos |
 
 **Ambiente do Senac (confirmado em 22/10/2026):** as máquinas usam **MySQL Server 8.0**, que é o banco-alvo do desenvolvimento local. Na máquina de referência, a versão completa é a **8.0.46** (serviço `MySQL80`, porta 3306).
 - Muitas máquinas também têm o **XAMPP**, que traz um **MariaDB 10.4** próprio. Ele **não é usado** e deve ficar parado: usa a mesma porta 3306 e não é compatível. Do XAMPP, só o PHP pode servir.

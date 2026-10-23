@@ -4,6 +4,7 @@
 # - Nada de produção: sem segredos do repositório, sem Supabase, sem Render/Netlify, sem deploy.
 #   A APP_KEY é gerada no próprio job e descartada no fim.
 # - Backend e frontend em jobs separados (resultado separado no PR).
+# - Etapa 6: terceiro job com MySQL 8.0, o banco do desenvolvimento local da equipe (mesma suíte, phpunit.mysql.xml).
 
 name: CI
 
@@ -98,6 +99,78 @@ jobs:
             echo "- PHP $(php -r 'echo PHP_VERSION;'), $(psql -h 127.0.0.1 -U hacklab -d hacklab_test -tAc 'show server_version' | cut -d' ' -f1)"
             echo "- migrations aplicadas: $(psql -h 127.0.0.1 -U hacklab -d hacklab_test -tAc 'select count(*) from hacklab.migrations' 2>/dev/null || echo '?')"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  backend-mysql:
+    # Desenvolvimento local da equipe (HACKLAB-DEV-001): a mesma suíte contra MySQL 8.0 (versão das máquinas do Senac).
+    name: Backend (Laravel + MySQL 8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: back
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root-ci
+          MYSQL_DATABASE: hacklab_test
+          MYSQL_USER: hacklab
+          MYSQL_PASSWORD: hacklab-ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot-ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_DATABASE: hacklab_test
+      DB_USERNAME: hacklab
+      DB_PASSWORD: hacklab-ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, mbstring, intl, zip, bcmath, pcntl
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache do Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ runner.os }}-${{ hashFiles('back/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Dependências PHP
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Servidor MySQL como nas máquinas da equipe
+        # Serviços do Actions não recebem parâmetros de inicialização: ajusta pelo root o que o guia local pede.
+        # Collation e READ COMMITTED da sessão vêm do config/database.php do Laravel.
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot-ci -e "SET GLOBAL log_bin_trust_function_creators = 1; SET GLOBAL transaction_isolation = 'READ-COMMITTED'; SELECT VERSION();"
+
+      - name: Ambiente de testes isolado
+        run: |
+          cp .env.testing.example .env.testing
+          php artisan key:generate --env=testing --force --no-interaction
+
+      - name: Migrations do zero (hacklab_test) e conferência do banco
+        run: |
+          php artisan migrate:fresh --env=testing --force --no-interaction
+          php artisan hacklab:db-check --env=testing
+
+      - name: Testes do backend (MySQL)
+        run: php vendor/bin/phpunit -c phpunit.mysql.xml
 
   frontend:
     name: Frontend (Vue + Vite)

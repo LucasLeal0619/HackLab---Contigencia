@@ -27,6 +27,7 @@ use App\Models\Event;
 use App\Models\EventIntegration;
 use App\Models\User;
 use App\Models\VotingSession;
+use App\Support\Database\Dialect;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Auth;
@@ -66,9 +67,15 @@ if (isset($args['even3'])) {
     ]);
 }
 
-// Barreira: espera o teste liberar o lock exclusivo (todos os workers partem juntos).
-DB::select('select pg_advisory_lock_shared(?)', [$args['barrier']]);
-DB::select('select pg_advisory_unlock_shared(?)', [$args['barrier']]);
+// Barreira: espera o teste liberar a trava (todos os workers partem juntos). Ver RealConcurrencyTestCase.
+if (Dialect::isMysql()) {
+    $barrier = 'hacklab_test_barrier_'.$args['barrier']; // mesmo nome de RealConcurrencyTestCase::barrierName()
+    DB::select('select get_lock(?, 120)', [$barrier]);
+    DB::select('select release_lock(?)', [$barrier]);
+} else {
+    DB::select('select pg_advisory_lock_shared(?)', [$args['barrier']]);
+    DB::select('select pg_advisory_unlock_shared(?)', [$args['barrier']]);
+}
 
 try {
     $result = match ($operation) {
