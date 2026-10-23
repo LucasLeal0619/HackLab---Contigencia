@@ -547,7 +547,7 @@ Decisão e regras em `infraestrutura.md` §2.2 e §2.3. A produção (PostgreSQL
 - [x] etapa 3 — referência do schema PostgreSQL capturada **antes** das mudanças + teste de equivalência (#5);
 - [x] etapa 4 — migrations: estrutura MySQL (índices parciais → funcionais, CHECKs, collation, `READ COMMITTED`, versão, referências `OCO-`/`PEN-`), testada em MySQL 8.0.46 real (#6);
 - [x] etapa 5 — 18 triggers (+1 de tabela removida) no MySQL, com paridade provada pela referência e testes de integridade nos dois bancos (#7);
-- [ ] etapa 6 — travas de concorrência portáveis, concorrência real no MySQL e job MySQL no CI: implementada, em PR para a `dev`;
+- [x] etapa 6 — travas de concorrência portáveis, concorrência real no MySQL e job MySQL no CI (#8, concluída em 23/10/2026: 0 falhas no MySQL e no PostgreSQL, três jobs do CI aprovados);
 - [ ] etapa 7 — guia do `README.md` (clonar a `dev`, instalar, MySQL, migrations, Laravel, Vue, testes, PR), validado do zero sem Docker e sem Supabase.
 
 ## Fase 13 — Teste de carga do dia 3
