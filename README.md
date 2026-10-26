@@ -156,7 +156,7 @@ O contrato completo da API está em [`back/routes/api.php`](back/routes/api.php)
 ## Banco de dados
 
 - **Produção:** PostgreSQL 17 no Supabase, com todas as tabelas no schema `hacklab` (nunca `public`). É a referência: o CI testa nele.
-- **Desenvolvimento local da equipe:** **MySQL Server 8** instalado no Windows, sem Docker. Cada integrante tem o próprio banco, no próprio computador.
+- **Desenvolvimento local da equipe:** **MySQL Server 8** instalado no Windows, sem Docker. Nos computadores do Senac, é o MySQL local já existente, administrado pelo **MySQL Workbench** com a conta de cada integrante. Cada integrante tem o próprio banco, no próprio computador.
 - **Bancos locais:**
   - `hacklab_dev`: desenvolvimento;
   - `hacklab_test`: testes automatizados. Os testes apagam e recriam este banco; nunca tocam no `hacklab_dev`.
@@ -166,10 +166,13 @@ O contrato completo da API está em [`back/routes/api.php`](back/routes/api.php)
 
 ## Desenvolvimento local (Windows, MySQL 8, sem Docker)
 
-Este é o guia oficial para a equipe do Senac. Siga na ordem. Todos os comandos são para o **PowerShell** do Windows.
+Este é o guia oficial para a equipe do Senac. Siga na ordem.
+
+- **Caminho principal (computadores do Senac):** o **MySQL Server** já está instalado no computador e o **MySQL Workbench** já está conectado a ele, com a sua conta. Você só cria os bancos pelo Workbench e roda o projeto pelo **Prompt de Comando (CMD)**.
+- **Computador pessoal ou sem MySQL:** veja [Alternativas de instalação do MySQL](#alternativas-de-instalação-do-mysql).
 
 ```text
-Navegador ──▶ Vue/Vite (http://localhost:5174) ──▶ Laravel (http://localhost:8000) ──▶ MySQL 8 (localhost:3306)
+Navegador ──▶ Vue/Vite (http://localhost:5174) ──▶ Laravel (http://localhost:8000) ──▶ MySQL 8 do computador (porta 3306)
                                                                                          ├── hacklab_dev
                                                                                          └── hacklab_test
 ```
@@ -179,131 +182,175 @@ Navegador ──▶ Vue/Vite (http://localhost:5174) ──▶ Laravel (http://l
 | Programa | Versão | Onde baixar |
 |---|---|---|
 | Git | qualquer versão recente | https://git-scm.com/download/win |
-| PHP | **8.2 ou maior** (recomendado 8.3) | https://windows.php.net/download (ou o PHP do XAMPP, ver abaixo) |
+| PHP | **8.2 ou maior** (recomendado 8.3) | https://windows.php.net/download (ou o PHP do XAMPP) |
 | Composer | **2.x** | https://getcomposer.org/download/ |
 | Node.js | **22** (mínimo 20), com npm | https://nodejs.org (versão LTS) |
-| MySQL Server | **8.0.19 ou maior** (recomendado 8.4 LTS) | https://dev.mysql.com/downloads/installer/ |
+| MySQL Server + MySQL Workbench | Server **8.0.19 ou maior** | já instalados nos computadores do Senac |
 | Editor | VS Code ou equivalente | https://code.visualstudio.com |
 
 **Extensões do PHP obrigatórias:** `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `curl`, `zip`, `bcmath`, `tokenizer`, `xml`, `ctype`. A extensão `intl` é opcional. Para ativar uma extensão, abra o `php.ini` (descubra qual com `php --ini`) e tire o `;` do começo da linha `extension=...`.
 
-**MySQL Server 8 não é o MariaDB do XAMPP.** O XAMPP traz o **MariaDB**, um banco parecido mas diferente, que **não serve** para o HackLab: não tem os índices e o comportamento dos triggers que as migrations usam. Você pode usar o **PHP do XAMPP**, mas o "MySQL" do painel do XAMPP precisa ficar **parado**: ele usa a mesma porta 3306 do MySQL Server 8.
+Abra o **Prompt de Comando** (tecla Windows, digite `cmd`, Enter) e confira:
 
-Para conferir tudo de uma vez (só lê, não altera nada), depois de clonar o projeto (passo 2):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File back\scripts\windows\verificar-ambiente.ps1
-```
-
-Ou confira à mão:
-
-```powershell
+```bat
 git --version
-php -v                 # 8.2 ou maior
-php -m                 # precisa listar pdo_mysql, mbstring, openssl, fileinfo, curl, zip, bcmath...
-composer --version     # Composer version 2.x
-node -v                # v22.x (ou v20+)
+php -v
+php -m | findstr /i "pdo_mysql mbstring openssl fileinfo curl zip bcmath tokenizer xml ctype"
+composer --version
+node -v
 npm -v
-& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --version   # 8.0.19 ou maior, sem "MariaDB"
 ```
 
-O instalador do MySQL não coloca o `mysql.exe` no PATH. Ou use o caminho completo como acima (troque `8.0` por `8.4` se instalou o 8.4), ou acrescente `C:\Program Files\MySQL\MySQL Server 8.0\bin` ao PATH do Windows. Os exemplos abaixo usam `mysql` como se estivesse no PATH.
+Esperado:
+- `php -v` mostra 8.2 ou maior;
+- o `findstr` lista todas as extensões pedidas;
+- `composer --version` mostra 2.x;
+- `node -v` mostra v22 (ou v20 ou maior).
 
-### 2. Clonar o projeto e entrar na branch `dev`
+**MySQL Server 8 não é o MariaDB do XAMPP.** O MariaDB é um banco parecido, mas não serve para o HackLab: não tem os índices e o comportamento dos triggers que as migrations usam. Pode usar o **PHP do XAMPP**, mas o "MySQL" do painel do XAMPP precisa ficar **parado**, porque usa a mesma porta 3306. O passo 2 mostra qual servidor está respondendo.
 
-```powershell
-cd $HOME\Documents
-git clone https://github.com/LucasLeal0619/HackLab---Contigencia.git HackLab
-cd HackLab
-git switch dev
-git pull
+### 2. Preparar o banco no MySQL Workbench (uma vez por computador)
+
+Abra o MySQL Workbench e entre na sua conexão (o quadro em **MySQL Connections**). Abra uma aba de consulta (**File → New Query Tab**), cole cada bloco abaixo e execute com o raio (⚡) ou **Ctrl+Shift+Enter**.
+
+**a) Conferir o servidor e a sua conta**
+
+```sql
+SELECT VERSION() AS versao, CURRENT_USER() AS conta, @@port AS porta;
+SHOW GRANTS;
+```
+
+- `versao` precisa ser **8.0.19 ou maior**, sem "MariaDB".
+- `conta` é a sua conta no MySQL, no formato `usuario@host`. Ela vai no `.env` e é o que a TI pede, se for preciso.
+- `SHOW GRANTS` mostra as suas permissões. Serve uma destas:
+  - uma linha `GRANT SELECT, INSERT, ... CREATE, ... TRIGGER ... ON *.*`: é a lista longa de uma conta com todos os privilégios;
+  - `GRANT ALL PRIVILEGES` em `hacklab_dev` e em `hacklab_test`.
+
+  Na dúvida, siga em frente: os blocos b e c mostram na prática se falta alguma permissão.
+
+**b) Criar os bancos**
+
+```sql
+CREATE DATABASE IF NOT EXISTS hacklab_dev  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_as_cs;
+CREATE DATABASE IF NOT EXISTS hacklab_test CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_as_cs;
+SELECT schema_name, default_collation_name
+  FROM information_schema.schemata
+ WHERE schema_name IN ('hacklab_dev', 'hacklab_test');
+```
+
+O resultado deve mostrar os dois bancos com `utf8mb4_0900_as_cs`. Essa collation diferencia maiúsculas e acentos, como o PostgreSQL da produção. Os nomes são obrigatórios: os testes só aceitam um banco terminado em `_test`.
+
+Algum banco já existia com outra collation e **ainda está vazio**? Corrija com `ALTER DATABASE hacklab_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_as_cs;` (o mesmo para `hacklab_test`).
+
+**c) Testar a criação de triggers**
+
+As migrations criam triggers. Este teste usa uma tabela temporária no `hacklab_test` e não deixa nada para trás:
+
+```sql
+DROP TABLE IF EXISTS hacklab_test.teste_trigger;
+CREATE TABLE hacklab_test.teste_trigger (id INT);
+CREATE TRIGGER hacklab_test.teste_trigger_bi BEFORE INSERT ON hacklab_test.teste_trigger FOR EACH ROW SET NEW.id = NEW.id;
+DROP TABLE hacklab_test.teste_trigger;
+```
+
+Se os quatro comandos passarem, o banco está pronto e **nenhuma configuração global do MySQL precisa mudar**.
+
+**d) Se algo falhar, o que pedir à TI**
+
+| Erro | Causa | O que pedir à TI |
+|---|---|---|
+| `Error 1044: Access denied ... to database 'hacklab_dev'` no bloco b | a sua conta não pode criar bancos | criar os dois bancos e dar acesso total a eles para a sua conta (SQL abaixo) |
+| `Error 1419: You do not have the SUPER privilege and binary logging is enabled` no bloco c | o MySQL tem o log binário ligado e não libera triggers para contas comuns | rodar `SET PERSIST log_bin_trust_function_creators = 1;` (**só neste caso**: vale para o servidor inteiro) |
+| `Error 1142: TRIGGER command denied` no bloco c | falta a permissão TRIGGER no banco | dar acesso total aos dois bancos (SQL abaixo) |
+| versão menor que 8.0.19, ou "MariaDB" | servidor antigo, ou o MariaDB do XAMPP na porta 3306 | atualizar o MySQL Server, ou parar o MariaDB do XAMPP |
+
+SQL para a TI rodar com um administrador do MySQL. Troque `'sua_conta'@'localhost'` pelo resultado de `CURRENT_USER()` no formato `'usuario'@'host'`:
+
+```sql
+CREATE DATABASE IF NOT EXISTS hacklab_dev  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_as_cs;
+CREATE DATABASE IF NOT EXISTS hacklab_test CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_as_cs;
+GRANT ALL PRIVILEGES ON hacklab_dev.*  TO 'sua_conta'@'localhost';
+GRANT ALL PRIVILEGES ON hacklab_test.* TO 'sua_conta'@'localhost';
+-- Só se o teste de triggers falhou com o erro 1419:
+SET PERSIST log_bin_trust_function_creators = 1;
+```
+
+### 3. Clonar a branch `dev` e instalar o backend
+
+No **Prompt de Comando**:
+
+```bat
+cd /d %USERPROFILE%\Documents
+git clone -b dev https://github.com/LucasLeal0619/HackLab---Contigencia.git HackLab
+cd HackLab\back
+composer install
+copy .env.example .env
+notepad .env
 ```
 
 Todo o trabalho da equipe parte da `dev`. A `main` é a produção: não trabalhe nela.
 
-### 3. Criar os bancos e o usuário no MySQL (uma vez por computador)
+### 4. Configurar o `back\.env`
 
-Na raiz do projeto, rode:
+Os dados da conexão estão no Workbench. Na tela inicial, clique com o botão direito no quadro da sua conexão e escolha **Edit Connection...**: use **Hostname**, **Port** e **Username**. A senha é a da sua conta, a mesma que você usa no Workbench.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File back\scripts\windows\criar-bancos-mysql.ps1
-```
-
-1. O script pede uma **senha para o usuário `hacklab`**, duas vezes, sem mostrá-la na tela. Ela fica só no seu computador e vai no `back\.env` (passo 4). Use pelo menos 8 caracteres, só letras sem acento, números e `. _ - @ ! % + =`.
-2. Depois o MySQL pede a senha do **root**, o administrador do MySQL definido na instalação.
-
-A senha não aparece no histórico do PowerShell nem na linha de comando. Pode rodar de novo sem problema: nada é duplicado, e a senha do `hacklab` passa a ser a que você digitar agora. **É assim que se recupera o acesso** quando a senha do `.env` foi esquecida.
-
-O MySQL está em outra porta? Use `-Porta 3307`. O `mysql.exe` não foi encontrado? Use `-Mysql "C:\...\bin\mysql.exe"`.
-
-O script ([`criar-bancos-mysql.sql`](back/scripts/windows/criar-bancos-mysql.sql)) cria:
-- `hacklab_dev` e `hacklab_test` com `utf8mb4_0900_as_cs`, que diferencia maiúsculas e acentos como o PostgreSQL da produção;
-- o usuário `hacklab`, só para este computador, com acesso só a esses dois bancos (o Laravel não usa o root);
-- `log_bin_trust_function_creators = 1`, sem o qual o MySQL 8 não deixa um usuário comum criar os triggers das migrations.
-
-#### Quem precisa de quais permissões
-
-| Ação | Permissão necessária | Sem essa permissão |
-|---|---|---|
-| Instalar o MySQL Server (instalador `.msi`, serviço do Windows) | **administrador do Windows** | A TI instala; ou use o MySQL sem instalador (abaixo) |
-| Parar o MySQL/MariaDB do XAMPP ou o serviço `MySQL80` | administrador do Windows, se for serviço | A TI desliga o serviço |
-| Rodar este script (criar bancos, usuário e `SET PERSIST`) | **administrador do MySQL** (root), não do Windows | A TI roda o script uma vez e digita a senha do root; você só escolhe a senha do `hacklab` |
-| Migrations, seed, testes, `php artisan serve`, `npm run dev` | nenhuma: usuário comum | — |
-
-O `log_bin_trust_function_creators` vale para o **servidor MySQL inteiro**. Num MySQL só seu, não afeta mais nada. Num MySQL compartilhado ou administrado pela TI, combine antes com quem cuida dele.
-
-**MySQL sem instalador e sem administrador do Windows.** Se a TI não puder instalar e a política da máquina permitir rodar programas na sua pasta de usuário, use o MySQL Server em ZIP. Baixe o "Windows (x86, 64-bit), ZIP Archive" em https://dev.mysql.com/downloads/mysql/ e extraia, por exemplo, em `$HOME\mysql`. Use outra porta se a 3306 estiver ocupada:
-
-```powershell
-& "$HOME\mysql\bin\mysqld.exe" --initialize-insecure --datadir="$HOME\mysql-data"      # uma vez: root sem senha
-& "$HOME\mysql\bin\mysqld.exe" --datadir="$HOME\mysql-data" --port=3307 --bind-address=127.0.0.1 --mysqlx=OFF --console   # deixe aberto
-# em outro terminal, na raiz do projeto:
-powershell -ExecutionPolicy Bypass -File back\scripts\windows\criar-bancos-mysql.ps1 -Porta 3307 -AdminSemSenha -Mysql "$HOME\mysql\bin\mysql.exe"
-```
-
-Depois, use `DB_PORT=3307` no `back\.env`. O root fica sem senha e só aceita conexões deste computador; para um MySQL que só você usa, no desenvolvimento, é aceitável. Foi assim, sem privilégio de administrador, que o guia foi validado.
-
-### 4. Backend (Laravel)
-
-```powershell
-cd back
-composer install
-Copy-Item .env.example .env
-php artisan key:generate
-```
-
-Abra o `back\.env` e coloque em `DB_PASSWORD` a mesma senha do passo 3. O resto já vem pronto para o MySQL local:
+No Bloco de Notas, preencha a parte do banco e salve:
 
 ```dotenv
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=hacklab_dev
-DB_USERNAME=hacklab
-DB_PASSWORD=a-senha-do-passo-3
+DB_USERNAME=seu_usuario
+DB_PASSWORD='sua senha'
 ```
 
-Confira a conexão e crie as tabelas com os dados de exemplo:
+| Campo | O que colocar |
+|---|---|
+| `DB_HOST` | o **Hostname** do Workbench (`127.0.0.1` ou `localhost`) |
+| `DB_PORT` | o **Port** do Workbench (normalmente `3306`) |
+| `DB_DATABASE` | `hacklab_dev`, sempre |
+| `DB_USERNAME` | o **Username** do Workbench |
+| `DB_PASSWORD` | a sua senha, **entre aspas simples**: sem aspas, um `#` na senha corta o resto. Se a senha tiver aspas simples, use aspas duplas |
 
-```powershell
-php artisan hacklab:db-check      # deve mostrar MySQL 8.x, utf8mb4_0900_as_cs, READ-COMMITTED e "Conexão OK"
-php artisan migrate --seed        # cria as tabelas, os triggers e os dados de exemplo no hacklab_dev
-php artisan serve                 # API em http://localhost:8000 — deixe este terminal aberto
+Não crie `.env.testing`: os testes usam esta mesma conta no banco `hacklab_test`.
+
+**Segurança da senha:**
+- o `back\.env` fica só no seu computador. Ele está no `.gitignore` e nunca vai para o GitHub;
+- antes de cada commit, confira com `git status` que nenhum `.env` aparece;
+- não copie a senha em mensagens, prints, commits ou documentos.
+
+As integrações externas já vêm desligadas: a Even3 não é chamada (`EVEN3_ENABLED=false`) e os e-mails vão para o log (`MAIL_MAILER=log`, em `back\storage\logs`).
+
+### 5. Validar o banco e iniciar o Laravel
+
+Ainda na pasta `back`:
+
+```bat
+php artisan key:generate
+php artisan hacklab:db-check
+php artisan migrate --seed
+php artisan serve
 ```
 
-O `.env` nunca vai para o Git. As integrações externas ficam desligadas por padrão: a Even3 não é chamada (`EVEN3_ENABLED=false`) e os e-mails vão para o log (`MAIL_MAILER=log`, em `back\storage\logs`).
+- `key:generate` cria a chave da aplicação no `.env` (uma vez).
+- `hacklab:db-check` deve mostrar MySQL 8.x, `utf8mb4_0900_as_cs`, `READ-COMMITTED` e "Conexão OK". Se não mostrar, veja "Solução de problemas".
+- `migrate --seed` cria as tabelas, os triggers e os dados de exemplo no `hacklab_dev`.
+- `serve` deixa a API em http://localhost:8000. **Deixe esta janela aberta.**
 
-### 5. Frontend (Vue)
+### 6. Instalar e iniciar o Vue
 
-Em **outro** terminal, na raiz do projeto:
+Abra **outro** Prompt de Comando:
 
-```powershell
-cd front
+```bat
+cd /d %USERPROFILE%\Documents\HackLab\front
 npm install
-npm run dev                       # http://localhost:5174 — deixe este terminal aberto
+npm run dev
 ```
 
-### 6. Acessar
+O front fica em http://localhost:5174. **Deixe esta janela aberta também.**
+
+### 7. Acessar
 
 Abra **http://localhost:5174** e entre com `admin@hacklab.local` e a senha `hacklab123` (contas de exemplo abaixo). Use sempre `localhost` (não misture com `127.0.0.1`): o cookie de sessão depende do mesmo host no front e na API.
 
@@ -313,19 +360,63 @@ Abra **http://localhost:5174** e entre com `admin@hacklab.local` e a senha `hack
 | API | http://localhost:8000 |
 | Health check | http://localhost:8000/api/v1/health |
 
-### 7. Dia a dia
+### 8. Dia a dia
 
-```powershell
-cd HackLab
+```bat
+cd /d %USERPROFILE%\Documents\HackLab
 git switch dev
-git pull                           # traz o que foi integrado
+git pull
 cd back
-composer install                   # só se o composer.lock mudou
-php artisan migrate                # aplica migrations novas (nunca apaga dados)
+composer install
+php artisan migrate
 php artisan serve
 ```
 
-E no outro terminal: `cd front`, `npm install` (se o `package-lock.json` mudou) e `npm run dev`.
+- `git pull` traz o que foi integrado na `dev`.
+- `composer install` só é preciso se o `composer.lock` mudou.
+- `php artisan migrate` aplica as migrations novas e nunca apaga dados.
+
+Na outra janela: `cd /d %USERPROFILE%\Documents\HackLab\front`, `npm install` (se o `package-lock.json` mudou) e `npm run dev`.
+
+### Alternativas de instalação do MySQL
+
+Para computador pessoal ou máquina **sem** MySQL instalado. Nos computadores do Senac, use o passo 2.
+
+**A) MySQL Server instalado, com o script PowerShell.** Instale o MySQL Server 8.4 LTS pelo instalador (https://dev.mysql.com/downloads/installer/), que define a senha do **root**. Na raiz do projeto, num PowerShell, rode:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File back\scripts\windows\criar-bancos-mysql.ps1
+```
+
+O que o script faz:
+- pede uma senha para o usuário `hacklab`, duas vezes e sem mostrá-la. Use pelo menos 8 caracteres, só letras sem acento, números e `. _ - @ ! % + =`;
+- depois o MySQL pede a senha do root.
+
+A senha não fica no histórico do PowerShell nem na linha de comando. Pode rodar de novo: nada é duplicado, e a senha do `hacklab` passa a ser a nova, **o que também recupera o acesso**. Opções: `-Porta 3307` para outra porta e `-Mysql "C:\...\bin\mysql.exe"` se o `mysql.exe` não for encontrado.
+
+O script ([`criar-bancos-mysql.sql`](back/scripts/windows/criar-bancos-mysql.sql)) cria:
+- os dois bancos com `utf8mb4_0900_as_cs`;
+- o usuário `hacklab`, só para este computador e só com acesso a esses bancos;
+- o ajuste `log_bin_trust_function_creators = 1`, global, sem o qual um usuário comum não cria os triggers num MySQL recém-instalado.
+
+No `back\.env`, use `DB_USERNAME=hacklab` e a senha escolhida. Para conferir os pré-requisitos de uma vez, há também `powershell -ExecutionPolicy Bypass -File back\scripts\windows\verificar-ambiente.ps1`, que só lê e não altera nada.
+
+**B) MySQL em ZIP, sem instalador e sem administrador do Windows.** Funciona se a política da máquina permitir rodar programas na pasta do usuário. Baixe o "Windows (x86, 64-bit), ZIP Archive" em https://dev.mysql.com/downloads/mysql/ e extraia, por exemplo, em `$HOME\mysql`. Use outra porta se a 3306 estiver ocupada:
+
+```powershell
+& "$HOME\mysql\bin\mysqld.exe" --initialize-insecure --datadir="$HOME\mysql-data"      # uma vez: root sem senha
+& "$HOME\mysql\bin\mysqld.exe" --datadir="$HOME\mysql-data" --port=3307 --bind-address=127.0.0.1 --mysqlx=OFF --console   # deixe aberto
+# em outro terminal, na raiz do projeto:
+powershell -ExecutionPolicy Bypass -File back\scripts\windows\criar-bancos-mysql.ps1 -Porta 3307 -AdminSemSenha -Mysql "$HOME\mysql\bin\mysql.exe"
+```
+
+Depois, use `DB_PORT=3307` no `back\.env`. O root fica sem senha e só aceita conexões deste computador; para um MySQL que só você usa, no desenvolvimento, é aceitável.
+
+| Ação | Permissão necessária |
+|---|---|
+| Instalar o MySQL Server (instalador `.msi`, serviço do Windows) | administrador do Windows (ou a TI) |
+| Rodar o `criar-bancos-mysql.ps1` (bancos, usuário, `SET PERSIST`) | administrador do **MySQL** (root), não do Windows |
+| MySQL em ZIP, migrations, seed, testes, `php artisan serve`, `npm run dev` | nenhuma: usuário comum |
 
 ### Contas de desenvolvimento
 
@@ -350,9 +441,13 @@ O seed pode ser executado mais de uma vez sem duplicar dados.
 
 `migrate`, `migrate --seed` e `db:seed` são seguros no `hacklab_dev`. Os comandos que apagam o banco (`migrate:fresh`, `migrate:refresh`, `migrate:reset`, `migrate:rollback`, `db:wipe`) ficam **bloqueados** em qualquer banco que não termine em `_test`. Para recriar o seu `hacklab_dev` do zero de propósito, libere só aquele comando:
 
-```powershell
-$env:HACKLAB_ALLOW_DESTRUCTIVE_DB = 'true'; php artisan migrate:fresh --seed; Remove-Item Env:HACKLAB_ALLOW_DESTRUCTIVE_DB
+```bat
+set HACKLAB_ALLOW_DESTRUCTIVE_DB=true
+php artisan migrate:fresh --seed
+set HACKLAB_ALLOW_DESTRUCTIVE_DB=
 ```
+
+A liberação vale só para aquela janela do CMD e é desfeita pela última linha.
 
 Não coloque `HACKLAB_ALLOW_DESTRUCTIVE_DB` no `.env`.
 
@@ -366,20 +461,28 @@ php artisan hacklab:create-admin   # pede nome, e-mail e senha
 
 Rode antes de enviar o seu trabalho. Os testes do backend usam o banco **`hacklab_test`**, com o mesmo usuário do `.env`; o `hacklab_dev` não é tocado.
 
-```powershell
-# Backend com MySQL (na pasta back)
-composer test:mysql                 # = php vendor/bin/phpunit -c phpunit.mysql.xml (cerca de 10 minutos)
-vendor\bin\pint --test              # estilo do código PHP; para corrigir: vendor\bin\pint
-php artisan hacklab:db-check        # diagnóstico da conexão e das migrations
+Backend, na pasta `back`:
 
-# Frontend (na pasta front)
+```bat
+composer test:mysql
+vendor\bin\pint --test
+php artisan hacklab:db-check
+```
+
+- `composer test:mysql` roda a suíte do backend no MySQL (`phpunit -c phpunit.mysql.xml`) e leva cerca de 10 minutos.
+- `vendor\bin\pint --test` confere o estilo do código PHP; para corrigir, rode `vendor\bin\pint`.
+- `php artisan hacklab:db-check` é o diagnóstico da conexão e das migrations.
+
+Frontend, na pasta `front`:
+
+```bat
 npm run test
 npm run build
 ```
 
 Para rodar só um arquivo ou um teste: `php vendor\bin\phpunit -c phpunit.mysql.xml tests\Feature\Teams\TeamTest.php` ou `... --filter=nome_do_teste`.
 
-**Não crie `back\.env.testing`** para o MySQL: sem ele, os testes usam o usuário e a senha do `.env` e trocam o banco para `hacklab_test` sozinhos. O `.env.testing` serve só para a alternativa com PostgreSQL no Docker.
+**Não crie `back\.env.testing`** para o MySQL: sem ele, os testes usam a conta do `.env` e trocam o banco para `hacklab_test` sozinhos. O `.env.testing` serve só para a alternativa com PostgreSQL no Docker.
 
 No GitHub, o CI roda sozinho três verificações, que precisam estar verdes antes de qualquer integração:
 1. **Backend (Laravel + PostgreSQL 17)**: migrations do zero, Pint e a suíte de testes no banco da produção;
@@ -399,23 +502,23 @@ feature/sua-tarefa  ──git push──▶  GitHub  ──(Claude Code integra)
 ### O que cada integrante faz
 
 1. Atualize a `dev`:
-   ```powershell
+   ```bat
    git switch dev
    git pull
    ```
 2. Crie a sua branch com um nome curto (`feature/...` para funcionalidade, `fix/...` para correção):
-   ```powershell
+   ```bat
    git switch -c feature/participantes
    ```
 3. Desenvolva e teste no seu MySQL local (seção "Testes").
-4. Faça commits pequenos e com mensagens claras:
-   ```powershell
+4. Faça commits pequenos e com mensagens claras. No `git status`, confira que não aparece `.env`, senha nem arquivo pessoal:
+   ```bat
    git add .
-   git status                      # confira: nada de .env, senhas ou arquivos pessoais
+   git status
    git commit -m "feat: filtro de participantes por turma"
    ```
 5. Envie a branch para o GitHub:
-   ```powershell
+   ```bat
    git push -u origin feature/participantes
    ```
 6. Avise o nome da branch para o responsável pela integração.
@@ -442,21 +545,20 @@ Mudança funcional relevante, conflito que exija decisão de negócio ou risco d
 | `php` / `composer` / `node` "não é reconhecido como comando" | programa fora do PATH | Instale ou acrescente a pasta ao PATH do Windows (ex.: `C:\xampp\php`) e **abra um terminal novo**. |
 | `could not find driver` ao conectar | extensão `pdo_mysql` desligada | No `php.ini` (`php --ini`), tire o `;` de `extension=pdo_mysql` e abra um terminal novo. |
 | `composer install` reclama de extensão (`ext-zip`, `ext-fileinfo`...) | extensão desligada | Ative no `php.ini` como acima. |
-| `mysql` não é reconhecido | o instalador do MySQL não põe no PATH | Use `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"` ou acrescente essa pasta ao PATH. |
-| `MariaDB ... não é suportado` ou a versão mostra "MariaDB" | o MariaDB do XAMPP está respondendo na 3306 | Pare o MySQL no painel do XAMPP, inicie o serviço **MySQL80** (`services.msc`) e rode `php artisan hacklab:db-check`. |
-| `MySQL 8.0.x não é suportado` | MySQL anterior a 8.0.19 | Atualize para o MySQL 8.0 mais recente ou para o 8.4 LTS. |
-| `Access denied for user 'hacklab'` | senha do `.env` diferente da do MySQL, ou usuário não criado | Rode o script do passo 3 de novo e digite uma senha: ele **redefine** a senha do `hacklab`. Coloque a mesma em `DB_PASSWORD` e rode `php artisan config:clear`. |
-| `You do not have the SUPER privilege and binary logging is enabled` nas migrations | faltou o ajuste dos triggers (o script do passo 3 não rodou até o fim) | Rode o script do passo 3 de novo como administrador do MySQL; se você não tem a senha do root, peça à TI (seção "Quem precisa de quais permissões"). |
-| `Access denied; you need (at least one of) the ... privilege` no script do passo 3 | a conta usada não é administradora do MySQL | Rode com o root, ou peça à TI para rodar o script uma vez. |
-| "A execução de scripts foi desabilitada neste sistema", mesmo com `-ExecutionPolicy Bypass` | política da TI bloqueia scripts PowerShell | Peça à TI para liberar; ou abra o `criar-bancos-mysql.sql` no MySQL Workbench como root, troque `TROQUE_ESTA_SENHA` pela senha só na janela do editor, execute e feche **sem salvar**. |
-| `Access denied for user 'root'` no script do passo 3 | senha do root errada | A senha do root é a definida na instalação do MySQL; se foi a TI que instalou, peça a ela. |
-| `Unknown database 'hacklab_dev'` / `'hacklab_test'` | bancos não criados | Rode o script do passo 3. |
+| `npm` "não pode ser carregado porque a execução de scripts foi desabilitada" | o PowerShell bloqueia o `npm.ps1` | Use o **Prompt de Comando (CMD)**, como no guia. |
+| `MariaDB ... não é suportado` ou a versão mostra "MariaDB" | o MariaDB do XAMPP está respondendo na 3306 | Pare o MySQL no painel do XAMPP (ou peça à TI), confira no Workbench com `SELECT VERSION();` e rode `php artisan hacklab:db-check`. |
+| `MySQL 8.0.x não é suportado` | MySQL anterior a 8.0.19 | Peça à TI para atualizar para o MySQL 8.0 mais recente ou para o 8.4 LTS. |
+| `Access denied for user '...'` no `db-check` | usuário, senha, host ou porta do `.env` diferentes da conexão do Workbench | Confira com **Edit Connection...** no Workbench; senha **entre aspas simples** no `DB_PASSWORD`; depois `php artisan config:clear`. Na alternativa com script, rodar o script de novo redefine a senha do `hacklab`. |
+| `You do not have the SUPER privilege and binary logging is enabled` nas migrations | o MySQL não libera triggers para a sua conta | Faça o teste de triggers do passo 2c e, se falhar com o erro 1419, peça à TI o ajuste do passo 2d. |
+| `Unknown database 'hacklab_dev'` / `'hacklab_test'` | bancos não criados | Rode o bloco b do passo 2 no Workbench. |
+| Script PowerShell (alternativa A): `Access denied for user 'root'` ou `you need ... privilege` | senha do root errada, ou a conta não é administradora do MySQL | Use a senha do root definida na instalação; se foi a TI que instalou, peça a ela. |
+| Script PowerShell (alternativa A): "A execução de scripts foi desabilitada neste sistema" | política da TI bloqueia scripts PowerShell | Use o caminho principal: Workbench (passo 2) e CMD. |
 | Migration falha no meio | banco num estado intermediário | Leia a mensagem; corrigida a causa, recrie o banco de dev com o comando de `migrate:fresh` da seção "Contas de desenvolvimento". |
 | Login volta para a tela de entrada, ou `HTTP 419` | cookie de sessão/CSRF não chega | Use `localhost` nos dois (não misture com `127.0.0.1`); confira no `back\.env`: `FRONTEND_URL=http://localhost:5174`, `SANCTUM_STATEFUL_DOMAINS=localhost:5174,127.0.0.1:5174`; limpe os cookies de `localhost` e rode `php artisan config:clear`. |
 | Front mostra "não foi possível conectar" | API parada ou em outra porta | Confira o terminal do `php artisan serve` e abra http://localhost:8000/api/v1/health. |
-| `Failed to listen on 127.0.0.1:8000` | porta 8000 ocupada | Use outra porta: `php artisan serve --port=8010`; crie `front\.env.development.local` com `VITE_API_URL=http://localhost:8010`, ajuste `APP_URL` no `back\.env` e reinicie o `npm run dev`. |
+| `Failed to listen on 127.0.0.1:8000` | porta 8000 ocupada | Use outra porta: `php artisan serve --port=8010`. Na pasta `front`, rode `echo VITE_API_URL=http://localhost:8010> .env.development.local`, ajuste `APP_URL` no `back\.env` e reinicie o `npm run dev`. |
 | `Port 5174 is in use` | porta do Vite ocupada | O Vite oferece outra porta; se aceitar (ex.: 5175), troque `5174` por ela em `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS` e `SANCTUM_STATEFUL_DOMAINS` no `back\.env` e rode `php artisan config:clear`. |
-| Descobrir quem ocupa uma porta | — | `Get-NetTCPConnection -LocalPort 8000 -State Listen \| Select-Object OwningProcess` e depois `Get-Process -Id <número>`. |
+| Descobrir quem ocupa uma porta | — | `netstat -ano \| findstr :8000` (o último número é o PID) e depois `tasklist /FI "PID eq <número>"`. |
 | `git pull` recusa por "local changes" | arquivos alterados e não commitados | Faça commit na sua branch (`git add .`, `git commit`) ou guarde temporariamente com `git stash` e depois `git stash pop`. |
 | `git push` pede login ou dá 403 | sem permissão no repositório | Peça acesso ao responsável; faça login com `gh auth login` ou pelo Git Credential Manager. |
 | Commitou na `dev` por engano | trabalho fora da sua branch | Antes do `push`: `git switch -c feature/nome` (leva os commits para a branch nova) e avise o responsável. |
