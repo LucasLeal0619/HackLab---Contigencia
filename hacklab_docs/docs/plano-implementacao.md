@@ -548,7 +548,8 @@ Decisão e regras em `infraestrutura.md` §2.2 e §2.3. A produção (PostgreSQL
 - [x] etapa 4 — migrations: estrutura MySQL (índices parciais → funcionais, CHECKs, collation, `READ COMMITTED`, versão, referências `OCO-`/`PEN-`), testada em MySQL 8.0.46 real (#6);
 - [x] etapa 5 — 18 triggers (+1 de tabela removida) no MySQL, com paridade provada pela referência e testes de integridade nos dois bancos (#7);
 - [x] etapa 6 — travas de concorrência portáveis, concorrência real no MySQL e job MySQL no CI (#8, concluída em 23/10/2026: 0 falhas no MySQL e no PostgreSQL, três jobs do CI aprovados);
-- [ ] etapa 7 — guia do `README.md` (clonar a `dev`, instalar, MySQL, migrations, Laravel, Vue, testes, PR), validado do zero sem Docker e sem Supabase.
+- [x] etapa 7 — guia do `README.md` (pré-requisitos, clonar a `dev`, MySQL, permissões da TI, migrations, Laravel, Vue, testes, envio de branch, solução de problemas), scripts Windows (`criar-bancos-mysql.ps1`/`.sql`, `verificar-ambiente.ps1`) e fluxo de integração pelo Claude Code com PR para a `dev` (`CLAUDE.md` §5.6.1) (#10, conclusão técnica em 26/10/2026). Validada do zero, sem Docker e sem Supabase, em ambiente equivalente (Windows 11 sem privilégio de administrador, MySQL Server 8.0.46 de fábrica e em ZIP): 36 migrations, 49 tabelas no PostgreSQL e 51 no MySQL (+ `reference_counters` e `transaction_locks`), 38 triggers MySQL, suíte MySQL com 0 falhas, front 130/130 e build, três checks do CI aprovados. Correções achadas na validação: sessão MySQL em UTC e endereços fixos no phpunit;
+- [ ] validação presencial do guia numa máquina do Senac (instalação do MySQL e permissões conforme a TI) — **pendente**.
 
 ## Fase 13 — Teste de carga do dia 3
 

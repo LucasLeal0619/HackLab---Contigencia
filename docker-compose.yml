@@ -29,9 +29,15 @@ services:
       # O servidor embutido do PHP atende 1 requisição por vez; com workers, as requisições paralelas de
       # uma tela não fazem fila. Só desenvolvimento.
       PHP_CLI_SERVER_WORKERS: ${PHP_CLI_SERVER_WORKERS:-4}
-      # Dentro da rede do Docker o PostgreSQL é o serviço "postgres" na porta 5432.
+      # Alternativa com Docker: PostgreSQL 17 (o serviço "postgres", porta 5432), seja qual for o banco do back/.env
+      # (o padrão da equipe é o MySQL local, sem Docker). Variáveis reais valem mais que o .env.
+      DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
+      DB_USERNAME: ${POSTGRES_USER:-hacklab}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-hacklab}
+      DB_SEARCH_PATH: hacklab
+      DB_SSLMODE: disable
     depends_on:
       postgres:
         condition: service_healthy

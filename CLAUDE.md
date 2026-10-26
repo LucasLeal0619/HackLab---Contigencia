@@ -241,13 +241,28 @@ Detalhes, riscos e pendências (incluindo o cookie de sessão entre domínios `o
 Duas branches permanentes, sem homologação/staging:
 
 ```text
-feature/* ou fix/*  ──PR──▶  dev (equipe, MySQL local)  ──PR──▶  main (produção: Render + Netlify + Supabase)
+feature/* ou fix/*  ──git push──▶  GitHub  ──(Claude Code integra)──▶  dev  ──(publicação autorizada)──▶  main
 ```
 
-- `main`: produção. Só recebe PR com o CI verde (PostgreSQL 17 + front) e autorização. Nada de push direto.
-- `dev`: integração da equipe. Não dispara deploy (Render e Netlify publicam só a `main`).
-- `feature/*`/`fix/*`: temporárias, saem da `dev` e voltam por PR.
-- Arquivos `.env` nunca no Git.
+- `main`: produção (Render + Netlify + Supabase). Nada de push direto; só entra com o CI verde e **autorização explícita do responsável**.
+- `dev`: integração da equipe (MySQL local). Não dispara deploy (Render e Netlify publicam só a `main`).
+- `feature/*`/`fix/*`: temporárias, uma por tarefa, criadas pelos integrantes a partir da `dev` atualizada.
+- Arquivos `.env`, senhas, tokens e dados de produção nunca no Git.
+
+**Integrantes (equipe do Senac):** desenvolvem cada um na própria branch (criada a partir da `dev` atualizada) e testam com MySQL local; só fazem commit, `git push` da branch e avisam o nome dela ao responsável. **Não** precisam abrir PR, resolver todos os conflitos com a `dev`, adaptar para PostgreSQL nem publicar (guia no `README.md`). A revisão e os ajustes técnicos são do Claude Code.
+
+**Claude Code — integração de uma branch na `dev`** (quando o responsável informar a branch):
+1. buscar a branch (`git fetch origin <branch>`) e analisar o diff contra a `dev`: arquivos, migrations, regras de negócio afetadas (este arquivo e `docs/regras-de-negocio.md`);
+2. identificar conflitos com a `dev` e resolvê-los numa branch de integração própria, sem reescrever a branch do integrante;
+3. garantir a compatibilidade MySQL/PostgreSQL (§2 Banco): `whereILike` em vez de `ilike`, caminho `Dialect::isMysql()` nas migrations com SQL próprio de um banco, triggers equivalentes (`MysqlTrigger`), `TransactionLock` para travas; o caminho PostgreSQL não muda (referência `tests/Fixtures/pgsql-schema.json`);
+4. ajustar migrations, SQL e testes quando necessário; regra nova de integridade com teste nos dois bancos;
+5. rodar as verificações: suíte PostgreSQL, suíte MySQL (`phpunit.mysql.xml`), Pint, testes e build do front;
+6. abrir **sempre** um PR de integração do Claude Code para a `dev` (nunca para a `main`), para o GitHub Actions rodar os três checks (Backend PostgreSQL 17, Backend MySQL 8, Frontend); mesclar só com os três verdes e as aprovações aplicáveis;
+7. apresentar um relatório: o que entrou, ajustes feitos, testes e riscos.
+
+Parar e pedir aprovação antes de integrar quando houver: alteração funcional relevante, conflito que exija decisão de negócio, mudança de regra deste arquivo ou risco de regressão.
+
+**Publicação `dev` → `main`:** só com autorização explícita do responsável. O Claude Code avalia o que está na `dev` e não na `main`, separa o que foi autorizado (a publicação pode ser **parcial**, nunca presumir tudo), adapta incompatibilidades, roda as suítes MySQL e PostgreSQL, revisa migrations e efeitos sobre os dados de produção, prepara o PR para a `main` e apresenta os riscos antes. Nenhum merge na `main` sem autorização explícita.
 
 ### 5.7 O que cada categoria da Even3 faz
 
