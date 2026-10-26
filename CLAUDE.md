@@ -249,7 +249,7 @@ feature/* ou fix/*  ──git push──▶  GitHub  ──(Claude Code integra)
 - `feature/*`/`fix/*`: temporárias, uma por tarefa, criadas pelos integrantes a partir da `dev` atualizada.
 - Arquivos `.env`, senhas, tokens e dados de produção nunca no Git.
 
-**Integrantes (equipe do Senac):** atualizam a `dev`, criam a própria branch, desenvolvem e testam com MySQL local, fazem commits, `git push` da branch e avisam o nome dela ao responsável. **Não** abrem PR, não resolvem todos os conflitos com a `dev`, não adaptam para PostgreSQL e não publicam (guia no `README.md`).
+**Integrantes (equipe do Senac):** desenvolvem cada um na própria branch (criada a partir da `dev` atualizada) e testam com MySQL local; só fazem commit, `git push` da branch e avisam o nome dela ao responsável. **Não** precisam abrir PR, resolver todos os conflitos com a `dev`, adaptar para PostgreSQL nem publicar (guia no `README.md`). A revisão e os ajustes técnicos são do Claude Code.
 
 **Claude Code — integração de uma branch na `dev`** (quando o responsável informar a branch):
 1. buscar a branch (`git fetch origin <branch>`) e analisar o diff contra a `dev`: arquivos, migrations, regras de negócio afetadas (este arquivo e `docs/regras-de-negocio.md`);
@@ -257,7 +257,7 @@ feature/* ou fix/*  ──git push──▶  GitHub  ──(Claude Code integra)
 3. garantir a compatibilidade MySQL/PostgreSQL (§2 Banco): `whereILike` em vez de `ilike`, caminho `Dialect::isMysql()` nas migrations com SQL próprio de um banco, triggers equivalentes (`MysqlTrigger`), `TransactionLock` para travas; o caminho PostgreSQL não muda (referência `tests/Fixtures/pgsql-schema.json`);
 4. ajustar migrations, SQL e testes quando necessário; regra nova de integridade com teste nos dois bancos;
 5. rodar as verificações: suíte PostgreSQL, suíte MySQL (`phpunit.mysql.xml`), Pint, testes e build do front;
-6. preparar a integração **só na `dev`** (PR do Claude Code para a `dev`, se as regras do repositório exigirem) e mesclar quando autorizado, com os três checks do CI verdes;
+6. abrir **sempre** um PR de integração do Claude Code para a `dev` (nunca para a `main`), para o GitHub Actions rodar os três checks (Backend PostgreSQL 17, Backend MySQL 8, Frontend); mesclar só com os três verdes e as aprovações aplicáveis;
 7. apresentar um relatório: o que entrou, ajustes feitos, testes e riscos.
 
 Parar e pedir aprovação antes de integrar quando houver: alteração funcional relevante, conflito que exija decisão de negócio, mudança de regra deste arquivo ou risco de regressão.

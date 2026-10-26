@@ -223,18 +223,45 @@ Todo o trabalho da equipe parte da `dev`. A `main` é a produção: não trabalh
 
 ### 3. Criar os bancos e o usuário no MySQL (uma vez por computador)
 
-Escolha uma senha para o usuário do HackLab (ela fica só no seu computador) e rode o script como `root`, trocando `minha-senha-local` por ela. O MySQL vai pedir a senha do **root**, definida na instalação:
+Na raiz do projeto, rode:
 
 ```powershell
-(Get-Content back\scripts\windows\criar-bancos-mysql.sql) -replace 'TROQUE_ESTA_SENHA', 'minha-senha-local' | mysql -u root -p
+powershell -ExecutionPolicy Bypass -File back\scripts\windows\criar-bancos-mysql.ps1
 ```
 
-A troca acontece só na hora: o arquivo do script não muda. Pode rodar de novo sem problema, porque nada é duplicado.
+1. O script pede uma **senha para o usuário `hacklab`**, duas vezes, sem mostrá-la na tela. Ela fica só no seu computador e vai no `back\.env` (passo 4). Use pelo menos 8 caracteres, só letras sem acento, números e `. _ - @ ! % + =`.
+2. Depois o MySQL pede a senha do **root**, o administrador do MySQL definido na instalação.
 
-O script cria:
+A senha não aparece no histórico do PowerShell nem na linha de comando. Pode rodar de novo sem problema: nada é duplicado, e a senha do `hacklab` passa a ser a que você digitar agora. **É assim que se recupera o acesso** quando a senha do `.env` foi esquecida.
+
+O MySQL está em outra porta? Use `-Porta 3307`. O `mysql.exe` não foi encontrado? Use `-Mysql "C:\...\bin\mysql.exe"`.
+
+O script ([`criar-bancos-mysql.sql`](back/scripts/windows/criar-bancos-mysql.sql)) cria:
 - `hacklab_dev` e `hacklab_test` com `utf8mb4_0900_as_cs`, que diferencia maiúsculas e acentos como o PostgreSQL da produção;
 - o usuário `hacklab`, só para este computador, com acesso só a esses dois bancos (o Laravel não usa o root);
 - `log_bin_trust_function_creators = 1`, sem o qual o MySQL 8 não deixa um usuário comum criar os triggers das migrations.
+
+#### Quem precisa de quais permissões
+
+| Ação | Permissão necessária | Sem essa permissão |
+|---|---|---|
+| Instalar o MySQL Server (instalador `.msi`, serviço do Windows) | **administrador do Windows** | A TI instala; ou use o MySQL sem instalador (abaixo) |
+| Parar o MySQL/MariaDB do XAMPP ou o serviço `MySQL80` | administrador do Windows, se for serviço | A TI desliga o serviço |
+| Rodar este script (criar bancos, usuário e `SET PERSIST`) | **administrador do MySQL** (root), não do Windows | A TI roda o script uma vez e digita a senha do root; você só escolhe a senha do `hacklab` |
+| Migrations, seed, testes, `php artisan serve`, `npm run dev` | nenhuma: usuário comum | — |
+
+O `log_bin_trust_function_creators` vale para o **servidor MySQL inteiro**. Num MySQL só seu, não afeta mais nada. Num MySQL compartilhado ou administrado pela TI, combine antes com quem cuida dele.
+
+**MySQL sem instalador e sem administrador do Windows.** Se a TI não puder instalar e a política da máquina permitir rodar programas na sua pasta de usuário, use o MySQL Server em ZIP. Baixe o "Windows (x86, 64-bit), ZIP Archive" em https://dev.mysql.com/downloads/mysql/ e extraia, por exemplo, em `$HOME\mysql`. Use outra porta se a 3306 estiver ocupada:
+
+```powershell
+& "$HOME\mysql\bin\mysqld.exe" --initialize-insecure --datadir="$HOME\mysql-data"      # uma vez: root sem senha
+& "$HOME\mysql\bin\mysqld.exe" --datadir="$HOME\mysql-data" --port=3307 --bind-address=127.0.0.1 --mysqlx=OFF --console   # deixe aberto
+# em outro terminal, na raiz do projeto:
+powershell -ExecutionPolicy Bypass -File back\scripts\windows\criar-bancos-mysql.ps1 -Porta 3307 -AdminSemSenha -Mysql "$HOME\mysql\bin\mysql.exe"
+```
+
+Depois, use `DB_PORT=3307` no `back\.env`. O root fica sem senha e só aceita conexões deste computador; para um MySQL que só você usa, no desenvolvimento, é aceitável. Foi assim, sem privilégio de administrador, que o guia foi validado.
 
 ### 4. Backend (Laravel)
 
@@ -400,10 +427,11 @@ Você **não** precisa abrir Pull Request, resolver conflitos com a `dev`, adapt
 ### O que acontece depois (integração pelo Claude Code)
 
 Quando o responsável informa a sua branch, o Claude Code:
-1. busca a branch e analisa as mudanças e as regras de negócio afetadas;
-2. resolve conflitos com a `dev` e garante a compatibilidade com MySQL e PostgreSQL (migrations, SQL e testes);
-3. roda as verificações (as mesmas três do CI);
-4. integra **só na `dev`**, com autorização, e apresenta um relatório do que entrou.
+1. busca a branch, revisa as mudanças e as regras de negócio afetadas;
+2. faz os ajustes técnicos: resolve conflitos com a `dev` e garante a compatibilidade com MySQL e PostgreSQL (migrations, SQL e testes), numa branch de integração própria, sem reescrever a sua;
+3. roda as verificações locais (suítes MySQL e PostgreSQL, Pint, testes e build do front);
+4. **abre um Pull Request de integração para a `dev`**, para que o GitHub Actions rode os três checks;
+5. só faz o merge na `dev` com os três checks verdes e as aprovações aplicáveis, e apresenta um relatório do que entrou.
 
 Mudança funcional relevante, conflito que exija decisão de negócio ou risco de regressão passam antes pela aprovação do responsável. A passagem da `dev` para a `main` (produção) é sempre uma decisão explícita do responsável, e pode ser parcial (só as funcionalidades aprovadas). O procedimento completo está no `CLAUDE.md` (§5.6.1).
 
@@ -417,8 +445,11 @@ Mudança funcional relevante, conflito que exija decisão de negócio ou risco d
 | `mysql` não é reconhecido | o instalador do MySQL não põe no PATH | Use `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"` ou acrescente essa pasta ao PATH. |
 | `MariaDB ... não é suportado` ou a versão mostra "MariaDB" | o MariaDB do XAMPP está respondendo na 3306 | Pare o MySQL no painel do XAMPP, inicie o serviço **MySQL80** (`services.msc`) e rode `php artisan hacklab:db-check`. |
 | `MySQL 8.0.x não é suportado` | MySQL anterior a 8.0.19 | Atualize para o MySQL 8.0 mais recente ou para o 8.4 LTS. |
-| `Access denied for user 'hacklab'` | senha do `.env` diferente da do script, ou usuário não criado | Confira `DB_PASSWORD` no `back\.env`; se preciso, rode o script do passo 3 de novo com a senha certa. |
-| `You do not have the SUPER privilege and binary logging is enabled` nas migrations | faltou o ajuste dos triggers | Rode como root: `mysql -u root -p -e "SET PERSIST log_bin_trust_function_creators = 1;"`. |
+| `Access denied for user 'hacklab'` | senha do `.env` diferente da do MySQL, ou usuário não criado | Rode o script do passo 3 de novo e digite uma senha: ele **redefine** a senha do `hacklab`. Coloque a mesma em `DB_PASSWORD` e rode `php artisan config:clear`. |
+| `You do not have the SUPER privilege and binary logging is enabled` nas migrations | faltou o ajuste dos triggers (o script do passo 3 não rodou até o fim) | Rode o script do passo 3 de novo como administrador do MySQL; se você não tem a senha do root, peça à TI (seção "Quem precisa de quais permissões"). |
+| `Access denied; you need (at least one of) the ... privilege` no script do passo 3 | a conta usada não é administradora do MySQL | Rode com o root, ou peça à TI para rodar o script uma vez. |
+| "A execução de scripts foi desabilitada neste sistema", mesmo com `-ExecutionPolicy Bypass` | política da TI bloqueia scripts PowerShell | Peça à TI para liberar; ou abra o `criar-bancos-mysql.sql` no MySQL Workbench como root, troque `TROQUE_ESTA_SENHA` pela senha só na janela do editor, execute e feche **sem salvar**. |
+| `Access denied for user 'root'` no script do passo 3 | senha do root errada | A senha do root é a definida na instalação do MySQL; se foi a TI que instalou, peça a ela. |
 | `Unknown database 'hacklab_dev'` / `'hacklab_test'` | bancos não criados | Rode o script do passo 3. |
 | Migration falha no meio | banco num estado intermediário | Leia a mensagem; corrigida a causa, recrie o banco de dev com o comando de `migrate:fresh` da seção "Contas de desenvolvimento". |
 | Login volta para a tela de entrada, ou `HTTP 419` | cookie de sessão/CSRF não chega | Use `localhost` nos dois (não misture com `127.0.0.1`); confira no `back\.env`: `FRONTEND_URL=http://localhost:5174`, `SANCTUM_STATEFUL_DOMAINS=localhost:5174,127.0.0.1:5174`; limpe os cookies de `localhost` e rode `php artisan config:clear`. |

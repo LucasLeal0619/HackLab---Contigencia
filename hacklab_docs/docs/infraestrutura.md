@@ -102,7 +102,7 @@ Com `opcache.revalidate_freq=30`, uma alteração em PHP pode levar até 30 s pa
 | 4. Migrations: estrutura MySQL (índices, CHECKs, collation, versão, `READ COMMITTED`) + referências `OCO-`/`PEN-` | na `dev` (#6) |
 | 5. Triggers no MySQL (18 + 1 de tabela removida), com testes nos dois bancos | na `dev` (#7); `MysqlParity::PENDING` vazia |
 | 6. Travas de concorrência + concorrência real no MySQL + job MySQL no CI | **concluída** na `dev` (#8, 23/10/2026) |
-| 7. Guia do `README.md` validado do zero, sem Docker | em PR para a `dev`; validado em ambiente equivalente; validação presencial numa máquina do Senac **pendente** |
+| 7. Guia do `README.md` validado do zero, sem Docker | **concluída tecnicamente** na `dev` (#10, 26/10/2026), validada em ambiente equivalente; validação presencial numa máquina do Senac **pendente** |
 
 **Como o caminho MySQL das migrations funciona (etapa 4):**
 - **Estrutura:** cada recurso do PostgreSQL ganha `if (Dialect::isMysql()) { equivalente } else { SQL original }`. O teste da referência (`tests/Fixtures/pgsql-schema.json`) prova que o PostgreSQL não mudou.
@@ -161,8 +161,9 @@ feature/* ou fix/*  ──git push──▶  GitHub  ──(Claude Code integra)
 
 - **`main`:** produção. O Render (Root Directory `back`) e o Netlify (Base directory `front`) publicam só a `main`. Mudanças fora desses diretórios, como `.github/`, não disparam build nem deploy.
 - **`dev`:** integração da equipe. Não publica nada.
-- **`feature/*` e `fix/*`:** criadas pelos integrantes a partir da `dev` e enviadas com `git push`. Os integrantes não abrem PR: a integração técnica na `dev` (conflitos, compatibilidade MySQL/PostgreSQL, testes) é do Claude Code, com autorização do responsável (`CLAUDE.md` §5.6.1).
-- **Ambiente local de referência:** Windows, PHP 8.2+, Composer 2, Node 22 e MySQL Server 8.0.19+, sem Docker (guia no `README.md`). Scripts: `back/scripts/windows/criar-bancos-mysql.sql` (bancos, usuário, `log_bin_trust_function_creators`) e `back/scripts/windows/verificar-ambiente.ps1` (pré-requisitos e portas).
+- **`feature/*` e `fix/*`:** criadas pelos integrantes a partir da `dev` e enviadas com `git push`. Os integrantes não abrem PR: a revisão e a integração técnica (conflitos, compatibilidade MySQL/PostgreSQL, testes) são do Claude Code, que abre um PR de integração para a `dev` (os três checks do CI rodam nele) e só mescla com os checks verdes e as aprovações aplicáveis (`CLAUDE.md` §5.6.1). A `main` exige autorização explícita do responsável.
+- **Ambiente local de referência:** Windows, PHP 8.2+, Composer 2, Node 22 e MySQL Server 8.0.19+, sem Docker (guia no `README.md`). Scripts: `back/scripts/windows/criar-bancos-mysql.ps1` + `.sql` (bancos, usuário, `log_bin_trust_function_creators`; pede a senha sem mostrá-la e a redefine se o usuário já existe) e `back/scripts/windows/verificar-ambiente.ps1` (pré-requisitos e portas).
+- **Permissões:** instalar o MySQL como serviço exige administrador do Windows; o script dos bancos exige o administrador do MySQL (root), não do Windows, e o `log_bin_trust_function_creators` é global (combinar com a TI num servidor compartilhado). Sem administrador do Windows: MySQL em ZIP na pasta do usuário (validado sem elevação). Migrations, testes e servidores rodam com usuário comum.
 - **CI (`.github/workflows/ci.yml`):** roda em todo PR para `dev` e `main`, em dois jobs separados:
   - **Backend (Laravel + PostgreSQL 17):** migrations do zero, `hacklab:db-check`, Pint e testes;
   - **Frontend (Vue + Vite):** testes e build.

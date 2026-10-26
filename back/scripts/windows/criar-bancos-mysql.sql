@@ -1,9 +1,11 @@
--- HackLab — bancos MySQL do desenvolvimento local (Windows, MySQL Server 8.0.19+). Rode como root, no PowerShell,
--- na raiz do projeto, trocando minha-senha-local pela senha que vai no back\.env (DB_PASSWORD):
+-- HackLab — bancos MySQL do desenvolvimento local (Windows, MySQL Server 8.0.19+).
+-- Não rode este arquivo direto: use o criar-bancos-mysql.ps1, na raiz do projeto, que pede a senha do usuário
+-- hacklab sem mostrá-la e a coloca no lugar de TROQUE_ESTA_SENHA só na hora (o arquivo não muda):
 --
---   (Get-Content back\scripts\windows\criar-bancos-mysql.sql) -replace 'TROQUE_ESTA_SENHA', 'minha-senha-local' | mysql -u root -p
+--   powershell -ExecutionPolicy Bypass -File back\scripts\windows\criar-bancos-mysql.ps1
 --
--- A troca é só na hora (o arquivo não muda). Pode rodar de novo: nada é duplicado.
+-- Pode rodar de novo: nada é duplicado e a senha do hacklab passa a ser a informada (recupera o acesso).
+-- Precisa de um administrador do MySQL (root): CREATE DATABASE, CREATE USER, GRANT e SET PERSIST.
 -- Cria só bancos vazios e o usuário da aplicação: as tabelas vêm das migrations (php artisan migrate --seed).
 -- Nada aqui toca em produção: produção é PostgreSQL no Supabase e nunca é acessada do seu computador.
 
@@ -14,6 +16,9 @@ CREATE DATABASE IF NOT EXISTS hacklab_test CHARACTER SET utf8mb4 COLLATE utf8mb4
 -- Usuário próprio da aplicação (o Laravel não usa root). Só pode entrar a partir deste computador.
 CREATE USER IF NOT EXISTS 'hacklab'@'localhost' IDENTIFIED BY 'TROQUE_ESTA_SENHA';
 CREATE USER IF NOT EXISTS 'hacklab'@'127.0.0.1' IDENTIFIED BY 'TROQUE_ESTA_SENHA';
+-- CREATE USER IF NOT EXISTS não muda a senha de um usuário que já existe: o ALTER USER garante a senha de agora.
+ALTER USER 'hacklab'@'localhost' IDENTIFIED BY 'TROQUE_ESTA_SENHA';
+ALTER USER 'hacklab'@'127.0.0.1' IDENTIFIED BY 'TROQUE_ESTA_SENHA';
 
 -- Tudo nos dois bancos do HackLab (tabelas, índices, chaves, triggers), nada fora deles.
 GRANT ALL PRIVILEGES ON hacklab_dev.*  TO 'hacklab'@'localhost', 'hacklab'@'127.0.0.1';
@@ -21,6 +26,7 @@ GRANT ALL PRIVILEGES ON hacklab_test.* TO 'hacklab'@'localhost', 'hacklab'@'127.
 
 -- O MySQL 8 vem com o log binário ligado: sem isto, só o root consegue criar os triggers das migrations
 -- ("You do not have the SUPER privilege and binary logging is enabled"). PERSIST mantém após reiniciar.
+-- É uma configuração do servidor inteiro: num MySQL compartilhado, combine antes com quem o administra.
 SET PERSIST log_bin_trust_function_creators = 1;
 
 FLUSH PRIVILEGES;
