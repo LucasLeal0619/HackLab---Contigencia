@@ -6,9 +6,9 @@ Sistema interno de organização e gestão de Hackathon do Senac.
 
 - Frontend: JavaScript + Vue
 - Backend: PHP + Laravel
-- Banco: PostgreSQL (Docker em dev/testes; Supabase em produção)
+- Banco: MySQL 8 no desenvolvimento local; PostgreSQL 17 no CI e na produção (Supabase)
 - Autenticação: Laravel Sanctum
-- Desenvolvimento: Docker / Docker Compose
+- Desenvolvimento: PHP, Composer, Node e MySQL na máquina, sem Docker (Docker Compose com PostgreSQL é alternativa)
 - Produção: API no Render, frontend no Netlify, banco no Supabase
 - Integração externa atual: Even3
 - API: REST `/api/v1`
@@ -57,33 +57,12 @@ Leia nesta ordem:
 5. [Banco de dados](./docs/banco-de-dados.md)
 6. [Integração Even3](./docs/integracao-even3.md)
 7. [Plano de implementação](./docs/plano-implementacao.md)
+8. [Instalação alternativa](./docs/instalacao-alternativa.md) (sem o MySQL do Senac)
 
-## Backend
+## Instalação
 
-Veja o passo a passo completo no [README da raiz](../README.md).
-
-Resumo (a partir da raiz do projeto):
-
-```bash
-cp back/.env.example back/.env
-cp back/.env.testing.example back/.env.testing
-docker compose up -d --build
-docker compose exec app composer install
-docker compose exec app php artisan key:generate
-docker compose exec app php artisan key:generate --env=testing
-docker compose exec app php artisan hacklab:db-check
-docker compose exec app php artisan migrate --seed
-```
-
-## Frontend
-
-```bash
-cd front
-npm install
-npm run dev
-```
-
-Preservar o setup existente do frontend.
+- Computadores do Senac (MySQL Workbench, CMD): [README da raiz](../README.md).
+- Sem o MySQL do Senac (script PowerShell, MySQL em ZIP ou Docker com PostgreSQL): [instalação alternativa](./docs/instalacao-alternativa.md).
 
 ## Regra importante
 

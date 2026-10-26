@@ -4,6 +4,28 @@
 
 Construir o backend sem bloquear o frontend e sem tentar implementar tudo de uma vez.
 
+## Situação das fases
+
+| Fase | Conteúdo | Situação |
+|---|---|---|
+| 0 | Fundação: Docker, PostgreSQL, Laravel, Sanctum | concluída |
+| 1 | Pessoas, usuários, perfis e autenticação | concluída |
+| 2 | Eventos, dias, setores e reuniões | concluída |
+| 3 | Participantes, turmas e equipes | concluída |
+| 4 | Empresas, representantes e desafios | concluída |
+| 5 | Pendências, ocorrências e operação intersetorial | concluída |
+| 6 | Jurados, critérios e avaliações | concluída |
+| 7 | Votação, resultados e publicação oficial | concluída |
+| 8 | Auditoria completa | concluída |
+| 9 | Integração Even3 | concluída |
+| 10 | Frontend integrado ao backend real | concluída |
+| 11 | Relatórios reais e PDF | concluída |
+| 11.1 | Primeiro acesso, recuperação de senha e autocadastro seguro de Votantes | concluído |
+| 11.2 | Centro Even3 e Presença (simplificado antes do deploy) | em revisão |
+| 12 | Implantação (Render + Supabase + Netlify) | em andamento: produção no ar desde 20/10/2026 no Render Free; HACKLAB-IP-001 concluído; pendentes: e-mail real, Even3 em produção, plano do Render para o evento |
+| 13 | Teste de carga | pendente |
+| HACKLAB-DEV-001 | Desenvolvimento local com MySQL, sem Docker | concluído na `dev`; validação presencial no Senac pendente |
+
 ## Fase 0 — Fundação
 
 - [x] inicializar Laravel em `back/`;
