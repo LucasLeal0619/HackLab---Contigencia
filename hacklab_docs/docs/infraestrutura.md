@@ -374,6 +374,8 @@ Comportamento garantido pelo código:
 - o layout do e-mail sai em português (`lang/pt_BR.json`, só nos e-mails; o idioma da aplicação não muda);
 - teste de envio sem token: `php artisan hacklab:mail-test seu@email` mostra a configuração (sem a senha) e envia uma mensagem simples.
 
+Passo a passo da SendPulse (conta, domínio, credenciais e teste a partir do Render): [`ativacao-producao.md`](ativacao-producao.md) §5.
+
 Como testar, nesta ordem e só com endereços próprios:
 1. **Fora do Render (credenciais do provedor):** num `back/.env` local, temporário, com as variáveis acima, rodar `php artisan hacklab:mail-test seu@email`; conferir recebimento, remetente e se não caiu no spam. Apagar a senha do `.env` local depois.
 2. **No Render (porta 2525 a partir do Free):** com as variáveis no painel e um deploy, pedir "Esqueci minha senha" na tela de login para a conta do próprio Administrador. Recebido o e-mail, concluir a redefinição. Se não chegar, ver o log do Render (falha de conexão = porta bloqueada; falha de autenticação = credencial).

@@ -105,6 +105,8 @@ check_in_code, is_confirmed, registration_category, registration_date ("dd/mm/aa
 
 Detalhes em `banco-de-dados.md` §8–9.
 
+Ativação em produção, passo a passo (validação somente leitura com vínculo Desativado, webhook e monitoramento dos recibos): [`ativacao-producao.md`](ativacao-producao.md).
+
 ## 6. Sincronização (API → HackLab)
 
 ```text

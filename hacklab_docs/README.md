@@ -57,6 +57,7 @@ Leia nesta ordem:
 5. [Banco de dados](./docs/banco-de-dados.md)
 6. [Integração Even3](./docs/integracao-even3.md)
 7. [Plano de implementação](./docs/plano-implementacao.md)
+8. [Ativação controlada em produção](./docs/ativacao-producao.md) (evento, Even3, webhook e e-mail)
 
 ## Backend
 
