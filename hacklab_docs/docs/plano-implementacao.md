@@ -525,7 +525,9 @@ Fora do escopo: atividades/programação da Even3.
   - o primeiro acesso (única forma de Jurado e Votante criarem conta) e o "esqueci a senha" não entregam nada;
   - as telas e a API continuam dizendo "enviaremos…", porque a resposta é genérica de propósito.
 
-  Provedor compatível com o Render Free (portas 25/465/587 bloqueadas): porta alternativa, como 2525, ou provedor por HTTPS;
+  Provedor compatível com o Render Free (portas 25/465/587 bloqueadas): porta alternativa, como 2525, ou provedor por HTTPS.
+
+  Preparação técnica (26/10/2026, PR `feature/smtp-producao`): falha do SMTP mantém a resposta genérica 202 (antes virava 500 e revelava o e-mail), timeout e STARTTLS obrigatório configuráveis (`MAIL_TIMEOUT`, `MAIL_REQUIRE_TLS`), layout do e-mail em português e `php artisan hacklab:mail-test`. Candidato: SendPulse na 2525 com STARTTLS (verificado fora do Render), **aguardando confirmação do provedor, domínio autenticado (SPF/DKIM) e teste a partir do Render** (`infraestrutura.md` §3.2.7);
 - [ ] envio real dos e-mails de primeiro acesso e de recuperação de senha, validado em produção (depende do item anterior);
 - [ ] liberação dos fluxos de Jurados (primeiro acesso, avaliações) e Votantes (primeiro acesso, elegibilidade, votação) em produção (depende do e-mail);
 - [ ] Even3 real em produção: `EVEN3_*` no Render, sincronização e webhook público. A integração operacional ainda não foi validada; Cron Job só se houver orçamento;

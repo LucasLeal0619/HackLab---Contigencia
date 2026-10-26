@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 /**
  * Recuperação de senha pelo Password Broker oficial do Laravel (password_reset_tokens, token com hash).
@@ -33,7 +34,12 @@ class PasswordRecoveryService
         }
 
         // RESET_THROTTLED (novo pedido em menos de 60 s) também é silencioso.
-        Password::broker()->sendResetLink(['email' => $email]);
+        try {
+            Password::broker()->sendResetLink(['email' => $email]);
+        } catch (TransportExceptionInterface $e) {
+            // SMTP fora do ar: fica no log da equipe e a resposta continua a mesma (um 500 revelaria a conta).
+            report($e);
+        }
     }
 
     public function reset(string $email, string $token, string $password): void
