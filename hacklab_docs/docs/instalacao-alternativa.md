@@ -1,6 +1,6 @@
 # Instalação alternativa (computador sem o MySQL do Senac)
 
-O caminho principal está no [README](../../README.md) e vale para os computadores do Senac, que já têm MySQL Server e MySQL Workbench. Este guia é para quem **não** tem esse MySQL, por exemplo num computador pessoal.
+O caminho principal está no [README](../../README.md) e na [instalação detalhada no Senac](instalacao-senac.md), e vale para os computadores do Senac, que já têm MySQL Server e MySQL Workbench. Este guia é para quem **não** tem esse MySQL, por exemplo num computador pessoal.
 
 Escolha **uma** das opções:
 
@@ -10,9 +10,9 @@ Escolha **uma** das opções:
 | [B. MySQL em ZIP](#b-mysql-em-zip-sem-instalador-e-sem-administrador-do-windows) | você não é administrador do Windows | MySQL 8 |
 | [C. Docker com PostgreSQL](#c-docker-com-postgresql-17) | você já usa Docker e quer o mesmo banco da produção | PostgreSQL 17 |
 
-Nas opções A e B, depois de criar os bancos, siga o README a partir do **passo 5**, pulando os passos 3 e 4 (Workbench). No `.env` (passo 6), use `DB_USERNAME=hacklab` e a senha escolhida no script.
+Nas opções A e B, depois de criar os bancos, siga a [instalação detalhada](instalacao-senac.md) a partir do **passo 5**, pulando os passos 3 e 4 (Workbench). No `.env` (passo 6), use `DB_USERNAME=hacklab` e a senha escolhida no script.
 
-Os pré-requisitos (Git, PHP 8.2+, Composer 2, Node 20+) são os mesmos do passo 1 do README. Para conferir tudo de uma vez num PowerShell, rode o `verificar-ambiente.ps1`. Ele só lê e não altera nada:
+Os pré-requisitos (Git, PHP 8.2+, Composer 2, Node 20+) são os mesmos do passo 1 da [instalação detalhada](instalacao-senac.md). Para conferir tudo de uma vez num PowerShell, rode o `verificar-ambiente.ps1`. Ele só lê e não altera nada:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File back\scripts\windows\verificar-ambiente.ps1
@@ -43,7 +43,7 @@ O script ([`criar-bancos-mysql.sql`](../../back/scripts/windows/criar-bancos-mys
 |---|---|
 | `Access denied for user 'root'` | Use a senha do root definida na instalação. |
 | `you need ... privilege` | A conta usada não é administradora do MySQL: rode com o root. |
-| "A execução de scripts foi desabilitada neste sistema" | Uma política bloqueia scripts PowerShell: use a opção B, ou crie os bancos pelo Workbench como no README (passos 3 e 4). |
+| "A execução de scripts foi desabilitada neste sistema" | Uma política bloqueia scripts PowerShell: use a opção B, ou crie os bancos pelo Workbench (passos 3 e 4 da [instalação detalhada](instalacao-senac.md)). |
 
 ## B. MySQL em ZIP, sem instalador e sem administrador do Windows
 
@@ -92,7 +92,7 @@ docker compose exec app php artisan key:generate --env=testing
 docker compose exec app php artisan test
 ```
 
-O frontend é igual ao do README (passo 11). `docker compose down -v` apaga os dados do PostgreSQL do Docker.
+O frontend é igual ao da [instalação detalhada](instalacao-senac.md) (passo 11). `docker compose down -v` apaga os dados do PostgreSQL do Docker.
 
 Para recriar o banco de desenvolvimento do zero: `docker compose exec -e HACKLAB_ALLOW_DESTRUCTIVE_DB=true app php artisan migrate:fresh --seed`.
 

@@ -30,7 +30,7 @@ Função do Docker: **ambiente reproduzível de desenvolvimento e testes**. Ele 
 
 ## 2. Desenvolvimento
 
-O desenvolvimento local padrão da equipe é **sem Docker, com MySQL** (§2.2; passo a passo no README da raiz). O Docker Compose abaixo continua como alternativa com PostgreSQL 17, igual à produção (comandos em [`instalacao-alternativa.md`](instalacao-alternativa.md), opção C):
+O desenvolvimento local padrão da equipe é **sem Docker, com MySQL** (§2.2; passo a passo em [`instalacao-senac.md`](instalacao-senac.md), resumo no README da raiz). O Docker Compose abaixo continua como alternativa com PostgreSQL 17, igual à produção (comandos em [`instalacao-alternativa.md`](instalacao-alternativa.md), opção C):
 
 ```text
 docker-compose.yml (raiz)
@@ -46,7 +46,7 @@ front/        Vue com Vite, fora do Docker → http://localhost:5174
 - Os dados ficam no volume `postgres-data`. `docker compose down -v` apaga tudo.
 - O Laravel local nunca conecta no Supabase. A conexão Supabase existe só no ambiente do Render.
 
-Passo a passo: [README da raiz](../../README.md) (computadores do Senac) e [`instalacao-alternativa.md`](instalacao-alternativa.md) (sem o MySQL do Senac).
+Passo a passo: [`instalacao-senac.md`](instalacao-senac.md) (computadores do Senac; resumo no [README da raiz](../../README.md)) e [`instalacao-alternativa.md`](instalacao-alternativa.md) (sem o MySQL do Senac).
 
 ### 2.0 Banco de desenvolvimento x banco de testes
 

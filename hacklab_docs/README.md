@@ -57,11 +57,12 @@ Leia nesta ordem:
 5. [Banco de dados](./docs/banco-de-dados.md)
 6. [Integração Even3](./docs/integracao-even3.md)
 7. [Plano de implementação](./docs/plano-implementacao.md)
-8. [Instalação alternativa](./docs/instalacao-alternativa.md) (sem o MySQL do Senac)
+8. [Instalação detalhada no Senac](./docs/instalacao-senac.md)
+9. [Instalação alternativa](./docs/instalacao-alternativa.md) (sem o MySQL do Senac)
 
 ## Instalação
 
-- Computadores do Senac (MySQL Workbench, CMD): [README da raiz](../README.md).
+- Computadores do Senac (MySQL Workbench, CMD): resumo no [README da raiz](../README.md) e passo a passo em [instalação detalhada no Senac](./docs/instalacao-senac.md).
 - Sem o MySQL do Senac (script PowerShell, MySQL em ZIP ou Docker com PostgreSQL): [instalação alternativa](./docs/instalacao-alternativa.md).
 
 ## Regra importante
