@@ -110,6 +110,7 @@ Detalhes em `banco-de-dados.md` §8–9.
 ```text
 POST /api/v1/events/{event}/integrations/even3/sync   { "scope": "EVENT" | "TICKETS" | "ATTENDEES" | "ALL" }
 php artisan even3:sync                                 (pronto para o Scheduler; frequência ainda não definida)
+php artisan even3:test-connection                      (testa token e evento configurados, sem gravar nada)
 ```
 
 `ALL` = evento → entradas → participantes. Regras:

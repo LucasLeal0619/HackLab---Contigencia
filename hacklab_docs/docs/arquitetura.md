@@ -34,6 +34,14 @@ O HackLab é um monólito modular com frontend Vue, backend Laravel e PostgreSQL
 
 O Supabase é usado só como PostgreSQL gerenciado. Autenticação, autorização e regras ficam no Laravel. Detalhes em `infraestrutura.md`.
 
+### 1.1 Fora desta versão
+
+- financeiro, premiações, documentos e atas separadas;
+- cadastro público (ninguém escolhe o próprio perfil) e convite de jurado;
+- QR, scanner ou check-in próprio (o credenciamento é feito na Even3);
+- votação anônima e nota combinada entre jurados e público;
+- Supabase Auth ou qualquer recurso do Supabase além do PostgreSQL.
+
 ## 2. Princípio arquitetural
 
 A plataforma externa resolve:

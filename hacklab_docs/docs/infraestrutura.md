@@ -30,7 +30,7 @@ Função do Docker: **ambiente reproduzível de desenvolvimento e testes**. Ele 
 
 ## 2. Desenvolvimento
 
-O desenvolvimento local padrão da equipe é **sem Docker, com MySQL** (§2.2, em implementação). O Docker Compose abaixo continua como alternativa com PostgreSQL 17, igual à produção:
+O desenvolvimento local padrão da equipe é **sem Docker, com MySQL** (§2.2; passo a passo em [`instalacao-senac.md`](instalacao-senac.md), resumo no README da raiz). O Docker Compose abaixo continua como alternativa com PostgreSQL 17, igual à produção (comandos em [`instalacao-alternativa.md`](instalacao-alternativa.md), opção C):
 
 ```text
 docker-compose.yml (raiz)
@@ -46,7 +46,7 @@ front/        Vue com Vite, fora do Docker → http://localhost:5174
 - Os dados ficam no volume `postgres-data`. `docker compose down -v` apaga tudo.
 - O Laravel local nunca conecta no Supabase. A conexão Supabase existe só no ambiente do Render.
 
-Passo a passo no [README da raiz](../../README.md).
+Passo a passo: [`instalacao-senac.md`](instalacao-senac.md) (computadores do Senac; resumo no [README da raiz](../../README.md)) e [`instalacao-alternativa.md`](instalacao-alternativa.md) (sem o MySQL do Senac).
 
 ### 2.0 Banco de desenvolvimento x banco de testes
 
@@ -162,8 +162,9 @@ feature/* ou fix/*  ──git push──▶  GitHub  ──(Claude Code integra)
 - **`main`:** produção. O Render (Root Directory `back`) e o Netlify (Base directory `front`) publicam só a `main`. Mudanças fora desses diretórios, como `.github/`, não disparam build nem deploy.
 - **`dev`:** integração da equipe. Não publica nada.
 - **`feature/*` e `fix/*`:** criadas pelos integrantes a partir da `dev` e enviadas com `git push`. Os integrantes não abrem PR: a revisão e a integração técnica (conflitos, compatibilidade MySQL/PostgreSQL, testes) são do Claude Code, que abre um PR de integração para a `dev` (os três checks do CI rodam nele) e só mescla com os checks verdes e as aprovações aplicáveis (`CLAUDE.md` §5.6.1). A `main` exige autorização explícita do responsável.
-- **Ambiente local de referência:** Windows, PHP 8.2+, Composer 2, Node 22 e MySQL Server 8.0.19+, sem Docker (guia no `README.md`). Scripts: `back/scripts/windows/criar-bancos-mysql.ps1` + `.sql` (bancos, usuário, `log_bin_trust_function_creators`; pede a senha sem mostrá-la e a redefine se o usuário já existe) e `back/scripts/windows/verificar-ambiente.ps1` (pré-requisitos e portas).
-- **Permissões:** instalar o MySQL como serviço exige administrador do Windows; o script dos bancos exige o administrador do MySQL (root), não do Windows, e o `log_bin_trust_function_creators` é global (combinar com a TI num servidor compartilhado). Sem administrador do Windows: MySQL em ZIP na pasta do usuário (validado sem elevação). Migrations, testes e servidores rodam com usuário comum.
+- **Ambiente local de referência (computadores do Senac):** Windows, PHP 8.2+, Composer 2, Node 22 e o MySQL Server 8.0.19+ já instalado, com o MySQL Workbench conectado pela conta de cada integrante; comandos no Prompt de Comando (CMD), sem Docker (guia no `README.md`). Os bancos são criados pelo Workbench; o teste de triggers do guia diz se a conta precisa de algo da TI (bancos/`GRANT`, ou `log_bin_trust_function_creators` só quando o teste falha com o erro 1419). Nenhuma configuração global do MySQL é alterada sem necessidade.
+- **Alternativas (computador pessoal ou sem MySQL):** scripts `back/scripts/windows/criar-bancos-mysql.ps1` + `.sql` (bancos, usuário, `log_bin_trust_function_creators`; pede a senha sem mostrá-la e a redefine se o usuário já existe) e `back/scripts/windows/verificar-ambiente.ps1` (pré-requisitos e portas).
+- **Permissões (alternativas):** instalar o MySQL como serviço exige administrador do Windows; o script dos bancos exige o administrador do MySQL (root), não do Windows, e o `log_bin_trust_function_creators` é global (combinar com a TI num servidor compartilhado). Sem administrador do Windows: MySQL em ZIP na pasta do usuário (validado sem elevação). Migrations, testes e servidores rodam com usuário comum.
 - **CI (`.github/workflows/ci.yml`):** roda em todo PR para `dev` e `main`, em dois jobs separados:
   - **Backend (Laravel + PostgreSQL 17):** migrations do zero, `hacklab:db-check`, Pint e testes;
   - **Frontend (Vue + Vite):** testes e build.

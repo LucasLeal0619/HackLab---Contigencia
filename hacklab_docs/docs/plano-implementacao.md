@@ -4,6 +4,28 @@
 
 Construir o backend sem bloquear o frontend e sem tentar implementar tudo de uma vez.
 
+## Situação das fases
+
+| Fase | Conteúdo | Situação |
+|---|---|---|
+| 0 | Fundação: Docker, PostgreSQL, Laravel, Sanctum | concluída |
+| 1 | Pessoas, usuários, perfis e autenticação | concluída |
+| 2 | Eventos, dias, setores e reuniões | concluída |
+| 3 | Participantes, turmas e equipes | concluída |
+| 4 | Empresas, representantes e desafios | concluída |
+| 5 | Pendências, ocorrências e operação intersetorial | concluída |
+| 6 | Jurados, critérios e avaliações | concluída |
+| 7 | Votação, resultados e publicação oficial | concluída |
+| 8 | Auditoria completa | concluída |
+| 9 | Integração Even3 | concluída |
+| 10 | Frontend integrado ao backend real | concluída |
+| 11 | Relatórios reais e PDF | concluída |
+| 11.1 | Primeiro acesso, recuperação de senha e autocadastro seguro de Votantes | concluído |
+| 11.2 | Centro Even3 e Presença (simplificado antes do deploy) | em revisão |
+| 12 | Implantação (Render + Supabase + Netlify) | em andamento: produção no ar desde 20/10/2026 no Render Free; HACKLAB-IP-001 concluído; pendentes: e-mail real, Even3 em produção, plano do Render para o evento |
+| 13 | Teste de carga | pendente |
+| HACKLAB-DEV-001 | Desenvolvimento local com MySQL, sem Docker | concluído na `dev`; validação presencial no Senac pendente |
+
 ## Fase 0 — Fundação
 
 - [x] inicializar Laravel em `back/`;
@@ -549,7 +571,8 @@ Decisão e regras em `infraestrutura.md` §2.2 e §2.3. A produção (PostgreSQL
 - [x] etapa 5 — 18 triggers (+1 de tabela removida) no MySQL, com paridade provada pela referência e testes de integridade nos dois bancos (#7);
 - [x] etapa 6 — travas de concorrência portáveis, concorrência real no MySQL e job MySQL no CI (#8, concluída em 23/10/2026: 0 falhas no MySQL e no PostgreSQL, três jobs do CI aprovados);
 - [x] etapa 7 — guia do `README.md` (pré-requisitos, clonar a `dev`, MySQL, permissões da TI, migrations, Laravel, Vue, testes, envio de branch, solução de problemas), scripts Windows (`criar-bancos-mysql.ps1`/`.sql`, `verificar-ambiente.ps1`) e fluxo de integração pelo Claude Code com PR para a `dev` (`CLAUDE.md` §5.6.1) (#10, conclusão técnica em 26/10/2026). Validada do zero, sem Docker e sem Supabase, em ambiente equivalente (Windows 11 sem privilégio de administrador, MySQL Server 8.0.46 de fábrica e em ZIP): 36 migrations, 49 tabelas no PostgreSQL e 51 no MySQL (+ `reference_counters` e `transaction_locks`), 38 triggers MySQL, suíte MySQL com 0 falhas, front 130/130 e build, três checks do CI aprovados. Correções achadas na validação: sessão MySQL em UTC e endereços fixos no phpunit;
-- [ ] validação presencial do guia numa máquina do Senac (instalação do MySQL e permissões conforme a TI) — **pendente**.
+- [x] guia ajustado à infraestrutura real do Senac (26/10/2026): MySQL Server local e MySQL Workbench já existentes, conta própria de cada integrante, comandos no CMD; script PowerShell e MySQL em ZIP viram alternativas. Validado em ambiente equivalente: blocos SQL do Workbench com contas de permissões diferentes (erros 1044, 1419 e 1142 e o SQL da TI reproduzidos), instalação completa pelo CMD com conta pessoal e senha com `#`, espaço e `$`;
+- [ ] validação presencial do guia numa máquina do Senac (Workbench, conta e permissões reais) — **pendente**.
 
 ## Fase 13 — Teste de carga do dia 3
 
