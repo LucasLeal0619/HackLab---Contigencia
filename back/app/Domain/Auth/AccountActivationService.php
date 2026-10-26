@@ -14,6 +14,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 /**
  * Primeiro acesso (Complemento 11.1): a própria pessoa comprova a posse do e-mail e define a senha.
@@ -64,7 +65,12 @@ class AccountActivationService
             ]);
         });
 
-        Notification::route('mail', $email)->notify(new AccountActivationNotification($token, self::EXPIRES_MINUTES));
+        try {
+            Notification::route('mail', $email)->notify(new AccountActivationNotification($token, self::EXPIRES_MINUTES));
+        } catch (TransportExceptionInterface $e) {
+            // SMTP fora do ar: fica no log da equipe e a resposta continua a mesma (um 500 revelaria o e-mail elegível).
+            report($e);
+        }
     }
 
     /**

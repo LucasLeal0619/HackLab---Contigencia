@@ -45,7 +45,10 @@ return [
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => null,
+            // Envio síncrono (sem fila): um SMTP lento não pode prender a requisição.
+            'timeout' => (int) env('MAIL_TIMEOUT', 10),
+            // true: só envia com STARTTLS (porta 2525/587); nunca manda usuário e senha sem criptografia.
+            'require_tls' => (bool) env('MAIL_REQUIRE_TLS', false),
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 

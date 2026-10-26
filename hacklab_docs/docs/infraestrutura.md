@@ -290,7 +290,7 @@ Segredos (🔒) só no painel do Render, nunca no Git. URLs reais são definidas
 | `DB_SSLMODE` | `require` (ou `verify-full` + `DB_SSLROOTCERT`) |
 | `DB_SEARCH_PATH` | `hacklab` |
 | `QUEUE_CONNECTION` | `sync` (não há worker; ver §3.2.6) |
-| `MAIL_*` (`MAIL_PASSWORD` 🔒) | §3.2.7 |
+| `MAIL_*` (`MAIL_USERNAME` 🔒, `MAIL_PASSWORD` 🔒), incluindo `MAIL_REQUIRE_TLS` e `MAIL_TIMEOUT` | §3.2.7 |
 | `EVEN3_ENABLED`, `EVEN3_BASE_URL`, `EVEN3_WEBHOOK_HEADER` | configuração da Even3 |
 | `EVEN3_API_TOKEN` 🔒, `EVEN3_WEBHOOK_SECRET` 🔒 | segredos da Even3 |
 | `HACKLAB_MIGRATE_ON_START` | Free: `true` só no primeiro deploy ou com migration nova, depois `false`. Pago: `false` (usa o Pre-Deploy) |
@@ -346,24 +346,39 @@ Nenhum fluxo atual usa fila: não existe `ShouldQueue` nem `dispatch`. Os e-mail
 
 ### 3.2.7 E-mail (primeiro acesso e recuperação de senha)
 
-O backend envia e-mails por Laravel Mail/Notifications, sem SDK de provedor:
+O backend envia e-mails por Laravel Mail/Notifications, sem SDK de provedor. Só dois e-mails existem: primeiro acesso (`AccountActivationNotification`) e redefinição de senha (`ResetPasswordNotification`). O envio é síncrono, dentro da requisição (sem fila).
 
 - desenvolvimento: `MAIL_MAILER=log` (o e-mail, com o link, vai para `storage/logs`; só em desenvolvimento);
-- produção (Fase 12): SMTP configurado só nas variáveis do Render, nunca no Git:
+- produção: hoje `MAIL_MAILER=array` (nada é entregue). **Nunca `log` nem o mailer `failover` (smtp→log) em produção**: os links com token iriam para o stderr do Render. Se `MAIL_MAILER` faltar, o padrão do `config/mail.php` é `log`: a variável é obrigatória no Render.
+
+**Provedor candidato: SendPulse (aguarda confirmação do responsável).** Verificado em 26/10/2026 a partir de fora do Render: `smtp-pulse.com` aceita STARTTLS na porta **2525** (TLS 1.3, certificado `CN=smtp-pulse.com` válido), além de 587 (STARTTLS) e 465 (TLS direto). O Render Free bloqueia 25/465/587; a 2525 não consta na lista de bloqueio, mas **só um envio a partir do Render confirma**. Plano gratuito da SendPulse: 12.000 e-mails/mês e até 50/hora, ativado depois de autenticar o domínio (SPF + DKIM) e cadastrar um remetente nesse domínio; sem domínio autenticado, a conta de teste envia no máximo 50 e-mails, 10/hora, de um remetente da própria SendPulse.
+
+Variáveis no Render (valores reais só no painel, nunca no Git):
 
 ```text
 MAIL_MAILER=smtp
-MAIL_HOST=
-MAIL_PORT=
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_SCHEME=
-MAIL_FROM_ADDRESS=
+MAIL_HOST=smtp-pulse.com
+MAIL_PORT=2525
+MAIL_SCHEME=smtp              (STARTTLS; "smtps" só na 465)
+MAIL_REQUIRE_TLS=true         (recusa enviar se o STARTTLS não for oferecido)
+MAIL_TIMEOUT=10               (segundos; o envio é síncrono)
+MAIL_USERNAME=🔒              (login SMTP da SendPulse: SMTP → Settings)
+MAIL_PASSWORD=🔒              (senha SMTP, diferente da senha do painel)
+MAIL_FROM_ADDRESS=            (remetente num domínio autenticado com SPF/DKIM)
 MAIL_FROM_NAME=HackLab
-FRONTEND_URL=https://…        (base dos links de ativação e redefinição)
+FRONTEND_URL=https://…        (base dos links de ativação e redefinição; sem ela os links apontam para localhost)
 ```
 
-- a escolha do provedor SMTP fica para a Fase 12. No Render Free, as portas 25/465/587 estão bloqueadas: o provedor precisa oferecer porta alternativa (ex.: 2525) enquanto o serviço estiver no Free;
+Comportamento garantido pelo código:
+- falha do servidor de envio (fora do ar, senha errada, timeout) não muda a resposta pública: o pedido continua respondendo 202 genérico e a falha vai para o log de erros (`report`), sem o token;
+- o layout do e-mail sai em português (`lang/pt_BR.json`, só nos e-mails; o idioma da aplicação não muda);
+- teste de envio sem token: `php artisan hacklab:mail-test seu@email` mostra a configuração (sem a senha) e envia uma mensagem simples.
+
+Como testar, nesta ordem e só com endereços próprios:
+1. **Fora do Render (credenciais do provedor):** num `back/.env` local, temporário, com as variáveis acima, rodar `php artisan hacklab:mail-test seu@email`; conferir recebimento, remetente e se não caiu no spam. Apagar a senha do `.env` local depois.
+2. **No Render (porta 2525 a partir do Free):** com as variáveis no painel e um deploy, pedir "Esqueci minha senha" na tela de login para a conta do próprio Administrador. Recebido o e-mail, concluir a redefinição. Se não chegar, ver o log do Render (falha de conexão = porta bloqueada; falha de autenticação = credencial).
+3. **Primeiro acesso:** com uma inscrição de teste própria (Público ou Jurado), pedir o primeiro acesso e concluir.
+
 - `php artisan hacklab:prune-auth-tokens` limpa tokens vencidos; em produção, junto do Cron Job (§3.2.5).
 
 ### 3.2.8 IP real do cliente e host (HACKLAB-IP-001)

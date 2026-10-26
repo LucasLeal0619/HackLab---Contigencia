@@ -14,7 +14,10 @@ class ResetPasswordNotification extends Notification
 {
     use Queueable;
 
-    public function __construct(public readonly string $token) {}
+    /** Layout do e-mail (saudação, rodapé, texto do link) em português: lang/pt_BR.json. */
+    public $locale = 'pt_BR';
+
+    public function __construct(#[\SensitiveParameter] public readonly string $token) {}
 
     /**
      * @return list<string>
