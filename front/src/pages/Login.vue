@@ -44,7 +44,7 @@ async function submit(event) {
 <template>
   <AuthFrame>
     <form class="login-card" novalidate @submit="submit">
-      <h2>Bem-vindo ao HackLab</h2>
+      <h2>Bem-vindo ao <span class="login-brand-name">HackLab</span></h2>
       <p class="lead">Acesse sua conta para acompanhar e gerenciar a organização do Hackathon.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <Field label="E-mail">
@@ -63,7 +63,7 @@ async function submit(event) {
       <div class="login-row">
         <label class="check"><input v-model="remember" type="checkbox" /> Lembrar meu e-mail</label>
       </div>
-      <button class="btn full" type="submit" :disabled="pending || !email || !password">{{ pending ? 'Entrando…' : 'Entrar' }}</button>
+      <button class="btn full" type="submit" :disabled="pending || !email || !password">{{ pending ? 'Entrando…' : 'Entrar' }} <Icon name="chevron" :size="18" class="login-arrow" /></button>
       <div class="login-links">
         <p>Primeiro acesso? <button type="button" class="linkish" @click="go('primeiro-acesso')">Ativar minha conta</button></p>
         <p>Esqueci minha senha? <button type="button" class="linkish" @click="go('esqueci-senha')">Redefinir senha</button></p>
