@@ -94,6 +94,7 @@ Event
 ├── EventRegistration*
 ├── Team*
 ├── Challenge*
+├── FinancialItem*
 └── VotingSession*
 
 EventIntegration (EVEN3)
@@ -240,6 +241,8 @@ Permissões iniciais (Fase 1), definidas em `App\Domain\Users\Enums\PermissionCo
 | `audit_logs.view` (era `audit.view` até a Fase 7) | ✓ | | | | | |
 | `events.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `events.manage` | ✓ | | | | | |
+| `finance.view` | ✓ | ✓ | ✓ | | | |
+| `finance.manage` | ✓ | ✓ | ✓ | | | |
 | `sectors.view` | ✓ | ✓ | ✓ | ✓ | | |
 | `sectors.manage` | ✓ | ✓ | | | | |
 | `meetings.view` | ✓ | ✓ | ✓ | ✓ | | |
@@ -538,6 +541,30 @@ updated_at
 ```
 
 Reunião geral: `sector_id` nulo. FK composta `(sector_id, event_id) → sectors(id, event_id)`: o setor é sempre do mesmo evento da reunião. Status `SCHEDULED | DONE | CANCELLED` (check).
+
+### financial_items
+
+```text
+id
+event_id FK → events (restrict on delete)
+category
+item
+specification
+quantity decimal(12,4), >= 0
+unit
+unit_price decimal(12,4) nullable, >= 0
+supplier nullable
+status
+notes nullable
+created_at
+updated_at
+```
+
+Índices por `(event_id, category)` e `(event_id, status)`. Categoria, item, especificação, quantidade,
+unidade e status são obrigatórios; fornecedor, preço e observação podem ficar vazios durante a cotação.
+`unit_price = null` significa preço ainda indefinido; zero é válido. Não persistir `total`: a API calcula
+`quantity × unit_price`, arredonda para centavos e retorna `null` enquanto o preço estiver indefinido.
+Totais e indicadores são agregados somente dos itens do evento e seus dados atuais.
 
 ## 4. Pendências
 

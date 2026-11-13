@@ -36,7 +36,7 @@ export const ADMIN = {
   role: { code: 'ADMINISTRATOR', name: 'Administrador' },
   sector: null,
   person: { id: 1, full_name: 'Administrador HackLab' },
-  permissions: ['users.view', 'users.manage', 'audit_logs.view', 'events.view', 'events.manage', 'participants.view', 'teams.view', 'companies.view', 'challenges.view', 'tasks.view', 'occurrences.view', 'sectors.view', 'meetings.view', 'voting_sessions.view', 'results.preview', 'jurors.view', 'evaluations.all.view', 'integrations.view', 'evaluations.own'],
+  permissions: ['users.view', 'users.manage', 'audit_logs.view', 'events.view', 'events.manage', 'participants.view', 'teams.view', 'companies.view', 'challenges.view', 'tasks.view', 'occurrences.view', 'sectors.view', 'finance.view', 'finance.manage', 'meetings.view', 'voting_sessions.view', 'results.preview', 'jurors.view', 'evaluations.all.view', 'integrations.view', 'evaluations.own'],
 }
 
 export const MANAGER = {

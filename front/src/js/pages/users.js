@@ -82,6 +82,7 @@ export function useUsers() {
     showPassword.value = false
     save.clear()
     modal.value = 'create'
+    sectors.load()
   }
 
   function openDetail(item) {
@@ -104,6 +105,7 @@ export function useUsers() {
     showPassword.value = false
     update.clear()
     modal.value = 'edit'
+    sectors.load()
   }
 
   const save = useAction(async () => {

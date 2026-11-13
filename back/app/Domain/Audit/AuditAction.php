@@ -3,8 +3,8 @@
 namespace App\Domain\Audit;
 
 /**
- * Ações auditadas. Módulos: auth, users, people, events, sectors, meetings, classes, participants, teams,
- * companies, challenges, tasks, occurrences, jurors, evaluations, voting, results.
+ * Ações auditadas. Módulos: auth, users, people, events, sectors, finance, meetings, classes, participants,
+ * teams, companies, challenges, tasks, occurrences, jurors, evaluations, voting, results.
  *
  * Avaliações: salvar rascunho não gera auditoria; o log registra transições (quem, qual avaliação,
  * jurado, equipe), não as notas e comentários.
@@ -62,6 +62,12 @@ final class AuditAction
     public const SECTOR_ACTIVATED = 'SECTOR_ACTIVATED';
 
     public const SECTOR_INACTIVATED = 'SECTOR_INACTIVATED';
+
+    public const FINANCIAL_ITEM_CREATED = 'FINANCIAL_ITEM_CREATED';
+
+    public const FINANCIAL_ITEM_UPDATED = 'FINANCIAL_ITEM_UPDATED';
+
+    public const FINANCIAL_ITEM_DELETED = 'FINANCIAL_ITEM_DELETED';
 
     public const MEETING_CREATED = 'MEETING_CREATED';
 

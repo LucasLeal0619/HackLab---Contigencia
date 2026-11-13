@@ -21,6 +21,8 @@ enum PermissionCode: string
     case EventsManage = 'events.manage';
     case SectorsView = 'sectors.view';
     case SectorsManage = 'sectors.manage';
+    case FinanceView = 'finance.view';
+    case FinanceManage = 'finance.manage';
     case MeetingsView = 'meetings.view';
     case MeetingsManage = 'meetings.manage';
     case ClassesView = 'classes.view';
@@ -79,6 +81,8 @@ enum PermissionCode: string
             self::EventsManage => 'Cadastrar e editar eventos e dias',
             self::SectorsView => 'Consultar setores (no escopo do usuário)',
             self::SectorsManage => 'Gerenciar setores (no escopo do usuário)',
+            self::FinanceView => 'Consultar compras e despesas do setor financeiro',
+            self::FinanceManage => 'Cadastrar e gerenciar compras e despesas do setor financeiro',
             self::MeetingsView => 'Consultar reuniões (no escopo do usuário)',
             self::MeetingsManage => 'Gerenciar reuniões (no escopo do usuário)',
             self::ClassesView => 'Consultar turmas',
@@ -139,6 +143,7 @@ enum PermissionCode: string
             RoleCode::Manager->value => [
                 self::PeopleView, self::EventsView,
                 self::SectorsView, self::SectorsManage,
+                self::FinanceView, self::FinanceManage,
                 self::MeetingsView, self::MeetingsManage,
                 self::ClassesView, self::ParticipantsView, self::TeamsView,
                 self::CompaniesView, self::ChallengesView,
@@ -148,7 +153,7 @@ enum PermissionCode: string
                 self::ResultsViewPublished,
             ],
             RoleCode::Editor->value => [
-                self::PeopleView, self::EventsView, self::SectorsView, self::MeetingsView,
+                self::PeopleView, self::EventsView, self::SectorsView, self::FinanceView, self::FinanceManage, self::MeetingsView,
                 self::ClassesView, self::ParticipantsView, self::TeamsView,
                 self::CompaniesView, self::ChallengesView,
                 self::TasksView, self::TasksComment, self::TasksCreate, self::TasksOperate,

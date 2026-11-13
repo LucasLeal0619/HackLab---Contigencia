@@ -110,6 +110,7 @@ O HackLab gerencia:
 - avaliações;
 - votação;
 - resultados;
+- compras, orçamentos, fornecedores e despesas do Hackathon;
 - presença sincronizada;
 - relatórios;
 - auditoria;
@@ -297,6 +298,7 @@ O HackLab é autoridade sobre `Participant`, `User`, perfil, setor, `Company`, `
 - E-mail pode ajudar a vincular pessoa, mas não deve ser a única chave externa.
 - Webhooks devem ser idempotentes.
 - Sincronizações devem ser repetíveis sem duplicar dados.
+- O Setor Financeiro é persistido por evento; somente Administrador e Gestor/Editor vinculados ao setor ativo “Setor Financeiro” podem consultá-lo. A API valida `finance.view`/`finance.manage`; valores e totais nunca são fixos, e o total é derivado da quantidade e do preço.
 - Paginar listagens grandes.
 - Usar soft delete apenas onde houver necessidade real de recuperação/histórico.
 - Não apagar logs de auditoria via interface.

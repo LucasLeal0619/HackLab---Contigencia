@@ -87,8 +87,12 @@ describe('navegação por permissão', () => {
     expect(canAccess(ADMIN, 'votacao')).toBe(false)
   })
 
+  it('administrador acessa o Setor Financeiro', () => {
+    expect(canAccess(ADMIN, 'financeiro')).toBe(true)
+  })
+
   it('rotas removidas do protótipo não existem', () => {
-    for (const route of ['cadastro', 'documentos', 'premiacao', 'roletas', 'manifestacao', 'financeiro']) {
+    for (const route of ['cadastro', 'documentos', 'premiacao', 'roletas', 'manifestacao']) {
       expect(canAccess(ADMIN, route)).toBe(false)
     }
   })

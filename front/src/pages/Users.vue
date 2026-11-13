@@ -11,7 +11,7 @@ import Search from '../components/Search.vue'
 import { useUsers } from '@/js/pages/users'
 
 const {
-  list, roles, activeSectors, roleOptions, matrix, modal, selected, form, showPassword, needsSector, personSearch, people, searchPeople,
+  list, roles, sectors, activeSectors, roleOptions, matrix, modal, selected, form, showPassword, needsSector, personSearch, people, searchPeople,
   canManage, canRoles, openCreate, openDetail, openEdit, save, update, toggleStatus, label, tone, options, formatDateTime,
 } = useUsers()
 const { filters, page, items, meta, loading, error, loaded } = list
@@ -114,12 +114,17 @@ const { filters, page, items, meta, loading, error, loaded } = list
             <option v-for="[code, name] in roleOptions" :key="code" :value="code">{{ name }}</option>
           </select>
         </Field>
-        <Field v-if="needsSector" label="Setor" required :error="save.fieldErrors.value.sector_id" hint="Gestor e Editor atuam só no próprio setor.">
+        <Field v-if="needsSector" label="Setor" required :error="save.fieldErrors.value.sector_id" :hint="sectors.loading.value ? 'Atualizando setores…' : 'Gestor e Editor atuam só no próprio setor.'">
           <select v-model="form.sector_id" class="input">
             <option value="">Selecione</option>
+            <option v-if="sectors.loading.value && !activeSectors.length" disabled value="__loading">Carregando setores…</option>
             <option v-for="item in activeSectors" :key="item.id" :value="item.id">{{ item.name }}</option>
           </select>
         </Field>
+        <div v-if="sectors.error.value" class="span-2 banner err" role="alert">
+          <span>Não foi possível atualizar a lista de setores: {{ sectors.error.value.message }}</span>
+          <button class="btn ghost small" type="button" :disabled="sectors.loading.value" @click="sectors.load()">Tentar novamente</button>
+        </div>
         <Field label="Status" :error="save.fieldErrors.value.status">
           <select v-model="form.status" class="input">
             <option v-for="[code, name] in options('activeStatus')" :key="code" :value="code">{{ name }}</option>
@@ -150,12 +155,17 @@ const { filters, page, items, meta, loading, error, loaded } = list
             <option v-for="[code, name] in roleOptions" :key="code" :value="code">{{ name }}</option>
           </select>
         </Field>
-        <Field v-if="needsSector" label="Setor" required :error="update.fieldErrors.value.sector_id">
+        <Field v-if="needsSector" label="Setor" required :error="update.fieldErrors.value.sector_id" :hint="sectors.loading.value ? 'Atualizando setores…' : ''">
           <select v-model="form.sector_id" class="input">
             <option value="">Selecione</option>
+            <option v-if="sectors.loading.value && !activeSectors.length" disabled value="__loading">Carregando setores…</option>
             <option v-for="item in activeSectors" :key="item.id" :value="item.id">{{ item.name }}</option>
           </select>
         </Field>
+        <div v-if="sectors.error.value" class="span-2 banner err" role="alert">
+          <span>Não foi possível atualizar a lista de setores: {{ sectors.error.value.message }}</span>
+          <button class="btn ghost small" type="button" :disabled="sectors.loading.value" @click="sectors.load()">Tentar novamente</button>
+        </div>
         <Field label="Status" :error="update.fieldErrors.value.status">
           <select v-model="form.status" class="input">
             <option v-for="[code, name] in options('activeStatus')" :key="code" :value="code">{{ name }}</option>

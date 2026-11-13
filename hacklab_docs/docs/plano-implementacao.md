@@ -436,7 +436,7 @@ Quatro relatórios com dados reais do backend (desenho em `arquitetura.md` §15,
 - [x] gestão/operação;
 - [x] encerramento/resultados;
 - [x] Central de Relatórios no Vue com visualização e PDF (pdfmake sob demanda);
-- [x] financeiro: **não entregue** — não existe domínio financeiro real no backend; nada é inventado ou zerado.
+- [x] no escopo original da Fase 11, o financeiro não integrava os relatórios; o domínio financeiro foi entregue na Fase 14.
 
 Sem migration nova: relatório não é persistido (sem tabela, sem PDF guardado, sem histórico).
 
@@ -559,6 +559,15 @@ Decisão e regras em `infraestrutura.md` §2.2 e §2.3. A produção (PostgreSQL
 - [ ] fluxos: login, consulta de equipes, votação e gravação de voto, jurados, resultados;
 - [ ] medir p95, taxa de erro, memória da instância e conexões no pooler;
 - [ ] decidir: Render Free aprovado, ou contingência (mais compute no Render ou outro host para o Laravel).
+
+## Fase 14 — Setor Financeiro
+
+- [x] domínio de itens financeiros persistido por evento, com migration compatível com PostgreSQL e MySQL;
+- [x] permissões `finance.view` e `finance.manage`, com escopo de setor financeiro para Gestor/Editor;
+- [x] API autenticada para listar, criar, editar e excluir, com validação Form Request, Policy, Resource e auditoria;
+- [x] interface integrada a Setores, com pesquisa, filtros, ordenação, cálculo monetário e resumos derivados dos registros;
+- [x] testes unitários de cálculo financeiro, testes do frontend, Pint e build;
+- [ ] executar testes Feature nos bancos PostgreSQL e MySQL após provisionar `hacklab_test` e habilitar os drivers locais.
 
 ## Critérios globais
 

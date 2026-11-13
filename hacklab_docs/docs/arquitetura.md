@@ -143,6 +143,16 @@ Mantém configuração do Hackathon:
 - dias do evento;
 - integração externa associada.
 
+### FinancialItems
+
+Compras e despesas do evento são registros do domínio financeiro, persistidos em `financial_items`.
+O item pertence ao evento; quantidade, valor unitário, categoria, fornecedor, status e observações são editáveis.
+O valor total é derivado no backend e nunca aceito como entrada.
+
+A área é aberta a partir de Setores. Administrador tem acesso global; Gestor e Editor só acessam quando
+seu setor ativo no evento se chama `Setor Financeiro`. As permissões `finance.view` e `finance.manage`
+são obrigatórias também na API. Consultor, Jurado e Votante não têm acesso.
+
 ### Participants
 
 Representa exclusivamente o aluno que participa do Hackathon desenvolvendo solução.
@@ -272,6 +282,11 @@ O HackLab acompanha presença, não executa QR/credenciamento.
 
 Auditoria backend, imutável pela interface.
 
+### Finance
+
+Resumo geral e por categoria é derivado dos itens do evento, sem valores predefinidos ou tabelas de resumo.
+Preço unitário nulo representa cotação pendente; zero é um valor válido (por exemplo, brinde ou empréstimo).
+
 ## 5. Perfis
 
 Perfis internos atuais:
@@ -345,7 +360,6 @@ opera       = permissão + (alcance global OU setor do usuário = responsável a
 encaminha   = permissão de roteamento + (alcance global OU setor do usuário = responsável atual)
 ```
 
-
 ### 6.3 Setores de destino de demandas (Fase 10)
 
 `GET /events/{event}/sectors` continua escopado (Gestor/Editor veem só o próprio setor). Para encaminhar ou criar demanda para outro setor, quem tem a operação usa um contrato próprio:
@@ -358,6 +372,13 @@ GET /events/{event}/occurrences/routing-sectors   exige occurrences.route
 - devolve só `{ id, name }` dos setores **ativos** do evento (os destinos que o backend aceita no encaminhamento);
 - quem tem setor só consulta o evento do próprio setor (403 nos demais); alcance global consulta qualquer evento;
 - Editor, Consultor, Jurado e Votante (sem `*.route`) recebem 403. A visibilidade normal de setores não muda.
+
+### 6.4 Financeiro
+
+- `finance.view`: Administrador, Gestor e Editor; Gestor/Editor só acessam se o setor ativo do usuário
+  for `Setor Financeiro` no evento consultado.
+- `finance.manage`: mesmos perfis e escopo; permite cadastrar, editar e excluir itens.
+- Todas as rotas verificam permissão e escopo no backend. Ocultar a entrada da interface não é autorização.
 
 ## 7. Integração externa (Fase 9)
 
@@ -426,6 +447,7 @@ Principais grupos (fonte da verdade: `back/routes/api.php`):
 /users (+ /role, /status, /sector)
 /events (+ /days, /dashboard)
 /events/{event}/sectors, /sectors
+/events/{event}/financial-items, /financial-items
 /events/{event}/meetings, /meetings
 /events/{event}/classes, /classes
 /events/{event}/participants, /participants (+ /team)
@@ -641,7 +663,7 @@ PostgreSQL → Laravel (ReportController → App\Domain\Reports\*ReportBuilder) 
 - Metadados comuns: `type`, `title`, `generated_at` (relógio do backend), `generated_by` (usuário autenticado: id, nome, perfil) e o evento com seus `EventDay` reais.
 - O PDF é montado no navegador **só a partir do payload do endpoint** (nunca DOM, localStorage ou consultas paralelas). Os templates de PDF são funções puras.
 - Ler/gerar/baixar relatório não gera auditoria (é leitura).
-- Não existe relatório financeiro: não há domínio financeiro no backend.
+- Os relatórios consolidados não incluem dados financeiros; o domínio financeiro é consultado na própria área do Setor Financeiro.
 
 ## 16. Primeiro acesso e recuperação de senha (Complemento 11.1)
 

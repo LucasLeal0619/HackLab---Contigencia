@@ -35,6 +35,11 @@ export function useSectors(props) {
   const canOccurrences = computed(() => hasPermission('occurrences.view'))
   const canMeetings = computed(() => hasPermission('meetings.view'))
   const canUsers = computed(() => hasPermission('users.view'))
+  const canOpenFinance = computed(() => {
+    if (!hasPermission('finance.view')) return false
+    const sector = auth.user?.sector
+    return !sector || (sector.active !== false && String(sector.name || '').trim().toLocaleLowerCase('pt-BR') === 'setor financeiro')
+  })
 
   const statusFilter = ref('')
   const sectors = useRequest(() => (eventContext.activeEventId ? listSectors(eventContext.activeEventId) : []), {
@@ -49,6 +54,8 @@ export function useSectors(props) {
   })
   const mySectors = computed(() => visibleSectors.value.filter((item) => item.id === ownSectorId.value))
   const otherSectors = computed(() => visibleSectors.value.filter((item) => item.id !== ownSectorId.value))
+  const isFinanceSector = (sector) => String(sector?.name || '').trim().toLocaleLowerCase('pt-BR') === 'setor financeiro'
+  const showFinanceCard = computed(() => canOpenFinance.value && mySectors.value.length === 0 && !visibleSectors.value.some(isFinanceSector))
 
   // Setor aberto: ?setor=<id>. Quem só alcança um setor cai direto nele.
   const openedId = computed(() => {
@@ -202,6 +209,8 @@ export function useSectors(props) {
     visibleSectors,
     mySectors,
     otherSectors,
+    isFinanceSector,
+    showFinanceCard,
     opened,
     openedId,
     showBack,
@@ -213,6 +222,7 @@ export function useSectors(props) {
     canOccurrences,
     canMeetings,
     canUsers,
+    canOpenFinance,
     selectSector,
     relation,
     tasks,

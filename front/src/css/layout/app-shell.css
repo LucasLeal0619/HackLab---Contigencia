@@ -1,4 +1,6 @@
 .shell { height: 100vh; display: grid; grid-template-columns: var(--sidebar) 1fr; overflow: hidden; }
+.shell.nav-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+.shell.nav-collapsed .sidebar { min-width: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
 .workspace { min-width: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
 .topbar {
   height: 64px;
@@ -16,8 +18,7 @@
 .top-title { margin: 0; font-size: 16px; font-weight: 650; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .tool { position: relative; display: flex; align-items: center; }
-.menu-btn { display: none; }
-.icon-btn.menu-btn { display: none; }
+.menu-btn, .icon-btn.menu-btn { display: inline-flex; }
 .icon-btn, .user-btn, .a11y-btn {
   border: 1px solid var(--line);
   background: #fff;

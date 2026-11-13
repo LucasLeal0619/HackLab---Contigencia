@@ -10,18 +10,17 @@ import { useShell } from '@/js/components/shell'
 const props = defineProps({
   path: { type: String, default: '' },
 })
-const { ui, open, panel, nav, isOpen, toggleGroup, togglePanel, current, alerts, alertCount, canAlerts, spacingOptions, setA11y, resetA11y, eventContext, activeEvent, selectEvent, go } = useShell(props)
+const { ui, open, isNarrow, panel, nav, isOpen, toggleGroup, toggleNavigation, closeNavigation, togglePanel, current, alerts, alertCount, canAlerts, spacingOptions, setA11y, resetA11y, eventContext, activeEvent, selectEvent, go } = useShell(props)
 </script>
 
 <template>
-  <div class="shell">
+  <div class="shell" :class="{ 'nav-collapsed': !open && !isNarrow }">
     <a class="skip" href="#conteudo">Ir para o conteúdo</a>
-    <!-- Tablet e celular: a navegação vira drawer, aberto pelo botão ☰ do cabeçalho. -->
-    <div v-if="open" class="nav-backdrop" aria-hidden="true" @click="open = false" />
-    <aside id="navegacao" class="sidebar" :class="{ open }" aria-label="Navegação">
+    <div v-if="open && isNarrow" class="nav-backdrop" aria-hidden="true" @click="closeNavigation" />
+    <aside id="navegacao" class="sidebar" :class="{ open: open && isNarrow }" aria-label="Navegação" :aria-hidden="!open" :inert="!open">
       <div class="side-brand">
         <Logo />
-        <button class="icon-btn nav-close" type="button" aria-label="Fechar menu" title="Fechar menu" @click="open = false"><Icon name="x" /></button>
+        <button class="icon-btn nav-close" type="button" aria-label="Fechar menu" title="Fechar menu" @click="closeNavigation"><Icon name="x" /></button>
       </div>
       <div v-for="group in nav" :key="group.group" class="nav-group">
         <p class="nav-label">{{ group.group }}</p>
@@ -47,7 +46,7 @@ const { ui, open, panel, nav, isOpen, toggleGroup, togglePanel, current, alerts,
               :class="{ active: current.item === child.id }"
               :tabindex="isOpen(item.id) ? 0 : -1"
               :aria-current="current.item === child.id ? 'page' : undefined"
-              @click="go(child.id); open = false; panel = ''"
+              @click="go(child.id); closeNavigation(); panel = ''"
             >
               {{ child.label }}
             </button>
@@ -58,7 +57,7 @@ const { ui, open, panel, nav, isOpen, toggleGroup, togglePanel, current, alerts,
             class="nav-item"
             :class="{ active: current.item === item.id }"
             :aria-current="current.item === item.id ? 'page' : undefined"
-            @click="go(item.id); open = false; panel = ''"
+            @click="go(item.id); closeNavigation(); panel = ''"
           >
             <Icon :name="item.icon" /> {{ item.label }}
           </button>
@@ -68,7 +67,7 @@ const { ui, open, panel, nav, isOpen, toggleGroup, togglePanel, current, alerts,
     </aside>
     <div class="workspace">
       <header class="topbar">
-        <button class="icon-btn menu-btn" type="button" aria-label="Abrir menu" title="Abrir menu" aria-controls="navegacao" :aria-expanded="open" @click="open = !open"><Icon name="menu" /></button>
+        <button class="icon-btn menu-btn" type="button" :aria-label="open ? 'Fechar menu' : 'Abrir menu'" :title="open ? 'Fechar menu' : 'Abrir menu'" aria-controls="navegacao" :aria-expanded="open" @click="toggleNavigation"><Icon :name="open ? 'x' : 'menu'" /></button>
         <span class="top-brand"><b>Hack</b><b class="lab">Lab</b></span>
         <!-- Centro Even3: único disparo visual da sincronização central (Administrador e Consultor). -->
         <Even3Center />

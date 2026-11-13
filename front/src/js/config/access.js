@@ -15,6 +15,7 @@ export const ROUTES = {
   desafio: ['challenges.view'],
   distribuicao: ['challenges.view'],
   setores: ['sectors.view'],
+  financeiro: ['finance.view'],
   reunioes: ['meetings.view'],
   reuniao: ['meetings.view'],
   pendencias: ['tasks.view'],

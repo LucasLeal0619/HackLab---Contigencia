@@ -46,4 +46,9 @@ class Event extends Model
     {
         return $this->hasMany(Meeting::class);
     }
+
+    public function financialItems(): HasMany
+    {
+        return $this->hasMany(FinancialItem::class);
+    }
 }

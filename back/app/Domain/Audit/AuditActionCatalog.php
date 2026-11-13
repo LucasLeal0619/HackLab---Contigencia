@@ -18,6 +18,7 @@ final class AuditActionCatalog
         'people' => 'Pessoas',
         'events' => 'Eventos',
         'sectors' => 'Setores',
+        'finance' => 'Financeiro',
         'meetings' => 'Reuniões',
         'classes' => 'Turmas',
         'participants' => 'Participantes',
@@ -61,6 +62,10 @@ final class AuditActionCatalog
         AuditAction::SECTOR_UPDATED => ['sectors', 'Setor alterado'],
         AuditAction::SECTOR_ACTIVATED => ['sectors', 'Setor ativado'],
         AuditAction::SECTOR_INACTIVATED => ['sectors', 'Setor inativado'],
+
+        AuditAction::FINANCIAL_ITEM_CREATED => ['finance', 'Item financeiro cadastrado'],
+        AuditAction::FINANCIAL_ITEM_UPDATED => ['finance', 'Item financeiro alterado'],
+        AuditAction::FINANCIAL_ITEM_DELETED => ['finance', 'Item financeiro excluído'],
 
         AuditAction::MEETING_CREATED => ['meetings', 'Reunião criada'],
         AuditAction::MEETING_UPDATED => ['meetings', 'Reunião alterada'],

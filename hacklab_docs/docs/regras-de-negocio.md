@@ -80,6 +80,22 @@ Somente avaliações atribuídas e funcionalidades necessárias ao perfil.
 ### Votante
 Somente votação e experiência pública autorizada. Vota apenas nas sessões em que foi declarado elegível (§11.2).
 
+## 4.1 Financeiro
+
+- A área financeira é aberta a partir de Setores e pertence ao evento ativo.
+- Administrador tem escopo global. Gestor e Editor só acessam se estiverem vinculados a um setor ativo
+  chamado `Setor Financeiro` do mesmo evento. Consultor, Jurado e Votante não acessam.
+- A API valida `finance.view` para leitura e `finance.manage` para criar, editar e excluir.
+- Categoria, nome do item, especificação, quantidade, unidade e status são informados pelo usuário.
+  Fornecedor, preço unitário e observação podem ficar vazios enquanto houver cotação pendente.
+- Quantidade e preço não podem ser negativos. Preço nulo é distinto de preço zero.
+- Total do item = quantidade × preço unitário, arredondado a centavos; total é somente leitura.
+- Total estimado soma todos os itens com preço informado. O resumo por categoria agrupa as categorias
+  encontradas nos itens, sem categorias ou valores fixos.
+- Itens cotados são os que têm preço informado e status iniciado por “Cotado”; pendentes são os que
+  aguardam preço ou têm status “A cotar”. Os demais status permanecem disponíveis para acompanhamento.
+- Criação, edição e exclusão são auditadas. Exclusão exige confirmação na interface.
+
 ## 5. Pendência
 
 Pendência = algo que precisa ser feito.
@@ -522,7 +538,7 @@ Regras da Fase 11:
 - Votação: participação por sessão (elegíveis, votos, %). Contagem por equipe só aparece pelo resultado oficial publicado; nunca durante a sessão aberta. Nunca eleitor → equipe, id ou e-mail de votante.
 - Resultado oficial: vem do snapshot da publicação `PUBLISHED` atual (versão e data), sem recalcular; técnico e popular em seções separadas, sem nota combinada. Sem publicação: "Resultado oficial ainda não publicado." Ranking técnico não publicado não aparece no relatório.
 - Nunca entram em relatório: senha, documento pessoal, código de check-in, token/segredo da Even3, cookies, auditoria (before/after).
-- Não há relatório financeiro (não existe domínio financeiro).
+- O financeiro não integra os relatórios consolidados; seus registros e resumos ficam na área Setor Financeiro.
 
 ## 21. Regra de consistência
 

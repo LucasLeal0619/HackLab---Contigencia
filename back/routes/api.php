@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\EventController;
 use App\Http\Controllers\Api\V1\EventDashboardController;
 use App\Http\Controllers\Api\V1\EventDayController;
 use App\Http\Controllers\Api\V1\EventRegistrationController;
+use App\Http\Controllers\Api\V1\FinancialItemController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\JurorController;
 use App\Http\Controllers\Api\V1\MeetingController;
@@ -91,6 +92,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/sectors/{sector}', [SectorController::class, 'show'])->name('sectors.show');
         Route::patch('/sectors/{sector}', [SectorController::class, 'update'])->name('sectors.update');
         Route::patch('/sectors/{sector}/status', [SectorController::class, 'updateStatus'])->name('sectors.status');
+
+        Route::get('/events/{event}/financial-items', [FinancialItemController::class, 'index'])->name('events.financial-items.index');
+        Route::post('/events/{event}/financial-items', [FinancialItemController::class, 'store'])->name('events.financial-items.store');
+        Route::patch('/financial-items/{financialItem}', [FinancialItemController::class, 'update'])->name('financial-items.update');
+        Route::delete('/financial-items/{financialItem}', [FinancialItemController::class, 'destroy'])->name('financial-items.destroy');
 
         Route::get('/events/{event}/meetings', [MeetingController::class, 'index'])->name('events.meetings.index');
         Route::post('/events/{event}/meetings', [MeetingController::class, 'store'])->name('events.meetings.store');

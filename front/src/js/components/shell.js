@@ -9,10 +9,30 @@ import { listOccurrences } from '@/js/services/occurrences'
 import { listTasks } from '@/js/services/tasks'
 
 export function useShell(props) {
-  const open = ref(false)
+  const mediaQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 1199px)') : null
+  const isNarrow = ref(Boolean(mediaQuery?.matches))
+  const desktopOpen = ref(true)
+  const drawerOpen = ref(false)
+  const open = computed(() => (isNarrow.value ? drawerOpen.value : desktopOpen.value))
   const panel = ref('')
   const expanded = ref([])
   const alerts = ref({ loading: false, error: null, urgent: [], overdue: [], urgentTotal: 0, overdueTotal: 0 })
+
+  function toggleNavigation() {
+    if (isNarrow.value) drawerOpen.value = !drawerOpen.value
+    else desktopOpen.value = !desktopOpen.value
+  }
+
+  function closeNavigation() {
+    if (isNarrow.value) drawerOpen.value = false
+    else desktopOpen.value = false
+  }
+
+  function onViewportChange(event) {
+    isNarrow.value = event.matches
+    if (event.matches) drawerOpen.value = false
+    else desktopOpen.value = true
+  }
 
   function isOpen(id) {
     return expanded.value.includes(id)
@@ -60,7 +80,7 @@ export function useShell(props) {
 
   watch(() => props.path, () => {
     panel.value = ''
-    open.value = false
+    if (isNarrow.value) drawerOpen.value = false
     const parent = current.value.group
     if (parent && !expanded.value.includes(parent)) expanded.value = [...expanded.value, parent]
   }, { immediate: true })
@@ -76,15 +96,17 @@ export function useShell(props) {
   function onKey(event) {
     if (event.key !== 'Escape') return
     if (panel.value) panel.value = ''
-    else if (open.value) open.value = false
+    else if (open.value) closeNavigation()
   }
 
   onMounted(() => {
+    mediaQuery?.addEventListener('change', onViewportChange)
     document.addEventListener('mousedown', onPointer)
     document.addEventListener('keydown', onKey)
     loadAlerts()
   })
   onUnmounted(() => {
+    mediaQuery?.removeEventListener('change', onViewportChange)
     document.removeEventListener('mousedown', onPointer)
     document.removeEventListener('keydown', onKey)
   })
@@ -92,10 +114,13 @@ export function useShell(props) {
   return {
     ui,
     open,
+    isNarrow,
     panel,
     nav,
     isOpen,
     toggleGroup,
+    toggleNavigation,
+    closeNavigation,
     togglePanel,
     current,
     user,

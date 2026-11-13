@@ -12,8 +12,8 @@ const props = defineProps({
   params: { type: Object, default: () => ({}) },
 })
 const {
-  sectors, statusFilter, visibleSectors, mySectors, otherSectors, opened, openedId, showBack, globalScope,
-  canCreate, canChangeStatus, canEdit, canTasks, canOccurrences, canMeetings, canUsers, selectSector,
+  sectors, statusFilter, visibleSectors, mySectors, otherSectors, isFinanceSector, showFinanceCard, opened, openedId, showBack, globalScope,
+  canCreate, canChangeStatus, canEdit, canTasks, canOccurrences, canMeetings, canUsers, canOpenFinance, selectSector,
   relation, tasks, occurrences, meetings, users, usersOpen, toggleUsers,
   taskSummary, occurrenceSummary, meetingSummary, overdueTasks, urgentOccurrences, countText,
   taskPreview, occurrencePreview, meetingPreview, openTasks, openOccurrences,
@@ -24,8 +24,8 @@ const {
 <template>
   <!-- Lista de setores -->
   <Page v-if="!openedId" title="Setores" subtitle="Áreas responsáveis pela organização do Hackathon.">
-    <template v-if="canCreate" #actions>
-      <button class="btn" type="button" @click="openCreate">Novo setor</button>
+    <template #actions>
+      <button v-if="canCreate" class="btn" type="button" @click="openCreate">Novo setor</button>
     </template>
 
     <div class="row-between sector-toolbar">
@@ -41,7 +41,7 @@ const {
       :loading="sectors.loading.value"
       :loaded="sectors.loaded.value"
       :error="sectors.error.value"
-      :empty="visibleSectors.length === 0"
+      :empty="visibleSectors.length === 0 && !showFinanceCard"
       empty-title="Nenhum setor encontrado"
       :empty-text="canCreate ? 'Cadastre o primeiro setor do evento.' : 'Nenhum setor disponível para o seu perfil.'"
       @retry="sectors.load()"
@@ -55,12 +55,13 @@ const {
             <p class="sector-desc">{{ item.description || 'Sem descrição.' }}</p>
             <div class="row-actions">
               <button class="btn small" type="button" @click="selectSector(item)">Abrir setor</button>
+              <button v-if="canOpenFinance && isFinanceSector(item)" class="btn ghost small" type="button" @click="go('financeiro')">Abrir área financeira</button>
               <button v-if="canEdit(item)" class="btn ghost small" type="button" @click="openEdit(item)">Editar</button>
             </div>
           </article>
         </div>
       </template>
-      <template v-if="otherSectors.length">
+      <template v-if="otherSectors.length || showFinanceCard">
         <h3 v-if="mySectors.length" class="ops-title">Demais setores</h3>
         <div class="grid cols-3">
           <article v-for="item in otherSectors" :key="item.id" class="card sector-card" :class="{ inactive: !item.active }">
@@ -69,8 +70,17 @@ const {
             <p class="sector-desc">{{ item.description || 'Sem descrição.' }}</p>
             <div class="row-actions">
               <button class="btn small" type="button" @click="selectSector(item)">Abrir setor</button>
+              <button v-if="canOpenFinance && isFinanceSector(item)" class="btn ghost small" type="button" @click="go('financeiro')">Abrir área financeira</button>
               <button v-if="canEdit(item)" class="btn ghost small" type="button" @click="openEdit(item)">Editar</button>
               <button v-if="canChangeStatus" class="btn ghost small" type="button" @click="askStatus(item)">{{ item.active ? 'Inativar' : 'Ativar' }}</button>
+            </div>
+          </article>
+          <article v-if="showFinanceCard" class="card sector-card">
+            <h3>Setor Financeiro</h3>
+            <p><Badge>Financeiro</Badge></p>
+            <p class="sector-desc">Gerenciamento de compras, orçamentos, fornecedores e despesas do Hackathon.</p>
+            <div class="row-actions">
+              <button class="btn small" type="button" @click="go('financeiro')">Abrir setor financeiro</button>
             </div>
           </article>
         </div>
@@ -88,6 +98,7 @@ const {
     <template #actions>
       <button v-if="showBack" class="btn ghost" type="button" @click="go('setores')">Voltar</button>
       <template v-if="opened">
+        <button v-if="canOpenFinance" class="btn ghost" type="button" @click="go('financeiro')">Setor Financeiro</button>
         <Badge :tone="tone('activeStatus', opened.active ? 'ACTIVE' : 'INACTIVE')">{{ label('activeStatus', opened.active ? 'ACTIVE' : 'INACTIVE') }}</Badge>
         <button v-if="canEdit(opened)" class="btn ghost" type="button" @click="openEdit(opened)">Editar setor</button>
         <button v-if="canChangeStatus" class="btn ghost" type="button" @click="askStatus(opened)">{{ opened.active ? 'Inativar' : 'Ativar' }}</button>

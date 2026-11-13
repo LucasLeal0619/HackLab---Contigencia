@@ -19,6 +19,7 @@
         "events",
         "external_ticket_types",
         "failed_jobs",
+        "financial_items",
         "integration_sync_runs",
         "integration_webhook_receipts",
         "job_batches",
@@ -2779,6 +2780,188 @@
             "numeric_precision": null,
             "numeric_scale": null,
             "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "category",
+            "data_type": "character varying",
+            "udt_name": "varchar",
+            "is_nullable": "NO",
+            "column_default": null,
+            "character_maximum_length": 120,
+            "numeric_precision": null,
+            "numeric_scale": null,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "created_at",
+            "data_type": "timestamp without time zone",
+            "udt_name": "timestamp",
+            "is_nullable": "YES",
+            "column_default": null,
+            "character_maximum_length": null,
+            "numeric_precision": null,
+            "numeric_scale": null,
+            "datetime_precision": 0,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "event_id",
+            "data_type": "bigint",
+            "udt_name": "int8",
+            "is_nullable": "NO",
+            "column_default": null,
+            "character_maximum_length": null,
+            "numeric_precision": 64,
+            "numeric_scale": 0,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "id",
+            "data_type": "bigint",
+            "udt_name": "int8",
+            "is_nullable": "NO",
+            "column_default": "nextval('financial_items_id_seq'::regclass)",
+            "character_maximum_length": null,
+            "numeric_precision": 64,
+            "numeric_scale": 0,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "item",
+            "data_type": "character varying",
+            "udt_name": "varchar",
+            "is_nullable": "NO",
+            "column_default": null,
+            "character_maximum_length": 180,
+            "numeric_precision": null,
+            "numeric_scale": null,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "notes",
+            "data_type": "text",
+            "udt_name": "text",
+            "is_nullable": "YES",
+            "column_default": null,
+            "character_maximum_length": null,
+            "numeric_precision": null,
+            "numeric_scale": null,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "quantity",
+            "data_type": "numeric",
+            "udt_name": "numeric",
+            "is_nullable": "NO",
+            "column_default": null,
+            "character_maximum_length": null,
+            "numeric_precision": 12,
+            "numeric_scale": 4,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "specification",
+            "data_type": "text",
+            "udt_name": "text",
+            "is_nullable": "NO",
+            "column_default": null,
+            "character_maximum_length": null,
+            "numeric_precision": null,
+            "numeric_scale": null,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "status",
+            "data_type": "character varying",
+            "udt_name": "varchar",
+            "is_nullable": "NO",
+            "column_default": null,
+            "character_maximum_length": 80,
+            "numeric_precision": null,
+            "numeric_scale": null,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "supplier",
+            "data_type": "character varying",
+            "udt_name": "varchar",
+            "is_nullable": "YES",
+            "column_default": null,
+            "character_maximum_length": 180,
+            "numeric_precision": null,
+            "numeric_scale": null,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "unit",
+            "data_type": "character varying",
+            "udt_name": "varchar",
+            "is_nullable": "NO",
+            "column_default": null,
+            "character_maximum_length": 24,
+            "numeric_precision": null,
+            "numeric_scale": null,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "unit_price",
+            "data_type": "numeric",
+            "udt_name": "numeric",
+            "is_nullable": "YES",
+            "column_default": null,
+            "character_maximum_length": null,
+            "numeric_precision": 12,
+            "numeric_scale": 4,
+            "datetime_precision": null,
+            "is_generated": "NEVER",
+            "generation_expression": null
+        },
+        {
+            "table_name": "financial_items",
+            "column_name": "updated_at",
+            "data_type": "timestamp without time zone",
+            "udt_name": "timestamp",
+            "is_nullable": "YES",
+            "column_default": null,
+            "character_maximum_length": null,
+            "numeric_precision": null,
+            "numeric_scale": null,
+            "datetime_precision": 0,
             "is_generated": "NEVER",
             "generation_expression": null
         },
@@ -6828,6 +7011,21 @@
             "definition": "CREATE UNIQUE INDEX failed_jobs_uuid_unique ON hacklab.failed_jobs USING btree (uuid)"
         },
         {
+            "table_name": "financial_items",
+            "index_name": "financial_items_event_id_category_index",
+            "definition": "CREATE INDEX financial_items_event_id_category_index ON hacklab.financial_items USING btree (event_id, category)"
+        },
+        {
+            "table_name": "financial_items",
+            "index_name": "financial_items_event_id_status_index",
+            "definition": "CREATE INDEX financial_items_event_id_status_index ON hacklab.financial_items USING btree (event_id, status)"
+        },
+        {
+            "table_name": "financial_items",
+            "index_name": "financial_items_pkey",
+            "definition": "CREATE UNIQUE INDEX financial_items_pkey ON hacklab.financial_items USING btree (id)"
+        },
+        {
             "table_name": "integration_sync_runs",
             "index_name": "integration_sync_runs_event_integration_id_started_at_index",
             "definition": "CREATE INDEX integration_sync_runs_event_integration_id_started_at_index ON hacklab.integration_sync_runs USING btree (event_integration_id, started_at)"
@@ -7942,6 +8140,30 @@
             "constraint_name": "failed_jobs_uuid_unique",
             "type": "u",
             "definition": "UNIQUE (uuid)"
+        },
+        {
+            "table_name": "financial_items",
+            "constraint_name": "financial_items_event_id_foreign",
+            "type": "f",
+            "definition": "FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE RESTRICT"
+        },
+        {
+            "table_name": "financial_items",
+            "constraint_name": "financial_items_pkey",
+            "type": "p",
+            "definition": "PRIMARY KEY (id)"
+        },
+        {
+            "table_name": "financial_items",
+            "constraint_name": "financial_items_quantity_nonnegative_check",
+            "type": "c",
+            "definition": "CHECK (quantity >= 0::numeric)"
+        },
+        {
+            "table_name": "financial_items",
+            "constraint_name": "financial_items_unit_price_nonnegative_check",
+            "type": "c",
+            "definition": "CHECK (unit_price IS NULL OR unit_price >= 0::numeric)"
         },
         {
             "table_name": "integration_sync_runs",
@@ -9193,6 +9415,15 @@
         },
         {
             "sequence_name": "failed_jobs_id_seq",
+            "data_type": "bigint",
+            "start_value": "1",
+            "minimum_value": "1",
+            "maximum_value": "9223372036854775807",
+            "increment": "1",
+            "cycle_option": "NO"
+        },
+        {
+            "sequence_name": "financial_items_id_seq",
             "data_type": "bigint",
             "start_value": "1",
             "minimum_value": "1",

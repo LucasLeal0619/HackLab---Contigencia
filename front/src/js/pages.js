@@ -19,6 +19,7 @@ export const PAGES = {
   desafio: { component: lazy(() => import('@/pages/ChallengeDetail.vue')) },
   distribuicao: { component: lazy(() => import('@/pages/Distribution.vue')) },
   setores: { component: lazy(() => import('@/pages/Sectors.vue')) },
+  financeiro: { component: lazy(() => import('@/pages/Financial.vue')) },
   reunioes: { component: lazy(() => import('@/pages/Meetings.vue')) },
   reuniao: { component: lazy(() => import('@/pages/MeetingDetail.vue')) },
   pendencias: { component: lazy(() => import('@/pages/Tasks.vue')) },
