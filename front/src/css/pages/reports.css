@@ -4,20 +4,29 @@
 .report-center-title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .report-center-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
 .report-list { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.report-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 20px; }
+.report-row { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 20px; }
 .report-row + .report-row { border-top: 1px solid var(--line); }
 .report-row.featured { background: linear-gradient(90deg, var(--info-bg), #fff 60%); box-shadow: inset 3px 0 0 var(--orange); }
 .report-info h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .report-info p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
 .report-info .report-error { color: var(--danger); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
-.report-actions { display: flex; gap: 8px; flex: 0 0 auto; }
-.report-actions .btn { min-width: 112px; justify-content: center; }
+.report-actions { display: grid; gap: 10px; width: 100%; }
+.report-consent { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 1fr); align-items: start; gap: 16px; }
+.report-attestation { display: flex; align-items: flex-start; gap: 7px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.report-attestation input { margin: 2px 0 0; accent-color: var(--orange); }
+.report-signature { display: grid; justify-items: start; gap: 5px; color: var(--muted); font-size: 12px; }
+.report-signature .input { width: 100%; min-height: 34px; padding: 6px 9px; font-size: 13px; }
+.report-signature .btn { min-width: 0; min-height: 28px; padding: 4px 8px; font-size: 12px; }
+.report-signature-confirmed { color: var(--success, #21845b); }
+.report-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+.report-buttons .btn { min-width: 112px; justify-content: center; }
+.report-signed-note { margin-right: auto; color: var(--muted); font-size: 13px; }
 .report-foot { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
 .report-preview .modal { width: min(1100px, 100%); height: min(92vh, 1100px); max-height: 92vh; }
 .report-preview .modal-body { flex: 1 1 auto; padding: 0; overflow: hidden; background: #525659; }
 .report-frame { display: block; width: 100%; height: 100%; border: 0; }
 @media (max-width: 760px) {
-  .report-row { flex-direction: column; align-items: stretch; gap: 12px; }
-  .report-actions .btn { flex: 1; }
+  .report-consent { grid-template-columns: 1fr; }
+  .report-buttons .btn { flex: 1 1 130px; }
   .report-preview .modal { height: 100dvh; max-height: 100dvh; border-radius: 0; }
 }

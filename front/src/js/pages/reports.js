@@ -7,9 +7,30 @@ import { eventContext } from '@/js/stores/event-context'
 
 export function useReports({ render = renderPdf, download = saveFile } = {}) {
   // id → { busy: '' | 'preview' | 'pdf', error, result: { url, fileName, title, eventId } }
-  const rows = reactive(Object.fromEntries(REPORT_MODELS.map((item) => [item.id, { busy: '', error: null, result: null, last: '' }])))
+  const rows = reactive(Object.fromEntries(REPORT_MODELS.map((item) => [item.id, { busy: '', error: null, result: null, last: '', accepted: false, signatureDraft: '', signature: '', signedAt: '' }])))
   const preview = ref(null)
   let generation = 0
+
+  function confirmSignature(id) {
+    const row = rows[id]
+    const name = row?.signatureDraft.trim()
+    if (!name) return false
+    row.signature = name
+    return true
+  }
+
+  function acceptTerm(id) {
+    const row = rows[id]
+    if (!row?.accepted || !row.signature.trim() || row.signature !== row.signatureDraft.trim()) return false
+    row.signedAt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date())
+    return true
+  }
+
+  function save(result) {
+    const row = rows[result?.id]
+    if (!row?.accepted || !row.signature.trim() || row.signature !== row.signatureDraft.trim() || row.signature !== result.signature) return
+    download(result)
+  }
 
   function revoke(result) {
     if (result?.url) URL.revokeObjectURL(result.url)
@@ -21,7 +42,7 @@ export function useReports({ render = renderPdf, download = saveFile } = {}) {
     preview.value = null
     Object.values(rows).forEach((row) => {
       revoke(row.result)
-      Object.assign(row, { busy: '', error: null, result: null })
+      Object.assign(row, { busy: '', error: null, result: null, accepted: false, signatureDraft: '', signature: '', signedAt: '' })
     })
   }
 
@@ -51,11 +72,13 @@ export function useReports({ render = renderPdf, download = saveFile } = {}) {
   }
 
   async function view(id) {
+    if (!acceptTerm(id)) return null
     const result = await build(id, 'preview')
-    if (result) preview.value = { id, ...result }
+    if (result) preview.value = { id, ...result, signature: rows[id].signature, signedAt: rows[id].signedAt }
   }
 
   async function exportPdf(id) {
+    if (!acceptTerm(id)) return null
     const row = rows[id]
     const result = row.result?.eventId === eventContext.activeEventId ? row.result : await build(id, 'pdf')
     if (result) download(result)
@@ -68,7 +91,7 @@ export function useReports({ render = renderPdf, download = saveFile } = {}) {
   watch(() => eventContext.activeEventId, invalidateAll)
   onBeforeUnmount(invalidateAll)
 
-  return { REPORT_MODELS, rows, preview, view, exportPdf, retry, save: download }
+  return { REPORT_MODELS, rows, preview, view, exportPdf, retry, save, confirmSignature }
 }
 
 function saveFile(result) {
